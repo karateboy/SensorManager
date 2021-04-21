@@ -503,18 +503,10 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
 
   def realtimeStatus() = Security.Authenticated.async {
     implicit request =>
-      import recordOp.recordListWrite
-      val monitors = monitorOp.mvList
-      val tabType = TableType.min
+      import recordOp.monitorRecordWrite
 
-      val futures = for(m <- monitors.toSeq) yield
-        recordOp.getLatestRecordFuture(TableType.mapCollection(tabType))(m)
-
-      val allFutures = Future.sequence(futures)
-
-      for (allRecordlist <- allFutures) yield {
-        val recordList = allRecordlist.fold(Seq.empty[RecordList])((a,b)=>{ a ++ b})
-
+      val f = recordOp.getLatestRecordSummary(TableType.mapCollection(TableType.min))
+      for (recordList <- f) yield {
         Ok(Json.toJson(recordList))
       }
   }

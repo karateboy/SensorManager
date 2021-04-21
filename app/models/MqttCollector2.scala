@@ -1,10 +1,11 @@
 package models
 
 import akka.actor._
-import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat}
+import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, richDateTime}
 import com.google.inject.assistedinject.Assisted
 import models.ModelHelper.waitReadyResult
 import models.MqttCollector.{ConnectBroker, CreateClient, SubscribeTopic}
+import models.MqttCollector2.{CheckTimeout, timeout}
 import models.Protocol.ProtocolParam
 import org.eclipse.paho.client.mqttv3._
 import play.api._
@@ -12,11 +13,11 @@ import play.api.libs.json.{JsError, Json, _}
 
 import java.nio.file.Files
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.duration.{Duration, MINUTES}
+import scala.concurrent.duration.{DAYS, Duration, MINUTES, SECONDS}
 import scala.concurrent.{Future, blocking}
 import scala.util.Success
 
-case class MqttConfig2(topic: String, group: String, eventConfig: EventConfig)
+case class MqttConfig2(topic: String, group:String, eventConfig: EventConfig)
 
 object MqttCollector2 extends DriverOps {
 
@@ -72,16 +73,19 @@ object MqttCollector2 extends DriverOps {
 
   case object SubscribeTopic
 
+  case object CheckTimeout
+
+  val timeout = 15 // mintues
 }
 
 import javax.inject._
 
 class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, system: ActorSystem,
-                               recordOp: RecordOp, monitorOp: MonitorOp, dataCollectManager: DataCollectManager,
+                              recordOp: RecordOp, monitorOp: MonitorOp, dataCollectManager: DataCollectManager,
                                mqttSensorOp: MqttSensorOp)
-                              (@Assisted id: String,
-                               @Assisted protocolParam: ProtocolParam,
-                               @Assisted config: MqttConfig2) extends Actor with MqttCallback {
+                             (@Assisted id: String,
+                              @Assisted protocolParam: ProtocolParam,
+                              @Assisted config: MqttConfig2) extends Actor with MqttCallback {
 
   val payload =
     """{"id":"861108035994663",
@@ -100,9 +104,13 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
 
   implicit val reads = Json.reads[Message]
   var mqttClientOpt: Option[MqttAsyncClient] = None
-  var sensorMap: Map[String, Sensor] = {
-    waitReadyResult(mqttSensorOp.getSensorMap(config.group))
-  }
+  var lastDataArrival: DateTime = DateTime.now
+
+  val watchDog = context.system.scheduler.schedule(Duration(1, MINUTES),
+    Duration(timeout, MINUTES), self, CheckTimeout)
+
+  var sensorMap: Map[String, Sensor] = waitReadyResult(mqttSensorOp.getSensorMap(config.group))
+
   self ! CreateClient
 
   def receive = handler(MonitorStatus.NormalStat)
@@ -117,7 +125,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
 
       import org.eclipse.paho.client.mqttv3.persist.MqttDefaultFilePersistence
       import org.eclipse.paho.client.mqttv3.{MqttAsyncClient, MqttException}
-      val tmpDir = Files.createTempDirectory(MqttAsyncClient.generateClientId()).toFile().getAbsolutePath();
+      val  tmpDir = Files.createTempDirectory(MqttAsyncClient.generateClientId()).toFile().getAbsolutePath();
       Logger.info(s"$id uses $tmpDir as tempDir")
       val dataStore = new MqttDefaultFilePersistence(tmpDir)
       try {
@@ -173,6 +181,12 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
           }
         }
       }
+    case CheckTimeout=>
+      val duration = new org.joda.time.Duration(lastDataArrival, DateTime.now())
+      if(duration.getStandardMinutes > timeout) {
+        Logger.error(s"Mqtt ${id} no data timeout!")
+        context.parent ! RestartMyself
+      }
 
     case SetState(id, state) =>
       Logger.warn(s"$id ignore $self => $state")
@@ -192,6 +206,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
 
   override def messageArrived(topic: String, message: MqttMessage): Unit = {
     try {
+      lastDataArrival = DateTime.now
       messageHandler(new String(message.getPayload))
     } catch {
       case ex: Exception =>
@@ -230,7 +245,6 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
           MtRecord(monitorTypeOp.LNG, message.lon, MonitorStatus.NormalStat))
         val mtDataList: Seq[MtRecord] = mtData.flatten ++ latlon
         val time = DateTime.parse(message.time, DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
-
         def newRecord(monitor: String) = {
           val recordList = RecordList(time.toDate, mtDataList, monitor)
           val f = recordOp.upsertRecord(recordList)(recordOp.MinCollection)
@@ -251,7 +265,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
           val sensor = Sensor(id = message.id, topic = s"WECC/SAQ200/${message.id}/sensor", monitor = message.id, group = MqttCollector2.defaultGroup)
           mqttSensorOp.newSensor(sensor).andThen({
             case Success(x) =>
-              sensorMap = waitReadyResult(mqttSensorOp.getSensorMap(config.group))
+              sensorMap = sensorMap + (message.id -> sensor)
           })
           newRecord(sensor.monitor)
         }

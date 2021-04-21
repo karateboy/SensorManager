@@ -6,12 +6,11 @@ import org.mongodb.scala._
 import org.mongodb.scala.bson.BsonDateTime
 import play.api._
 
-import java.time.Instant
 import java.util.Date
 import scala.concurrent.ExecutionContext.Implicits.global
 
 case class MtRecord(mtName: String, value: Double, status: String)
-
+case class TodaySummary(count: Int, max: Int, maxCount: Int, min: Int, minCount: Int, expected: Int, belowExpected: Int)
 object RecordList {
   def apply(time: Date, mtDataList: Seq[MtRecord], monitor: String): RecordList =
     RecordList(time, mtDataList, monitor, RecordListID(time, monitor))
@@ -30,6 +29,13 @@ case class RecordListID(time: Date, monitor: String)
 
 case class Record(time: DateTime, value: Double, status: String, monitor: String)
 
+case class MonitorRecord(time: Date, mtDataList: Seq[MtRecord], monitor: String) {
+  def mtMap = {
+    val pairs =
+      mtDataList map { data => data.mtName -> data }
+    pairs.toMap
+  }
+}
 import javax.inject._
 
 @Singleton
@@ -139,15 +145,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     RecordList(dt, mtDataList, monitor, RecordListID(dt, monitor))
   }
 
-  def insertRecord(doc: RecordList)(colName: String) = {
-    val col = getCollection(colName)
-    val f = col.insertOne(doc).toFuture()
-    f.onFailure({
-      case ex: Exception => Logger.error(ex.getMessage, ex)
-    })
-    f
-  }
-
   def insertManyRecord(docs: Seq[RecordList])(colName: String) = {
     val col = getCollection(colName)
     val f = col.insertMany(docs).toFuture()
@@ -237,6 +234,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     Map(pairs: _*)
   }
 
+  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
+
   def getRecord2Map(colName: String)(mtList: List[String], startTime: DateTime, endTime: DateTime, monitor: String = monitorOp.SELF_ID)
                    (skip: Int = 0, limit: Int = 500) = {
     import org.mongodb.scala.model.Filters._
@@ -265,8 +264,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       }
     Map(pairs: _*)
   }
-
-  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
 
   implicit val mtRecordWrite = Json.writes[MtRecord]
   implicit val idWrite = Json.writes[RecordListID]
@@ -301,24 +298,53 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       .sort(descending("time")).limit(1).toFuture()
   }
 
-  case class TodayCount(_id:String, count:Int)
-  def getTodayCount(colName:String) = {
+  def getLatestRecordSummary(colName: String) = {
+    import org.mongodb.scala.model.Sorts._
+    import org.mongodb.scala.model.Projections._
 
-    val todayFilter = Aggregates.`match`(Filters.and(Filters.gte("time", LocalDate.today().toDate()),
-      Filters.lt("time", LocalDate.tomorrow().toDate())))
+    val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
+    val limitFilter = Aggregates.limit(1000)
+    val latestFilter = Aggregates.group(id="$monitor", Accumulators.first("time", "$time"),
+      Accumulators.first("mtDataList", "$mtDataList"))
+    val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList")))
+    val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
+    val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
+    col.aggregate(Seq(sortFilter, limitFilter, removeIdStage)).toFuture()
+  }
 
-    val groupByMonitorCount = Aggregates.group(id="$monitor", Accumulators.sum("count", 1))
+  def getLast24HrCount(colName: String) = {
+
+    val now = LocalDate.now()
+    val todayFilter = Aggregates.`match`(Filters.and(Filters.gte("time", now.minusDays(1).toDate()),
+      Filters.lt("time", now.toDate())))
+
+    val groupByMonitorCount = Aggregates.group(id = "$monitor", Accumulators.sum("count", 1))
     val col = mongoDB.database.getCollection(colName)
     val f = col.aggregate(Seq(todayFilter, groupByMonitorCount)).toFuture()
-    for(docList <- f) yield {
-      docList map { doc =>
-        val _id = doc("_id").asString().getValue
-        val count = doc("count").asInt32().getValue
-        TodayCount(_id, count)
-      }
+    for (docList <- f) yield {
+      val todayCounts =
+        docList map { doc =>
+          val count = doc("count").asInt32().getValue
+          count
+        }
+
+      val count = todayCounts.length
+      val (max:Int, maxCount:Int, min:Int, minCount:Int) =
+        if (count != 0) {
+          val max = todayCounts.max
+          val maxCount = todayCounts.count(_ == max)
+          val min = todayCounts.min
+          val minCount = todayCounts.count(_ == min)
+          (max, maxCount, min, minCount)
+        } else {
+          (0, 0, 0, 0)
+        }
+
+      val expected = 24*60 / 3 * 95 / 100
+      val belowExpected = todayCounts.count(_ < expected)
+      TodaySummary(count = count, max = max, maxCount = maxCount, min = min, minCount = minCount, expected = expected, belowExpected = belowExpected)
     }
-  }
-  /*
+  } /*
   def updateMtRecord(colName: String)(mtName: String, updateList: Seq[(DateTime, Double)], monitor: String = monitorOp.SELF_ID) = {
     import org.mongodb.scala.bson._
     import org.mongodb.scala.model._
@@ -332,4 +358,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     import scala.concurrent._
     Future.sequence(seqF)
   } */
+
+  implicit val summaryWrites = Json.writes[TodaySummary]
+  implicit val monitorRecordWrite = Json.writes[MonitorRecord]
 }

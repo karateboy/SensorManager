@@ -109,13 +109,5 @@ export default {
     const { isRTL } = $themeConfig.layout;
     document.documentElement.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
   },
-  mounted() {
-    this.fetchMonitorTypes();
-    this.fetchMonitors();
-  },
-  methods: {
-    ...mapActions('monitorTypes', ['fetchMonitorTypes']),
-    ...mapActions('monitors', ['fetchMonitors']),
-  },
 };
 </script>

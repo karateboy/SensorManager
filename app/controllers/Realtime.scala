@@ -5,6 +5,7 @@ import play.api.Logger
 import play.api.libs.json._
 import play.api.mvc._
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext.Implicits.global
 import javax.inject._
 
@@ -57,11 +58,12 @@ class Realtime @Inject()
   }
 
   def sensorSummary = Security.Authenticated.async {
-    val sensorCount = monitorOp
-      val f = recordOp.getTodayCount(recordOp.MinCollection)
+    import recordOp.summaryWrites
+    val start = DateTime.now()
+    val f = recordOp.getLast24HrCount(recordOp.MinCollection)
     for(ret <- f) yield {
-      Logger.info(ret.toString)
-      Ok("")
+      val duration = new Duration(start, DateTime.now)
+      Ok(Json.toJson(ret))
     }
   }
 }

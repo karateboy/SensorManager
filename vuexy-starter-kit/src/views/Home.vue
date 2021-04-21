@@ -1,10 +1,59 @@
 <template>
   <b-row class="match-height">
     <b-col lg="12" md="12">
-      <b-card ref="loadingContainer" title="統計資訊"> </b-card>
+      <b-card ref="loadingContainer" title="過去24小時統計">
+        <b-table-simple>
+          <b-thead>
+            <b-tr>
+              <b-th>感測器數</b-th>
+              <b-th
+                >最多資料數({{ sensorSummary.max }}筆/擷取率
+                {{
+                  ((sensorSummary.max / ((24 * 60) / 3)) * 100).toFixed(0)
+                }}%)</b-th
+              >
+              <b-th
+                >最少資料數({{ sensorSummary.min }}筆/擷取率
+                {{ ((sensorSummary.min / ((24 * 60) / 3)) * 100).toFixed(0) }}%)
+              </b-th>
+              <b-th
+                >合乎預期({{ sensorSummary.expected }}筆/擷取率
+                {{
+                  ((sensorSummary.expected / ((24 * 60) / 3)) * 100).toFixed(0)
+                }}%)
+              </b-th>
+            </b-tr>
+          </b-thead>
+          <b-tbody>
+            <b-tr>
+              <b-td>{{ sensorSummary.count }}</b-td>
+              <b-td>{{ getSummaryDesc(sensorSummary.maxCount) }} </b-td>
+              <b-td>{{ getSummaryDesc(sensorSummary.minCount) }}</b-td>
+              <b-td>{{
+                getSummaryDesc(
+                  sensorSummary.count - sensorSummary.belowExpected,
+                )
+              }}</b-td>
+            </b-tr>
+          </b-tbody>
+        </b-table-simple>
+      </b-card>
     </b-col>
     <b-col lg="12" md="12">
       <b-card title="監測地圖🚀">
+        <b-row>
+          <b-col cols="3">PM25 過濾:</b-col>
+          <b-col cols="3">
+            <v-select
+              id="pm25Filter"
+              v-model="realTimeStatusFilter.pm25Threshold"
+              label="txt"
+              :reduce="entry => entry.value"
+              :options="pm25Filters"
+            />
+          </b-col>
+        </b-row>
+        <br />
         <div class="map_container">
           <GmapMap
             ref="mapRef"
@@ -54,26 +103,15 @@
 }
 </style>
 <script>
-import moment from 'moment';
 import { mapActions, mapState, mapGetters } from 'vuex';
 import axios from 'axios';
 export default {
   data() {
-    const range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
     return {
-      dataTypes: [
-        // { txt: '小時資料', id: 'hour' },
-        { txt: '分鐘資料', id: 'min' },
-        // { txt: '秒資料', id: 'second' },
-      ],
-      form: {
-        monitors: [],
-        dataType: 'min',
-        range,
+      realTimeStatusRaw: [],
+      realTimeStatusFilter: {
+        pm25Threshold: 25,
       },
-      columns: [],
-      rows: [],
-      realTimeStatus: [],
       loader: undefined,
       timer: 0,
       refreshTimer: 0,
@@ -89,6 +127,37 @@ export default {
           height: -35,
         },
       },
+      sensorSummary: {
+        count: 0,
+        max: 0,
+        maxCount: 0,
+        min: 0,
+        minCount: 0,
+        expected: 0,
+        belowExpected: 0,
+      },
+      pm25Filters: [
+        {
+          txt: '全部',
+          value: 0,
+        },
+        {
+          txt: 'pm25 > 35.4',
+          value: 35.4,
+        },
+        {
+          txt: 'pm25 > 54.4',
+          value: 54.4,
+        },
+        {
+          txt: 'pm25 > 150.4',
+          value: 150.4,
+        },
+        {
+          txt: 'pm25 > 250.4',
+          value: 250.4,
+        },
+      ],
     };
   },
   computed: {
@@ -97,10 +166,20 @@ export default {
     ...mapState('user', ['userInfo']),
     ...mapGetters('monitorTypes', ['mtMap']),
     ...mapGetters('monitors', ['mMap']),
+    realTimeStatus() {
+      return this.realTimeStatusRaw.filter(stat => {
+        const pm25Entry = stat.mtDataList.find(v => v.mtName === 'PM25');
 
+        if (!pm25Entry) return true;
+        const pm25 = pm25Entry.value;
+        return pm25 > this.realTimeStatusFilter.pm25Threshold;
+      });
+    },
     mapCenter() {
-      let count = 0,
-        latMax = -1,
+      if (this.realTimeStatus.length === 0)
+        return { lat: 23.97397424582721, lng: 120.97969180002414 };
+
+      let latMax = -1,
         latMin = 1000,
         lngMax = -1,
         lngMin = 1000;
@@ -116,8 +195,6 @@ export default {
         if (!lngEntry) continue;
         if (lngMax < lngEntry.value) lngMax = lngEntry.value;
         if (lngMin > lngEntry.value) lngMin = lngEntry.value;
-
-        count++;
       }
 
       return { lat: (latMax + latMin) / 2, lng: (lngMax + lngMin) / 2 };
@@ -171,7 +248,7 @@ export default {
       return ret;
     },
   },
-  mounted() {
+  async mounted() {
     const legend = document.getElementById('legend');
     this.$refs.mapRef.$mapPromise.then(map => {
       map.controls[google.maps.ControlPosition.LEFT_CENTER].push(legend);
@@ -184,10 +261,11 @@ export default {
       canCancel: false,
     }); */
 
+    await this.fetchMonitors();
     this.refresh();
     this.refreshTimer = setInterval(() => {
       this.refresh();
-    }, 30000);
+    }, 60000);
   },
   beforeDestroy() {
     clearInterval(this.timer);
@@ -211,25 +289,6 @@ export default {
         this.currentMidx = idx;
       }
     },
-    async getSignalValues() {
-      const res = await axios.get('/SignalValues');
-      if (res.data.SPRAY === true) this.spray = true;
-      else this.spray = false;
-      if (res.data.SPRAY === undefined) this.spray_connected = false;
-      else this.spray_connected = true;
-    },
-    async testSpray() {
-      await axios.get('/TestSpray');
-      let countdown = 15;
-      this.timer = setInterval(() => {
-        countdown--;
-        this.getSignalValues();
-        if (countdown === 0) {
-          clearInterval(this.timer);
-          this.timer = 0;
-        }
-      }, 1000);
-    },
     getPM25Class(v) {
       if (v < 12) return { FPMI1: true };
       else if (v < 24) return { FPMI2: true };
@@ -243,24 +302,28 @@ export default {
       else return { FPMI10: true };
     },
     async refresh() {
-      await this.fetchMonitorTypes();
-      if (this.monitorTypes.length !== 0) {
-        this.form.monitorTypes = [];
-        this.form.monitorTypes.push(this.monitorTypes[0]._id);
-      }
-
-      await this.fetchMonitors();
-      if (this.monitors.length !== 0) {
-        this.form.monitors = [];
-        for (const m of this.monitors) this.form.monitors.push(m._id);
-      }
-
+      this.getTodaySummary();
       this.getRealtimeStatus();
-      this.getSignalValues();
     },
     async getRealtimeStatus() {
       const ret = await axios.get('/RealtimeStatus');
-      this.realTimeStatus = ret.data;
+      this.realTimeStatusRaw = ret.data;
+    },
+    async getTodaySummary() {
+      const res = await axios.get('/SensorSummary');
+      const ret = res.data;
+      this.sensorSummary.count = ret.count;
+      this.sensorSummary.max = ret.max;
+      this.sensorSummary.maxCount = ret.maxCount;
+      this.sensorSummary.min = ret.min;
+      this.sensorSummary.minCount = ret.minCount;
+      this.sensorSummary.expected = ret.expected;
+      this.sensorSummary.belowExpected = ret.belowExpected;
+    },
+    getSummaryDesc(count) {
+      return `${count} (${((count / this.sensorSummary.count) * 100).toFixed(
+        2,
+      )}%)`;
     },
   },
 };
