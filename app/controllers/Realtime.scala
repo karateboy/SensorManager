@@ -63,6 +63,8 @@ class Realtime @Inject()
     val f = recordOp.getLast24HrCount(recordOp.MinCollection)
     for(ret <- f) yield {
       val duration = new Duration(start, DateTime.now)
+      Logger.info(s"Sensor Summary ${duration.getStandardSeconds} sec")
+      Logger.info(ret.toString())
       Ok(Json.toJson(ret))
     }
   }

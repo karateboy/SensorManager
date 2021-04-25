@@ -2,38 +2,28 @@
   <b-row class="match-height">
     <b-col lg="12" md="12">
       <b-card ref="loadingContainer" title="過去24小時統計">
+        <b-row>
+          <b-col><div id="chart_container1" /></b-col>
+          <b-col><div id="chart_container2" /></b-col>
+          <b-col><div id="chart_container3" /></b-col>
+        </b-row>
         <b-table-simple>
           <b-thead>
             <b-tr>
+              <b-th>群組</b-th>
               <b-th>感測器數</b-th>
-              <b-th
-                >最多資料數({{ sensorSummary.max }}筆/擷取率
-                {{
-                  ((sensorSummary.max / ((24 * 60) / 3)) * 100).toFixed(0)
-                }}%)</b-th
-              >
-              <b-th
-                >最少資料數({{ sensorSummary.min }}筆/擷取率
-                {{ ((sensorSummary.min / ((24 * 60) / 3)) * 100).toFixed(0) }}%)
-              </b-th>
-              <b-th
-                >合乎預期({{ sensorSummary.expected }}筆/擷取率
-                {{
-                  ((sensorSummary.expected / ((24 * 60) / 3)) * 100).toFixed(0)
-                }}%)
-              </b-th>
+              <b-th>擷取率95%以上</b-th>
+              <b-th>低於95%</b-th>
+              <b-th>斷線</b-th>
             </b-tr>
           </b-thead>
           <b-tbody>
-            <b-tr>
-              <b-td>{{ sensorSummary.count }}</b-td>
-              <b-td>{{ getSummaryDesc(sensorSummary.maxCount) }} </b-td>
-              <b-td>{{ getSummaryDesc(sensorSummary.minCount) }}</b-td>
-              <b-td>{{
-                getSummaryDesc(
-                  sensorSummary.count - sensorSummary.belowExpected,
-                )
-              }}</b-td>
+            <b-tr v-for="group in sensorGroupSummary" :key="group.name">
+              <b-td>{{ group.name }}</b-td>
+              <b-td>{{ group.count }} </b-td>
+              <b-td>{{ group.expected }}</b-td>
+              <b-td>{{ group.below }}</b-td>
+              <b-td>{{ group.count - group.expected - group.below }}</b-td>
             </b-tr>
           </b-tbody>
         </b-table-simple>
@@ -105,6 +95,7 @@
 <script>
 import { mapActions, mapState, mapGetters } from 'vuex';
 import axios from 'axios';
+import highcharts from 'highcharts';
 export default {
   data() {
     return {
@@ -127,15 +118,7 @@ export default {
           height: -35,
         },
       },
-      sensorSummary: {
-        count: 0,
-        max: 0,
-        maxCount: 0,
-        min: 0,
-        minCount: 0,
-        expected: 0,
-        belowExpected: 0,
-      },
+      sensorGroupSummary: [],
       pm25Filters: [
         {
           txt: '全部',
@@ -312,18 +295,154 @@ export default {
     async getTodaySummary() {
       const res = await axios.get('/SensorSummary');
       const ret = res.data;
-      this.sensorSummary.count = ret.count;
-      this.sensorSummary.max = ret.max;
-      this.sensorSummary.maxCount = ret.maxCount;
-      this.sensorSummary.min = ret.min;
-      this.sensorSummary.minCount = ret.minCount;
-      this.sensorSummary.expected = ret.expected;
-      this.sensorSummary.belowExpected = ret.belowExpected;
+      this.sensorGroupSummary = ret;
+      this.drawChart1(ret);
+      this.drawChart2(ret);
+    },
+    drawChart1(ret) {
+      let series = [
+        {
+          name: `群組感測器`,
+          colorByPoint: true,
+          data: [],
+        },
+      ];
+      for (let group of ret) {
+        series[0].data.push({
+          name: `${group.name}`,
+          y: group.count,
+        });
+      }
+
+      let chart1 = {
+        chart: {
+          plotBackgroundColor: null,
+          plotBorderWidth: null,
+          plotShadow: false,
+          type: 'pie',
+        },
+        colors: [
+          '#7CB5EC',
+          '#434348',
+          '#90ED7D',
+          '#F7A35C',
+          '#8085E9',
+          '#F15C80',
+          '#E4D354',
+          '#2B908F',
+          '#FB9FA8',
+          '#91E8E1',
+          '#7CB5EC',
+          '#80C535',
+          '#969696',
+        ],
+        title: {
+          text: '群組總數',
+        },
+        tooltip: {
+          pointFormat: '{series.name}: <b>{point.percentage:.1f}%</b>',
+        },
+        accessibility: {
+          point: {
+            valueSuffix: '%',
+          },
+        },
+        plotOptions: {
+          pie: {
+            allowPointSelect: true,
+            cursor: 'pointer',
+            dataLabels: {
+              enabled: false,
+            },
+            showInLegend: true,
+          },
+        },
+        series,
+      };
+      highcharts.chart('chart_container1', chart1);
+    },
+    drawChart2(ret) {
+      let expected = 0,
+        below = 0;
+      for (let group of ret) {
+        expected += group.expected;
+        below += group.below;
+      }
+      let series = [
+        {
+          name: `接受狀態`,
+          colorByPoint: true,
+          data: [
+            {
+              name: `正常`,
+              y: expected,
+            },
+            {
+              name: `低於預期`,
+              y: below,
+              sliced: true,
+            },
+          ],
+        },
+      ];
+
+      let chart = {
+        chart: {
+          plotBackgroundColor: null,
+          plotBorderWidth: null,
+          plotShadow: false,
+          type: 'pie',
+        },
+        pie: {
+          colors: [
+            '#7CB5EC',
+            '#434348',
+            '#90ED7D',
+            '#F7A35C',
+            '#8085E9',
+            '#F15C80',
+            '#E4D354',
+            '#2B908F',
+            '#FB9FA8',
+            '#91E8E1',
+            '#7CB5EC',
+            '#80C535',
+            '#969696',
+          ],
+        },
+        title: {
+          text: '資料接受狀態',
+        },
+        tooltip: {
+          pointFormat: '{series.name}: <b>{point.percentage:.1f}%</b>',
+        },
+        accessibility: {
+          point: {
+            valueSuffix: '%',
+          },
+        },
+        plotOptions: {
+          pie: {
+            allowPointSelect: true,
+            cursor: 'pointer',
+            dataLabels: {
+              enabled: false,
+            },
+            showInLegend: true,
+          },
+        },
+        series,
+      };
+      highcharts.chart('chart_container2', chart);
     },
     getSummaryDesc(count) {
-      return `${count} (${((count / this.sensorSummary.count) * 100).toFixed(
-        2,
-      )}%)`;
+      if (this.sensorSummary.count != 0) {
+        return `${count} (${((count / this.sensorSummary.count) * 100).toFixed(
+          2,
+        )}%)`;
+      } else {
+        return '等待資料中';
+      }
     },
   },
 };

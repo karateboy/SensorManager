@@ -65,9 +65,9 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
       hasSelfMonitor || p != SELF_ID
   })
 
-  def ensureMonitor(_id: String) = {
+  def ensureMonitor(_id: String, monitorTypes:Seq[String]) = {
     if (!map.contains(_id)) {
-      newMonitor(Monitor(_id, _id))
+      newMonitor(Monitor(_id, _id, monitorTypes))
     }
   }
 
@@ -77,6 +77,7 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
 
     val f = collection.insertOne(m).toFuture()
     f.onFailure(errorHandler)
+
     f.onSuccess({
       case _: Seq[t] =>
     })

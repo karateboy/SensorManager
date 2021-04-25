@@ -4,7 +4,6 @@ import akka.actor._
 import com.github.nscala_time.time.Imports.{DateTime, DateTimeFormat, richDateTime}
 import com.google.inject.assistedinject.Assisted
 import models.ModelHelper.waitReadyResult
-import models.MqttCollector.{ConnectBroker, CreateClient, SubscribeTopic}
 import models.MqttCollector2.{CheckTimeout, timeout}
 import models.Protocol.ProtocolParam
 import org.eclipse.paho.client.mqttv3._
@@ -17,11 +16,11 @@ import scala.concurrent.duration.{DAYS, Duration, MINUTES, SECONDS}
 import scala.concurrent.{Future, blocking}
 import scala.util.Success
 
+case class EventConfig(instId: String, bit: Int, seconds: Option[Int])
+
 case class MqttConfig2(topic: String, group:String, eventConfig: EventConfig)
 
 object MqttCollector2 extends DriverOps {
-
-  val defaultGroup = "_"
 
   implicit val r1: Reads[EventConfig] = Json.reads[EventConfig]
   implicit val w1: OWrites[EventConfig] = Json.writes[EventConfig]
@@ -87,6 +86,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
                               @Assisted protocolParam: ProtocolParam,
                               @Assisted config: MqttConfig2) extends Actor with MqttCallback {
 
+  import MqttCollector2._
   val payload =
     """{"id":"861108035994663",
       |"desc":"柏昇SAQ-200",
@@ -207,7 +207,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
   override def messageArrived(topic: String, message: MqttMessage): Unit = {
     try {
       lastDataArrival = DateTime.now
-      messageHandler(new String(message.getPayload))
+      messageHandler(topic, new String(message.getPayload))
     } catch {
       case ex: Exception =>
         Logger.error("failed to handleMessage", ex)
@@ -215,7 +215,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
 
   }
 
-  def messageHandler(payload: String): Unit = {
+  def messageHandler(topic:String, payload: String): Unit = {
     val mtMap = Map[String, String](
       "pm2_5" -> monitorTypeOp.PM25,
       "pm10" -> monitorTypeOp.PM10,
@@ -261,8 +261,8 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
           val sensor = sensorMap(message.id)
           newRecord(sensor.monitor)
         } else {
-          monitorOp.ensureMonitor(message.id)
-          val sensor = Sensor(id = message.id, topic = s"WECC/SAQ200/${message.id}/sensor", monitor = message.id, group = MqttCollector2.defaultGroup)
+          monitorOp.ensureMonitor(message.id, Seq("PM25", "PM10", "HUMID"))
+          val sensor = Sensor(id = message.id, topic = topic, monitor = message.id, group = config.group)
           mqttSensorOp.newSensor(sensor).andThen({
             case Success(x) =>
               sensorMap = sensorMap + (message.id -> sensor)
