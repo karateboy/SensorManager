@@ -1,11 +1,16 @@
 package models
 import play.api.libs.json._
 import models.ModelHelper._
+import org.joda.time.DateTime
+
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 import org.mongodb.scala.model._
 import org.mongodb.scala.bson._
+
+import java.util.Date
 import javax.inject._
+import scala.concurrent.Future
 
 @Singleton
 class SysConfig @Inject()(mongoDB: MongoDB){
@@ -14,10 +19,12 @@ class SysConfig @Inject()(mongoDB: MongoDB){
 
   val valueKey = "value"
   val MonitorTypeVer = "Version"
+  val EpaLastDataTime = "EpaLastDateTime"
 
-
-  val defaultConfig = Map(
-    MonitorTypeVer -> Document(valueKey -> 1))
+  val defaultConfig:Map[String, Document] = Map(
+    MonitorTypeVer -> Document(valueKey -> 1),
+    EpaLastDataTime -> Document(valueKey -> DateTime.parse("").toDate)
+  )
 
   def init() {
     for(colNames <- mongoDB.database.listCollectionNames().toFuture()) {
@@ -64,5 +71,11 @@ class SysConfig @Inject()(mongoDB: MongoDB){
     }
   }
 
-  def set(_id: String, v: BsonValue) = upsert(_id, Document(valueKey -> v))
+  def set(_id: String, v: Date) = upsert(_id, Document(valueKey -> v))
+
+  def getEpaLastDataTime(): Future[Date] =
+    for(v<-get(EpaLastDataTime)) yield
+      v.asDateTime().toDate
+
+  def setEpaLastDataTime(time:Date) = set(EpaLastDataTime, time)
 }

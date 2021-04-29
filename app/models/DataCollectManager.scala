@@ -158,7 +158,7 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
     }
 
     val mtDataList = calculateHourAvgMap(mtMap, alwaysValid)
-    val recordList = RecordList(current.minusHours(1), mtDataList.toSeq, monitor)
+    val recordList = RecordList(current.minusHours(1), monitor=monitor, mtDataList.toSeq)
     val f = recordOp.upsertRecord(recordList)(recordOp.HourCollection)
     if (forward)
       f map { _ => ForwardManager.forwardHourData }
@@ -189,9 +189,9 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
         val values = normalValueOpt.get.map {
           _._2
         }
-        val avg = if (mt == monitorTypeOp.WIN_DIRECTION) {
+        val avg = if (mt == MonitorType.WIN_DIRECTION) {
           val windDir = values
-          val windSpeedStatusMap = mtMap.get(monitorTypeOp.WIN_SPEED)
+          val windSpeedStatusMap = mtMap.get(MonitorType.WIN_SPEED)
           if (windSpeedStatusMap.isDefined) {
             val windSpeedMostStatus = windSpeedStatusMap.get.maxBy(kv => kv._2.length)
             val windSpeed = windSpeedMostStatus._2.map(_._2)
@@ -202,9 +202,9 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
                 yield 1.0
             windAvg(windSpeed.toList, windDir.toList)
           }
-        } else if (mt == monitorTypeOp.RAIN) {
+        } else if (mt == MonitorType.RAIN) {
           values.max
-        } else if (mt == monitorTypeOp.PM10 || mt == monitorTypeOp.PM25) {
+        } else if (mt == MonitorType.PM10 || mt == MonitorType.PM25) {
           values.last
         } else {
           values.sum / values.length
@@ -274,9 +274,9 @@ class DataCollectManager @Inject()
             kv
         }
         val values = statusKV._2.map(_._2)
-        val avg = if (mt == monitorTypeOp.WIN_DIRECTION) {
+        val avg = if (mt == MonitorType.WIN_DIRECTION) {
           val windDir = values
-          val windSpeedStatusMap = mtMap.get(monitorTypeOp.WIN_SPEED)
+          val windSpeedStatusMap = mtMap.get(MonitorType.WIN_SPEED)
           if (windSpeedStatusMap.isDefined) {
             val windSpeedMostStatus = windSpeedStatusMap.get.maxBy(kv => kv._2.length)
             val windSpeed = windSpeedMostStatus._2.map(_._2)
@@ -287,9 +287,9 @@ class DataCollectManager @Inject()
                 yield 1.0
             windAvg(windSpeed.toList, windDir.toList)
           }
-        } else if (mt == monitorTypeOp.RAIN) {
+        } else if (mt == MonitorType.RAIN) {
           values.max
-        } else if (mt == monitorTypeOp.PM10 || mt == monitorTypeOp.PM25) {
+        } else if (mt == MonitorType.PM10 || mt == MonitorType.PM25) {
           values.last
         } else {
           values.sum / values.length
@@ -475,7 +475,10 @@ class DataCollectManager @Inject()
             }
           }
 
-          val docs = secRecordMap map { r => r._1 -> recordOp.toRecordList(r._1, r._2.toList) }
+          val docs = secRecordMap map { r =>
+            val mtDataList = r._2 map { t => MtRecord(t._1, t._2._1, t._2._2) }
+            r._1 -> RecordList(time = r._1, mtDataList=mtDataList, monitor = Monitor.SELF_ID)
+          }
 
           val sortedDocs = docs.toSeq.sortBy { x => x._1 } map (_._2)
           if (sortedDocs.nonEmpty)
@@ -549,7 +552,8 @@ class DataCollectManager @Inject()
         checkMinDataAlarm(minuteMtAvgList)
 
         context become handler(instrumentMap, collectorInstrumentMap, latestDataMap, currentData, restartList)
-        val f = recordOp.upsertRecord(RecordList(currentMintues.minusMinutes(1), minuteMtAvgList.toList, monitorOp.SELF_ID))(recordOp.MinCollection)
+        val f = recordOp.upsertRecord(RecordList(currentMintues.minusMinutes(1), Monitor.SELF_ID,
+          minuteMtAvgList.toList))(recordOp.MinCollection)
         f map { _ => ForwardManager.forwardMinData }
         f
       }
@@ -561,7 +565,7 @@ class DataCollectManager @Inject()
         f.andThen({
           case Success(x) =>
             if (current.getMinuteOfHour == 0) {
-              dataCollectManagerOp.recalculateHourData(monitor = monitorOp.SELF_ID,
+              dataCollectManagerOp.recalculateHourData(monitor = Monitor.SELF_ID,
                 current = current,
                 forward = false,
                 alwaysValid = false)(latestDataMap.keys.toList)
@@ -651,7 +655,7 @@ class DataCollectManager @Inject()
       val latestMap = latestDataMap.flatMap { kv =>
         val mt = kv._1
         val instRecordMap = kv._2
-        val timeout = if (mt == monitorTypeOp.LAT || mt == monitorTypeOp.LNG)
+        val timeout = if (mt == MonitorType.LAT || mt == MonitorType.LNG)
           1.minute
         else
           6.second

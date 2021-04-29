@@ -217,8 +217,8 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
 
   def messageHandler(topic:String, payload: String): Unit = {
     val mtMap = Map[String, String](
-      "pm2_5" -> monitorTypeOp.PM25,
-      "pm10" -> monitorTypeOp.PM10,
+      "pm2_5" -> MonitorType.PM25,
+      "pm10" -> MonitorType.PM10,
       "humidity" -> "HUMID"
     )
     val ret = Json.parse(payload).validate[Message]
@@ -241,12 +241,14 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
               MtRecord(mt, v, MonitorStatus.NormalStat)
 
           }
-        val latlon = Seq(MtRecord(monitorTypeOp.LAT, message.lat, MonitorStatus.NormalStat),
-          MtRecord(monitorTypeOp.LNG, message.lon, MonitorStatus.NormalStat))
-        val mtDataList: Seq[MtRecord] = mtData.flatten ++ latlon
+
+        val mtDataList: Seq[MtRecord] = mtData.flatten
         val time = DateTime.parse(message.time, DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
         def newRecord(monitor: String) = {
-          val recordList = RecordList(time.toDate, mtDataList, monitor)
+          val recordList = {
+            val location = Some(GeoPoint(longitude = message.lon, latitude = message.lat))
+            RecordList(time.toDate, mtDataList, monitor, RecordListID(time.toDate, monitor), location= location)
+          }
           val f = recordOp.upsertRecord(recordList)(recordOp.MinCollection)
           f.onFailure(ModelHelper.errorHandler)
 
@@ -261,7 +263,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
           val sensor = sensorMap(message.id)
           newRecord(sensor.monitor)
         } else {
-          monitorOp.ensureMonitor(message.id, Seq("PM25", "PM10", "HUMID"))
+          monitorOp.ensureMonitor(message.id, message.id, Seq("PM25", "PM10", "HUMID"), Seq(MonitorTag.SENSOR))
           val sensor = Sensor(id = message.id, topic = topic, monitor = message.id, group = config.group)
           mqttSensorOp.newSensor(sensor).andThen({
             case Success(x) =>

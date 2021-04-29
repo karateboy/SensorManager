@@ -22,8 +22,8 @@ class HomeController @Inject()(environment: play.api.Environment, recordOp: Reco
 
   implicit val userParamRead: Reads[User] = Json.reads[User]
 
-  import monitorTypeOp.mtRead
-  import monitorTypeOp.mtWrite
+  import MonitorType.mtRead
+  import MonitorType.mtWrite
   import groupOp.read
   import groupOp.write
 
@@ -463,7 +463,7 @@ class HomeController @Inject()(environment: play.api.Environment, recordOp: Reco
       val userInfo = Security.getUserinfo(request).get
       val group = groupOp.getGroupByID(userInfo.group).get
 
-    implicit val writes = Json.writes[Monitor]
+      import Monitor.mWrite
 
       if(userInfo.isAdmin){
         val mList2 = monitorOp.mvList map { m => monitorOp.map(m) }
@@ -476,7 +476,7 @@ class HomeController @Inject()(environment: play.api.Environment, recordOp: Reco
 
   def upsertMonitor(id: String) = Security.Authenticated(BodyParsers.parse.json) {
     implicit request =>
-      implicit val read = Json.reads[Monitor]
+      import Monitor.mRead
       val mResult = request.body.validate[Monitor]
       mResult.fold(
         error => {

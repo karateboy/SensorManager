@@ -9,7 +9,7 @@ scalaVersion := "2.11.12"
 libraryDependencies ++= Seq(
   ws,
   filters,
-  "com.github.tototoshi" %% "scala-csv" % "1.3.5",
+  "com.github.tototoshi" %% "scala-csv" % "1.3.7",
   "net.sf.marineapi" % "marineapi" % "0.10.0"
 )
 

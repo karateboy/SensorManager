@@ -7,15 +7,32 @@ import play.api.libs.json._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case class Monitor(_id: String, desc: String, monitorTypes: Seq[String] = Seq.empty[String])
-
-import javax.inject._
-
-@Singleton
-class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
+case class Monitor(_id: String, desc: String, monitorTypes: Seq[String], tags: Seq[String],
+                   location: Option[GeoPoint] = None)
+object Monitor {
+  import GeoJSON.geoPointRead
+  import GeoJSON.geoPointWrite
   implicit val mWrite = Json.writes[Monitor]
   implicit val mRead = Json.reads[Monitor]
 
+  val SELF_ID = ""
+  val selfMonitor = Monitor(SELF_ID, "本站", monitorTypes=Seq.empty[String], tags=Seq.empty[String])
+  def epaID(id:String) = s"epa$id"
+}
+
+import javax.inject._
+
+object MonitorTag {
+  val SENSOR = "sensor"
+  val EPA = "EPA"
+}
+
+
+@Singleton
+class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
+
+
+  import Monitor._
   import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
   import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
   import org.mongodb.scala.bson.codecs.Macros._
@@ -25,9 +42,11 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
 
   val codecRegistry = fromRegistries(fromProviders(classOf[Monitor]), DEFAULT_CODEC_REGISTRY)
   val collection = mongoDB.database.getCollection[Monitor](colName).withCodecRegistry(codecRegistry)
+  collection.createIndex(Indexes.ascending("monitorTypes")).toFuture()
+  collection.createIndex(Indexes.ascending("tags")).toFuture()
+
   val hasSelfMonitor = config.getBoolean("selfMonitor").getOrElse(false)
-  val SELF_ID = ""
-  val selfMonitor = Monitor(SELF_ID, "本站")
+
   var map: Map[String, Monitor] = {
     val pairs =
       for (m <- mList) yield {
@@ -50,12 +69,13 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
   }
 
   init
+
   refresh
 
   def upgrade = {
     // upgrade if no monitorTypes
     val f = mongoDB.database.getCollection(colName).updateMany(
-      Filters.exists("monitorTypes", false), Updates.set("monitorTypes", Seq.empty[String])).toFuture()
+      Filters.exists("tags", false), Updates.set("tags", Seq.empty[String])).toFuture()
 
     waitReadyResult(f)
   }
@@ -65,9 +85,9 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
       hasSelfMonitor || p != SELF_ID
   })
 
-  def ensureMonitor(_id: String, monitorTypes:Seq[String]) = {
+  def ensureMonitor(_id: String, desc:String, monitorTypes:Seq[String], tags:Seq[String])  {
     if (!map.contains(_id)) {
-      newMonitor(Monitor(_id, _id, monitorTypes))
+      newMonitor(Monitor(_id, desc, monitorTypes, tags))
     }
   }
 
