@@ -1,49 +1,20 @@
 package models
 
 import com.github.nscala_time.time.Imports._
+import com.mongodb.client.model.WriteModel
 import models.ModelHelper._
 import org.mongodb.scala._
 import org.mongodb.scala.bson.BsonDateTime
 import play.api._
+import play.api.libs.json.{JsString, JsValue, Json, Writes}
 
 import java.util.Date
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case class MtRecord(mtName: String, value: Double, status: String)
-
-case class GroupSummary(name:String, count: Int, expected: Int, below: Int)
-
-object RecordList {
-  def apply(time: Date, monitor: String, mtDataList: Seq[MtRecord]): RecordList = {
-    val location: Option[GeoPoint] = {
-      val latOpt = mtDataList.find(p => p.mtName == MonitorType.LAT)
-      val lngOpt = mtDataList.find(p => p.mtName == MonitorType.LNG)
-      for {lat <- latOpt
-           lng <- lngOpt
-           } yield
-        GeoPoint(longitude = lng.value, latitude = lat.value)
-    }
-    RecordList(time, mtDataList, monitor, RecordListID(time, monitor), location= location)
-  }
-
-  def apply(time: Date, monitor: String, location: Option[GeoPoint], mtDataList: Seq[MtRecord]): RecordList = {
-    RecordList(time, mtDataList, monitor, RecordListID(time, monitor), location= location)
-  }
-
-
-
-}
-
-case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _id: RecordListID,
-                      location: Option[GeoPoint]) {
-  def mtMap = {
-    val pairs =
-      mtDataList map { data => data.mtName -> data }
-    pairs.toMap
-  }
-}
-
 case class RecordListID(time: Date, monitor: String)
+object RecordListID{
+  implicit val writes = Json.writes[RecordListID]
+}
 
 case class Record(time: DateTime, value: Double, status: String, monitor: String)
 
@@ -55,6 +26,35 @@ case class MonitorRecord(time: Date, mtDataList: Seq[MtRecord], monitor: String)
   }
 }
 
+case class MtRecord(mtName: String, value: Double, status: String)
+case class GroupSummary(name:String, count: Int, expected: Int, below: Int)
+
+object RecordList {
+  def apply(time: Date, monitor: String, mtDataList: Seq[MtRecord]): RecordList = {
+    val location: Option[Seq[Double]] = {
+      val latOpt = mtDataList.find(p => p.mtName == MonitorType.LAT)
+      val lngOpt = mtDataList.find(p => p.mtName == MonitorType.LNG)
+      for {lat <- latOpt
+           lng <- lngOpt
+           } yield
+        Seq(lng.value, lat.value)
+    }
+    RecordList(time, mtDataList, monitor, RecordListID(time, monitor), location= location)
+  }
+
+  def apply(time: Date, monitor: String, location: Option[Seq[Double]], mtDataList: Seq[MtRecord]): RecordList = {
+    RecordList(time, mtDataList, monitor, RecordListID(time, monitor), location= location)
+  }
+}
+
+case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _id: RecordListID,
+                      location: Option[Seq[Double]]) {
+  def mtMap = {
+    val pairs =
+      mtDataList map { data => data.mtName -> data }
+    pairs.toMap
+  }
+}
 import javax.inject._
 
 @Singleton
@@ -63,7 +63,11 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   import org.mongodb.scala.model._
   import play.api.libs.json._
 
-  implicit val writer = Json.writes[Record]
+  implicit val mtRecordWrites = Json.writes[MtRecord]
+  implicit val recordListWrite = Json.writes[RecordList]
+  implicit val summaryWrites = Json.writes[GroupSummary]
+  implicit val monitorRecordWrite = Json.writes[MonitorRecord]
+
 
   val HourCollection = "hour_data"
   val MinCollection = "min_data"
@@ -74,7 +78,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
   import org.mongodb.scala.bson.codecs.Macros._
 
-  val codecRegistry = fromRegistries(fromProviders(classOf[RecordList], classOf[MtRecord], classOf[RecordListID], classOf[GeoPoint]), DEFAULT_CODEC_REGISTRY)
+  val codecRegistry = fromRegistries(fromProviders(classOf[RecordList], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
 
   def init() {
     for (colNames <- mongoDB.database.listCollectionNames().toFuture()) {
@@ -99,7 +103,9 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     for(colName <- colNames){
       val col = getCollection(colName)
       col.createIndex(Indexes.descending("time", "monitor"),
-        new IndexOptions().unique(true))
+        new IndexOptions().unique(true)).toFuture()
+      col.createIndex(Indexes.descending("monitor", "time"),
+        new IndexOptions().unique(true)).toFuture()
       col.createIndex(Indexes.descending("time")).toFuture()
       col.createIndex(Indexes.geo2dsphere("location")).toFuture()
     }
@@ -173,6 +179,18 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     f.onFailure({
       case ex: Exception => Logger.error(ex.getMessage, ex)
     })
+    f
+  }
+
+  def upsertManyRecord(docs: Seq[RecordList])(colName: String) = {
+    val col = getCollection(colName)
+    val writeModels = docs map {
+      doc =>
+        ReplaceOneModel(Filters.equal("_id", RecordListID(doc.time, doc.monitor)),
+          doc, ReplaceOptions().upsert(true))
+    }
+    val f = col.bulkWrite(writeModels, BulkWriteOptions().ordered(false)).toFuture()
+    f onFailure(errorHandler())
     f
   }
 
@@ -288,10 +306,23 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     Map(pairs: _*)
   }
 
-  import GeoJSON.geoPointWrite
-  implicit val mtRecordWrite = Json.writes[MtRecord]
-  implicit val idWrite = Json.writes[RecordListID]
-  implicit val recordListWrite = Json.writes[RecordList]
+  /*
+  implicit val pointReads : Reads[Point] = new Reads[Point] {
+    override def reads(json: JsValue): JsResult[Point] = {
+      json match {
+        case JsObject(underlying) =>
+          try{
+            val lat = underlying("lat").validate[Double].get
+            val lon = underlying("lon").validate[Double].get
+            JsSuccess(Point(Position(lat, lon)))
+          }catch {
+            case _ :
+              NoSuchElementException => JsError(s"Invalid format")
+          }
+
+      }
+    }
+  }*/
 
   def getRecordListFuture(colName: String)
                          (startTime: DateTime, endTime: DateTime, monitors: Seq[String] = Seq(Monitor.SELF_ID)) = {
@@ -337,6 +368,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
     col.aggregate(Seq(sortFilter, limitFilter, removeIdStage)).toFuture()
   }
+
 
   def getLast24HrCount(colName: String) = {
 
@@ -390,6 +422,4 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     Future.sequence(seqF)
   } */
 
-  implicit val summaryWrites = Json.writes[GroupSummary]
-  implicit val monitorRecordWrite = Json.writes[MonitorRecord]
 }

@@ -95,6 +95,7 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
     Logger.debug(s"Create monitor value ${m._id}!")
     map = map + (m._id -> m)
 
+
     val f = collection.insertOne(m).toFuture()
     f.onFailure(errorHandler)
 

@@ -7,6 +7,7 @@ import models.ModelHelper.waitReadyResult
 import models.MqttCollector2.{CheckTimeout, timeout}
 import models.Protocol.ProtocolParam
 import org.eclipse.paho.client.mqttv3._
+import org.mongodb.scala.model.geojson.{Point, Position}
 import play.api._
 import play.api.libs.json.{JsError, Json, _}
 
@@ -246,8 +247,8 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
         val time = DateTime.parse(message.time, DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
         def newRecord(monitor: String) = {
           val recordList = {
-            val location = Some(GeoPoint(longitude = message.lon, latitude = message.lat))
-            RecordList(time.toDate, mtDataList, monitor, RecordListID(time.toDate, monitor), location= location)
+            val location = Some(Seq(message.lon, message.lat))
+            RecordList(time.toDate, mtDataList, monitor, RecordListID(time.toDate, monitor), location=location)
           }
           val f = recordOp.upsertRecord(recordList)(recordOp.MinCollection)
           f.onFailure(ModelHelper.errorHandler)

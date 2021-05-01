@@ -103,6 +103,9 @@ export default {
       realTimeStatusFilter: {
         pm25Threshold: 25,
       },
+      realtimeStatusParam: {
+        pm25Threshold: 25,
+      },
       loader: undefined,
       timer: 0,
       refreshTimer: 0,
@@ -434,15 +437,6 @@ export default {
         series,
       };
       highcharts.chart('chart_container2', chart);
-    },
-    getSummaryDesc(count) {
-      if (this.sensorSummary.count != 0) {
-        return `${count} (${((count / this.sensorSummary.count) * 100).toFixed(
-          2,
-        )}%)`;
-      } else {
-        return '等待資料中';
-      }
     },
   },
 };

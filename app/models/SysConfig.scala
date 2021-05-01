@@ -23,7 +23,7 @@ class SysConfig @Inject()(mongoDB: MongoDB){
 
   val defaultConfig:Map[String, Document] = Map(
     MonitorTypeVer -> Document(valueKey -> 1),
-    EpaLastDataTime -> Document(valueKey -> DateTime.parse("").toDate)
+    EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate)
   )
 
   def init() {
