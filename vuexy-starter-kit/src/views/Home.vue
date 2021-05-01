@@ -31,18 +31,55 @@
     </b-col>
     <b-col lg="12" md="12">
       <b-card title="監測地圖🚀">
-        <b-row>
-          <b-col cols="3">PM25 過濾:</b-col>
-          <b-col cols="3">
-            <v-select
-              id="pm25Filter"
-              v-model="realTimeStatusFilter.pm25Threshold"
-              label="txt"
-              :reduce="entry => entry.value"
-              :options="pm25Filters"
-            />
-          </b-col>
-        </b-row>
+        <b-table-simple>
+          <b-tr>
+            <b-th>濃度</b-th>
+            <b-th>縣市</b-th>
+            <b-th>區域劃分</b-th>
+            <b-th>類型</b-th>
+            <b-th>資料狀態</b-th>
+          </b-tr>
+          <b-tbody>
+            <b-tr>
+              <b-td
+                ><v-select
+                  v-model="realtimeStatusParam.pm25Threshold"
+                  label="txt"
+                  :reduce="entry => entry.value"
+                  :options="pm25Filters"
+              /></b-td>
+              <b-td
+                ><v-select
+                  v-model="realtimeStatusParam.county"
+                  label="txt"
+                  :reduce="entry => entry.value"
+                  :options="countyFilters"
+              /></b-td>
+              <b-td
+                ><v-select
+                  v-model="realtimeStatusParam.district"
+                  label="txt"
+                  :reduce="entry => entry.value"
+                  :options="districtFilters"
+              /></b-td>
+              <b-td
+                ><v-select
+                  v-model="realtimeStatusParam.sensorType"
+                  label="txt"
+                  :reduce="entry => entry.value"
+                  :options="sensorTypes"
+              /></b-td>
+              <b-td>
+                <v-select
+                  v-model="realtimeStatusParam.status"
+                  label="txt"
+                  :reduce="entry => entry.value"
+                  :options="statusTypes"
+                />
+              </b-td>
+            </b-tr>
+          </b-tbody>
+        </b-table-simple>
         <br />
         <div class="map_container">
           <GmapMap
@@ -104,7 +141,11 @@ export default {
         pm25Threshold: 25,
       },
       realtimeStatusParam: {
-        pm25Threshold: 25,
+        pm25Threshold: -1,
+        county: 1,
+        district: 1,
+        sensorType: 1,
+        status: 1,
       },
       loader: undefined,
       timer: 0,
@@ -124,24 +165,80 @@ export default {
       sensorGroupSummary: [],
       pm25Filters: [
         {
-          txt: '全部',
-          value: 0,
+          txt: 'pm25 < 1',
+          value: -1,
         },
         {
-          txt: 'pm25 > 35.4',
-          value: 35.4,
+          txt: 'pm25 > 25',
+          value: 25,
         },
         {
-          txt: 'pm25 > 54.4',
-          value: 54.4,
+          txt: 'pm25 > 50',
+          value: 50,
+        },
+      ],
+      countyFilters: [
+        {
+          txt: '基隆',
+          value: 1,
         },
         {
-          txt: 'pm25 > 150.4',
-          value: 150.4,
+          txt: '屏東',
+          value: 2,
         },
         {
-          txt: 'pm25 > 250.4',
-          value: 250.4,
+          txt: '宜蘭',
+          value: 3,
+        },
+      ],
+      districtFilters: [
+        {
+          txt: '基隆',
+          value: 1,
+        },
+        {
+          txt: '屏東',
+          value: 2,
+        },
+        {
+          txt: '宜蘭',
+          value: 3,
+        },
+      ],
+      sensorTypes: [
+        {
+          txt: '工業區',
+          value: 1,
+        },
+        {
+          txt: '其他汙染',
+          value: 2,
+        },
+        {
+          txt: '社區',
+          value: 3,
+        },
+        {
+          txt: '輔助應用',
+          value: 4,
+        },
+        {
+          txt: '長期比對',
+          value: 5,
+        },
+      ],
+      statusTypes: [
+        {
+          txt: '通訊中斷',
+          value: 1,
+        },
+        {
+          txt: '收集率<95%',
+          value: 2,
+        },
+        {
+          txt: '連續三筆定值',
+          value: 3,
         },
       ],
     };
@@ -153,13 +250,16 @@ export default {
     ...mapGetters('monitorTypes', ['mtMap']),
     ...mapGetters('monitors', ['mMap']),
     realTimeStatus() {
-      return this.realTimeStatusRaw.filter(stat => {
+      let ret = this.realTimeStatusRaw.filter(stat => {
         const pm25Entry = stat.mtDataList.find(v => v.mtName === 'PM25');
 
-        if (!pm25Entry) return true;
+        if (!pm25Entry) return false;
+
         const pm25 = pm25Entry.value;
         return pm25 > this.realTimeStatusFilter.pm25Threshold;
       });
+      console.log(ret);
+      return ret;
     },
     mapCenter() {
       if (this.realTimeStatus.length === 0)
@@ -171,16 +271,16 @@ export default {
         lngMin = 1000;
 
       for (const stat of this.realTimeStatus) {
-        const latEntry = stat.mtDataList.find(v => v.mtName === 'LAT');
-        if (!latEntry) continue;
+        if (!stat.location) continue;
 
-        if (latMax < latEntry.value) latMax = latEntry.value;
-        if (latMin > latEntry.value) latMin = latEntry.value;
+        const lng = stat.location[0];
+        const lat = stat.location[1];
 
-        const lngEntry = stat.mtDataList.find(v => v.mtName === 'LNG');
-        if (!lngEntry) continue;
-        if (lngMax < lngEntry.value) lngMax = lngEntry.value;
-        if (lngMin > lngEntry.value) lngMin = lngEntry.value;
+        if (latMax < lat) latMax = lat;
+        if (latMin > lat) latMin = lat;
+
+        if (lngMax < lng) lngMax = lng;
+        if (lngMin > lng) lngMin = lng;
       }
 
       return { lat: (latMax + latMin) / 2, lng: (lngMax + lngMin) / 2 };
@@ -203,17 +303,12 @@ export default {
       };
 
       for (const stat of this.realTimeStatus) {
-        let lat = 0,
-          lng = 0,
-          pm25 = 0;
-        const latEntry = stat.mtDataList.find(v => v.mtName === 'LAT');
-        if (!latEntry) continue;
+        if (!stat.location) continue;
 
-        const lngEntry = stat.mtDataList.find(v => v.mtName === 'LNG');
-        if (!lngEntry) continue;
+        const lng = stat.location[0];
+        const lat = stat.location[1];
 
-        lat = latEntry.value;
-        lng = lngEntry.value;
+        let pm25 = 0;
 
         const pm25Entry = stat.mtDataList.find(v => v.mtName === 'PM25');
 
@@ -222,10 +317,10 @@ export default {
 
         const iconUrl = getIconUrl(pm25);
         ret.push({
-          title: this.mMap.get(stat.monitor).desc,
+          title: this.mMap.get(stat._id).desc,
           position: { lat, lng },
           pm25,
-          infoText: `<strong>${this.mMap.get(stat.monitor).desc}</strong>`,
+          infoText: `<strong>${this.mMap.get(stat._id).desc}</strong>`,
           iconUrl,
         });
         count++;
@@ -293,150 +388,13 @@ export default {
     },
     async getRealtimeStatus() {
       const ret = await axios.get('/RealtimeStatus');
+      console.log(`realtime ${ret.data.length}`);
       this.realTimeStatusRaw = ret.data;
     },
     async getTodaySummary() {
       const res = await axios.get('/SensorSummary');
       const ret = res.data;
       this.sensorGroupSummary = ret;
-      this.drawChart1(ret);
-      this.drawChart2(ret);
-    },
-    drawChart1(ret) {
-      let series = [
-        {
-          name: `群組感測器`,
-          colorByPoint: true,
-          data: [],
-        },
-      ];
-      for (let group of ret) {
-        series[0].data.push({
-          name: `${group.name}`,
-          y: group.count,
-        });
-      }
-
-      let chart1 = {
-        chart: {
-          plotBackgroundColor: null,
-          plotBorderWidth: null,
-          plotShadow: false,
-          type: 'pie',
-        },
-        colors: [
-          '#7CB5EC',
-          '#434348',
-          '#90ED7D',
-          '#F7A35C',
-          '#8085E9',
-          '#F15C80',
-          '#E4D354',
-          '#2B908F',
-          '#FB9FA8',
-          '#91E8E1',
-          '#7CB5EC',
-          '#80C535',
-          '#969696',
-        ],
-        title: {
-          text: '群組總數',
-        },
-        tooltip: {
-          pointFormat: '{series.name}: <b>{point.percentage:.1f}%</b>',
-        },
-        accessibility: {
-          point: {
-            valueSuffix: '%',
-          },
-        },
-        plotOptions: {
-          pie: {
-            allowPointSelect: true,
-            cursor: 'pointer',
-            dataLabels: {
-              enabled: false,
-            },
-            showInLegend: true,
-          },
-        },
-        series,
-      };
-      highcharts.chart('chart_container1', chart1);
-    },
-    drawChart2(ret) {
-      let expected = 0,
-        below = 0;
-      for (let group of ret) {
-        expected += group.expected;
-        below += group.below;
-      }
-      let series = [
-        {
-          name: `接受狀態`,
-          colorByPoint: true,
-          data: [
-            {
-              name: `正常`,
-              y: expected,
-            },
-            {
-              name: `低於預期`,
-              y: below,
-              sliced: true,
-            },
-          ],
-        },
-      ];
-
-      let chart = {
-        chart: {
-          plotBackgroundColor: null,
-          plotBorderWidth: null,
-          plotShadow: false,
-          type: 'pie',
-        },
-        pie: {
-          colors: [
-            '#7CB5EC',
-            '#434348',
-            '#90ED7D',
-            '#F7A35C',
-            '#8085E9',
-            '#F15C80',
-            '#E4D354',
-            '#2B908F',
-            '#FB9FA8',
-            '#91E8E1',
-            '#7CB5EC',
-            '#80C535',
-            '#969696',
-          ],
-        },
-        title: {
-          text: '資料接受狀態',
-        },
-        tooltip: {
-          pointFormat: '{series.name}: <b>{point.percentage:.1f}%</b>',
-        },
-        accessibility: {
-          point: {
-            valueSuffix: '%',
-          },
-        },
-        plotOptions: {
-          pie: {
-            allowPointSelect: true,
-            cursor: 'pointer',
-            dataLabels: {
-              enabled: false,
-            },
-            showInLegend: true,
-          },
-        },
-        series,
-      };
-      highcharts.chart('chart_container2', chart);
     },
   },
 };

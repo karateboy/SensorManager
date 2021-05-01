@@ -506,8 +506,11 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
       import recordOp.monitorRecordWrite
 
       val f = recordOp.getLatestRecordSummary(TableType.mapCollection(TableType.min))
+      val start = DateTime.now()
       for (recordList <- f) yield {
-        Ok(Json.toJson(recordList))
+        val duration = new Duration(start, DateTime.now)
+        Logger.info(s"Realtime Status take ${duration.getMillis/1000}ms")
+        Ok(Json.toJson(recordList.take(100)))
       }
   }
 

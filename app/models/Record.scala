@@ -18,13 +18,7 @@ object RecordListID{
 
 case class Record(time: DateTime, value: Double, status: String, monitor: String)
 
-case class MonitorRecord(time: Date, mtDataList: Seq[MtRecord], monitor: String) {
-  def mtMap = {
-    val pairs =
-      mtDataList map { data => data.mtName -> data }
-    pairs.toMap
-  }
-}
+case class MonitorRecord(time: Date, mtDataList: Seq[MtRecord], _id: String, location:Option[Seq[Double]])
 
 case class MtRecord(mtName: String, value: Double, status: String)
 case class GroupSummary(name:String, count: Int, expected: Int, below: Int)
@@ -362,11 +356,11 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
     val limitFilter = Aggregates.limit(1000)
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
-      Accumulators.first("mtDataList", "$mtDataList"))
-    val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList")))
+      Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"))
+    val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    col.aggregate(Seq(sortFilter, limitFilter, removeIdStage)).toFuture()
+    col.aggregate(Seq(sortFilter, limitFilter, latestFilter, removeIdStage)).toFuture()
   }
 
 
