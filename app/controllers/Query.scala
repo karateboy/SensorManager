@@ -501,15 +501,22 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
       }
   }
 
-  def realtimeStatus() = Security.Authenticated.async {
+  def realtimeStatus(pm25Threshold:String, county:String, district:String, sensorType:String, status:String) =
+    Security.Authenticated.async {
     implicit request =>
       import recordOp.monitorRecordWrite
-
-      val f = recordOp.getLatestRecordSummary(TableType.mapCollection(TableType.min))
+      val f = recordOp.getLatestRecordSummary(TableType.mapCollection(TableType.min))(pm25Threshold, county, district, sensorType, status)
       val start = DateTime.now()
       for (recordList <- f) yield {
         val duration = new Duration(start, DateTime.now)
         Logger.info(s"Realtime Status take ${duration.getMillis/1000}ms")
+        recordList.foreach(r=> {
+          if(monitorOp.map.contains(r._id)) {
+            r.shortCode =monitorOp.map(r._id).shortCode
+            r.code = monitorOp.map(r._id).code
+            r.tags = Some(monitorOp.map(r._id).tags)
+          }
+        })
         Ok(Json.toJson(recordList.take(100)))
       }
   }

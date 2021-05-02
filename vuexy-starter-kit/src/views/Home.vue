@@ -7,26 +7,60 @@
           <b-col><div id="chart_container2" /></b-col>
           <b-col><div id="chart_container3" /></b-col>
         </b-row>
-        <b-table-simple>
-          <b-thead>
-            <b-tr>
-              <b-th>群組</b-th>
-              <b-th>感測器數</b-th>
-              <b-th>擷取率95%以上</b-th>
-              <b-th>低於95%</b-th>
-              <b-th>斷線</b-th>
-            </b-tr>
-          </b-thead>
-          <b-tbody>
-            <b-tr v-for="group in sensorGroupSummary" :key="group.name">
-              <b-td>{{ group.name }}</b-td>
-              <b-td>{{ group.count }} </b-td>
-              <b-td>{{ group.expected }}</b-td>
-              <b-td>{{ group.below }}</b-td>
-              <b-td>{{ group.count - group.expected - group.below }}</b-td>
-            </b-tr>
-          </b-tbody>
-        </b-table-simple>
+        <b-row>
+          <b-col>
+            <b-table-simple bordered>
+              <b-thead>
+                <b-tr
+                  ><b-td class="text-center" colspan="4"
+                    >系統接受狀況</b-td
+                  ></b-tr
+                >
+                <b-tr>
+                  <b-th>群組</b-th>
+                  <b-th>接收總數</b-th>
+                  <b-th>完整率&lt;95%</b-th>
+                  <b-th>斷線</b-th>
+                </b-tr>
+              </b-thead>
+              <b-tbody>
+                <b-tr v-for="group in sensorGroupSummary" :key="group.name">
+                  <b-td>{{ group.name }}</b-td>
+                  <b-td>{{ group.count }} </b-td>
+                  <b-td>{{ group.below }}</b-td>
+                  <b-td>{{ group.count - group.expected - group.below }}</b-td>
+                </b-tr>
+              </b-tbody>
+            </b-table-simple>
+          </b-col>
+          <b-col>
+            <b-table-simple bordered>
+              <b-thead>
+                <b-tr
+                  ><b-td class="text-center" colspan="5"
+                    >通訊中斷資訊</b-td
+                  ></b-tr
+                >
+                <b-tr>
+                  <b-th>型號</b-th>
+                  <b-th>基隆</b-th>
+                  <b-th>屏東</b-th>
+                  <b-th>宜蘭</b-th>
+                  <b-th>其他</b-th>
+                </b-tr>
+              </b-thead>
+              <b-tbody>
+                <b-tr v-for="group in sensorGroupSummary" :key="group.name">
+                  <b-td>{{ group.name }}</b-td>
+                  <b-td></b-td>
+                  <b-td></b-td>
+                  <b-td></b-td>
+                  <b-td></b-td>
+                </b-tr>
+              </b-tbody>
+            </b-table-simple>
+          </b-col>
+        </b-row>
       </b-card>
     </b-col>
     <b-col lg="12" md="12">
@@ -141,11 +175,11 @@ export default {
         pm25Threshold: 25,
       },
       realtimeStatusParam: {
-        pm25Threshold: -1,
-        county: 1,
-        district: 1,
-        sensorType: 1,
-        status: 1,
+        pm25Threshold: '',
+        county: '',
+        district: '',
+        sensorType: '',
+        status: 0,
       },
       loader: undefined,
       timer: 0,
@@ -165,6 +199,10 @@ export default {
       sensorGroupSummary: [],
       pm25Filters: [
         {
+          txt: '不限',
+          value: '',
+        },
+        {
           txt: 'pm25 < 1',
           value: -1,
         },
@@ -179,55 +217,79 @@ export default {
       ],
       countyFilters: [
         {
+          txt: '不限',
+          value: '',
+        },
+        {
           txt: '基隆',
-          value: 1,
+          value: '基隆市',
         },
         {
           txt: '屏東',
-          value: 2,
+          value: '屏東',
         },
         {
           txt: '宜蘭',
-          value: 3,
+          value: '宜蘭',
         },
       ],
       districtFilters: [
         {
+          txt: '不限',
+          value: '',
+        },
+        {
           txt: '基隆',
-          value: 1,
+          value: '基隆市',
         },
         {
           txt: '屏東',
-          value: 2,
+          value: '屏東',
         },
         {
           txt: '宜蘭',
-          value: 3,
+          value: '宜蘭',
         },
       ],
       sensorTypes: [
         {
+          txt: '不限',
+          value: '',
+        },
+        {
           txt: '工業區',
-          value: 1,
+          value: 'ID',
         },
         {
           txt: '其他汙染',
-          value: 2,
+          value: 'OT',
         },
         {
           txt: '社區',
-          value: 3,
+          value: 'CO',
         },
         {
-          txt: '輔助應用',
-          value: 4,
+          txt: '交通',
+          value: 'TR',
+        },
+        {
+          txt: '監測比對',
+          value: 'MO',
         },
         {
           txt: '長期比對',
-          value: 5,
+          value: 'LO',
+        },
+        {
+          txt: '巡檢機',
+          value: 'AO',
         },
       ],
       statusTypes: [
+        {
+          txt: '不限',
+          value: 0,
+        },
         {
           txt: '通訊中斷',
           value: 1,
@@ -256,9 +318,8 @@ export default {
         if (!pm25Entry) return false;
 
         const pm25 = pm25Entry.value;
-        return pm25 > this.realTimeStatusFilter.pm25Threshold;
+        return true;
       });
-      console.log(ret);
       return ret;
     },
     mapCenter() {
@@ -316,17 +377,42 @@ export default {
         pm25 = pm25Entry.value;
 
         const iconUrl = getIconUrl(pm25);
+        let infoText = stat.code
+          ? `<strong>${stat.shortCode}/${stat.code}</strong>`
+          : `<strong>${this.mMap.get(stat._id).desc}</strong>`;
+        let title = stat.code
+          ? `${stat.code}`
+          : `${this.mMap.get(stat._id).desc}`;
+
         ret.push({
-          title: this.mMap.get(stat._id).desc,
+          title,
           position: { lat, lng },
           pm25,
-          infoText: `<strong>${this.mMap.get(stat._id).desc}</strong>`,
+          infoText,
           iconUrl,
         });
         count++;
       }
 
       return ret;
+    },
+  },
+  watch: {
+    'realtimeStatusParam.pm25Threshold': function () {
+      this.getRealtimeStatus();
+    },
+    'realtimeStatusParam.county': function () {
+      if (this.realtimeStatusParam.county === null)
+        this.realtimeStatusParam.county = '';
+      this.getRealtimeStatus();
+    },
+    'realtimeStatusParam.district': function () {
+      this.getRealtimeStatus();
+    },
+    'realtimeStatusParam.sensorType': function () {
+      if (this.realtimeStatusParam.sensorType === null)
+        this.realtimeStatusParam.sensorType = '';
+      this.getRealtimeStatus();
     },
   },
   async mounted() {
@@ -387,8 +473,9 @@ export default {
       this.getRealtimeStatus();
     },
     async getRealtimeStatus() {
-      const ret = await axios.get('/RealtimeStatus');
-      console.log(`realtime ${ret.data.length}`);
+      const ret = await axios.get('/RealtimeStatus', {
+        params: this.realtimeStatusParam,
+      });
       this.realTimeStatusRaw = ret.data;
     },
     async getTodaySummary() {

@@ -7,11 +7,10 @@ import play.api.libs.json._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
-case class Monitor(_id: String, desc: String, monitorTypes: Seq[String], tags: Seq[String],
-                   location: Option[GeoPoint] = None)
+case class Monitor(_id: String, desc: String, monitorTypes: Seq[String], var tags: Seq[String],
+                   location: Option[Seq[Double]] = None, var shortCode:Option[String]=None,
+                   var code:Option[String]=None, var county:Option[String]=None, var district:Option[String]=None)
 object Monitor {
-  import GeoJSON.geoPointRead
-  import GeoJSON.geoPointWrite
   implicit val mWrite = Json.writes[Monitor]
   implicit val mRead = Json.reads[Monitor]
 
@@ -25,6 +24,11 @@ import javax.inject._
 object MonitorTag {
   val SENSOR = "sensor"
   val EPA = "EPA"
+  val ID = "ID"
+  val OT = "OT"
+  val CO = "CO"
+  val LO = "LO"
+  val MO = "MO"
 }
 
 
@@ -44,6 +48,7 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
   val collection = mongoDB.database.getCollection[Monitor](colName).withCodecRegistry(codecRegistry)
   collection.createIndex(Indexes.ascending("monitorTypes")).toFuture()
   collection.createIndex(Indexes.ascending("tags")).toFuture()
+  collection.createIndex(Indexes.geo2dsphere("location")).toFuture()
 
   val hasSelfMonitor = config.getBoolean("selfMonitor").getOrElse(false)
 
@@ -85,10 +90,13 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
       hasSelfMonitor || p != SELF_ID
   })
 
-  def ensureMonitor(_id: String, desc:String, monitorTypes:Seq[String], tags:Seq[String])  {
+  def ensureMonitor(_id: String, desc:String, monitorTypes:Seq[String], tags:Seq[String]): Monitor = {
     if (!map.contains(_id)) {
-      newMonitor(Monitor(_id, desc, monitorTypes, tags))
-    }
+      val monitor = Monitor(_id, desc, monitorTypes, tags)
+      newMonitor(monitor)
+      monitor
+    }else
+      map(_id)
   }
 
   def newMonitor(m: Monitor) = {
@@ -131,5 +139,18 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
     val f = collection.find().sort(Sorts.ascending("_id")).toFuture()
     val ret = waitReadyResult(f)
     ret.toList
+  }
+
+  def upsertMany(monitors: Seq[Monitor]) = {
+    val updateModels: Seq[ReplaceOneModel[Monitor]] = monitors map {
+      m =>
+        ReplaceOptions().upsert(true)
+        ReplaceOneModel(Filters.equal("_id", m._id), m, ReplaceOptions().upsert(true))
+    }
+    val pairs = monitors map { m => m._id -> m }
+    map = map ++ pairs
+    val f= collection.bulkWrite(updateModels).toFuture()
+    f onFailure(errorHandler)
+    f
   }
 }

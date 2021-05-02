@@ -30,7 +30,7 @@ GET      /HistoryTrend/excel/:monitorType/:reportUnit/:statusFilter/:start/:end 
 
 GET      /HistoryReport/:monitor/:monitorType/:tabType/:start/:end                controllers.Query.historyData(monitor, monitorType, tabType, start: Long, end: Long)
 GET      /LatestData/:monitor/:monitorType/:tabType                               controllers.Query.latestData(monitor, monitorType, tabType)
-GET      /RealtimeStatus                                                          controllers.Query.realtimeStatus()
+GET      /RealtimeStatus                                                          controllers.Query.realtimeStatus(pm25Threshold, county, district, sensorType, status)
 GET      /SensorSummary                                                           controllers.Realtime.sensorSummary
 
 GET      /CalibrationReport/:start/:end                                           controllers.Query.calibrationReport(start:Long, end:Long)

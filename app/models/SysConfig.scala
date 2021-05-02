@@ -20,10 +20,12 @@ class SysConfig @Inject()(mongoDB: MongoDB){
   val valueKey = "value"
   val MonitorTypeVer = "Version"
   val EpaLastDataTime = "EpaLastDateTime"
+  val KLMetaImported = "KLMetaImoirted"
 
   val defaultConfig:Map[String, Document] = Map(
     MonitorTypeVer -> Document(valueKey -> 1),
-    EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate)
+    EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate),
+    KLMetaImported -> Document(valueKey-> false)
   )
 
   def init() {
@@ -72,10 +74,16 @@ class SysConfig @Inject()(mongoDB: MongoDB){
   }
 
   def set(_id: String, v: Date) = upsert(_id, Document(valueKey -> v))
+  def set(_id: String, v: Boolean) = upsert(_id, Document(valueKey -> v))
 
   def getEpaLastDataTime(): Future[Date] =
     for(v<-get(EpaLastDataTime)) yield
       v.asDateTime().toDate
 
   def setEpaLastDataTime(time:Date) = set(EpaLastDataTime, time)
+
+  def getKLMetaImported = for(v<-get(KLMetaImported)) yield
+    v.asBoolean().getValue
+
+  def setKLMetaImported(v:Boolean) = set(KLMetaImported, v)
 }
