@@ -10,6 +10,7 @@ import play.api.libs.json.Json
 import java.util.Date
 import scala.collection.immutable
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 case class RecordListID(time: Date, monitor: String)
 
@@ -24,7 +25,7 @@ case class MonitorRecord(time: Date, mtDataList: Seq[MtRecord], _id: String, loc
 
 case class MtRecord(mtName: String, value: Double, status: String)
 
-case class GroupSummary(name: String, count: Int, expected: Int, below: Int)
+case class GroupSummary(name: String, count: Int, expected: Int, disconnected: Int)
 
 object RecordList {
   def apply(time: Date, monitor: String, mtDataList: Seq[MtRecord]): RecordList = {
@@ -272,8 +273,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     Map(pairs: _*)
   }
 
-  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
-
   def getRecord2Map(colName: String)
                    (mtList: List[String], startTime: DateTime, endTime: DateTime, monitor: String = Monitor.SELF_ID)
                    (skip: Int = 0, limit: Int = 500) = {
@@ -303,6 +302,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       }
     Map(pairs: _*)
   }
+
+  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
 
   /*
   implicit val pointReads : Reads[Point] = new Reads[Point] {
@@ -372,6 +373,21 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         Filters.equal("mtDataList.mtName", "PM25")
     }
 
+    val statusFilter =
+      if (status == "")
+        Filters.exists("_id")
+      else {
+        status match {
+          case "disconnect"=>
+            DateTime.now().minusMinutes(10).toDate
+            Filters.lt("time", DateTime.now().minusMinutes(10).toDate)
+          case ""=>
+            DateTime.now().minusMinutes(10).toDate
+            Filters.lt("time", DateTime.now().minusMinutes(10).toDate)
+        }
+        Filters.exists("_id")
+      }
+
     val monitorFilter = if (county == "" && sensorType == "")
       Filters.exists("_id")
     else {
@@ -405,6 +421,50 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     col.aggregate(Seq(sortFilter, limitFilter, valueFilter, latestFilter, removeIdStage)).toFuture()
   }
 
+  def getDisconnectSummary(colName: String)
+                            (county: String, district: String, sensorType: String, status: String): Future[Set[String]] = {
+    import org.mongodb.scala.model.Projections._
+    import org.mongodb.scala.model.Sorts._
+    Logger.info(s"sensorType=$sensorType")
+
+    val timeFrameFilter = {
+      DateTime.now().minusMinutes(10).toDate
+      Aggregates.filter(Filters.gt("time", DateTime.now().minusMinutes(10).toDate))
+    }
+
+    val targetMonitors: Seq[String] = monitorOp.map.filter(p => {
+      val m = p._2
+      if (county == "")
+        true
+      else
+        m.county == Some(county)
+    }).filter(p=>{
+      val m = p._2
+      if(sensorType == "")
+        true
+      else
+        m.tags.contains(sensorType)
+    }) map {
+      _._1
+    } toList
+
+    val monitorFilter = {
+      Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
+    }
+
+    val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
+    val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
+      Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"))
+    val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
+    val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
+    val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
+    val f = col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, latestFilter, removeIdStage)).toFuture()
+    f.transform(ret =>{
+      val targetSet: Set[String] = targetMonitors.toSet
+      val connectedSet = ret.map( _._id).toSet
+      targetSet -- connectedSet
+    }, ex=>ex)
+  }
 
   def getLast24HrCount(colName: String) = {
 
@@ -416,9 +476,10 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val col = mongoDB.database.getCollection(colName)
     val f1 = col.aggregate(Seq(todayFilter, groupByMonitorCount)).toFuture()
     val f2 = sensorOp.getFullSensorMap
-
+    val f3 = getDisconnectSummary(colName)("", "", "", "")
     for {docList <- f1
          sensorMap <- f2
+         disconnected <- f3
          } yield {
       var todaySensorRecordCount = Map.empty[String, Seq[Int]]
       Logger.debug(s"Total ${docList.length}")
@@ -431,6 +492,15 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
           todaySensorRecordCount = todaySensorRecordCount + (group -> monitorCount.:+(count))
         }
       }
+      var groupDisconnectedCount = Map.empty[String, Int]
+      disconnected foreach( {
+        monitorID =>
+          if(sensorMap.contains(monitorID)){
+            val group = sensorMap(monitorID).group
+            val disconnected = groupDisconnectedCount.getOrElse(group, 0)
+            groupDisconnectedCount = groupDisconnectedCount + (group -> (disconnected + 1))
+          }
+      })
 
       val expectedCount = 24 * 60 / 3 * 95 / 100
       val groupSummaryList =
@@ -438,8 +508,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
           val groupMonitorCount = sensorMap.values.count(_.group == group)
           val groupRecordCount = todaySensorRecordCount(group)
           val expected = groupRecordCount.count(p => p >= expectedCount)
-          val below = groupRecordCount.count(p => p < expectedCount)
-          GroupSummary(group, groupMonitorCount, expected, below)
+          val disconnected = groupDisconnectedCount.getOrElse(group, 0)
+          GroupSummary(group, groupMonitorCount, expected, disconnected)
         }
       groupSummaryList
     }

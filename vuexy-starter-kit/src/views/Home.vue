@@ -19,16 +19,16 @@
                 <b-tr>
                   <b-th>群組</b-th>
                   <b-th>接收總數</b-th>
-                  <b-th>完整率&lt;95%</b-th>
                   <b-th>斷線</b-th>
+                  <b-th>完整率&lt;95%</b-th>
                 </b-tr>
               </b-thead>
               <b-tbody>
                 <b-tr v-for="group in sensorGroupSummary" :key="group.name">
                   <b-td>{{ group.name }}</b-td>
                   <b-td>{{ group.count }} </b-td>
-                  <b-td>{{ group.below }}</b-td>
-                  <b-td>{{ group.count - group.expected - group.below }}</b-td>
+                  <b-td>{{ group.disconnected }}</b-td>
+                  <b-td>{{ group.expected }}</b-td>
                 </b-tr>
               </b-tbody>
             </b-table-simple>
@@ -65,63 +65,73 @@
     </b-col>
     <b-col lg="12" md="12">
       <b-card title="監測地圖🚀">
-        <b-table-simple>
-          <b-tr>
-            <b-th>濃度</b-th>
-            <b-th>縣市</b-th>
-            <b-th>區域劃分</b-th>
-            <b-th>類型</b-th>
-            <b-th>資料狀態</b-th>
-          </b-tr>
-          <b-tbody>
-            <b-tr>
-              <b-td
-                ><v-select
-                  v-model="realtimeStatusParam.pm25Threshold"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="pm25Filters"
-              /></b-td>
-              <b-td
-                ><v-select
-                  v-model="realtimeStatusParam.county"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="countyFilters"
-              /></b-td>
-              <b-td
-                ><v-select
-                  v-model="realtimeStatusParam.district"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="districtFilters"
-              /></b-td>
-              <b-td
-                ><v-select
-                  v-model="realtimeStatusParam.sensorType"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="sensorTypes"
-              /></b-td>
-              <b-td>
-                <v-select
-                  v-model="realtimeStatusParam.status"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="statusTypes"
-                />
-              </b-td>
-            </b-tr>
-          </b-tbody>
-        </b-table-simple>
-        <br />
         <div class="map_container">
+          <div id="sensorFilter" class="sensorFilter mt-2">
+            <b-table-simple>
+              <b-tr>
+                <b-th>縣市</b-th>
+                <b-th>濃度</b-th>
+                <b-th>區域劃分</b-th>
+                <b-th>類型</b-th>
+                <b-th>資料狀態</b-th>
+              </b-tr>
+              <b-tbody>
+                <b-tr>
+                  <b-td
+                    ><v-select
+                      v-model="realtimeStatusParam.county"
+                      label="txt"
+                      :reduce="entry => entry.value"
+                      :options="countyFilters"
+                  /></b-td>
+                  <b-td
+                    ><v-select
+                      v-model="realtimeStatusParam.pm25Threshold"
+                      label="txt"
+                      :reduce="entry => entry.value"
+                      :options="pm25Filters"
+                  /></b-td>
+                  <b-td
+                    ><v-select
+                      v-model="realtimeStatusParam.district"
+                      label="txt"
+                      :reduce="entry => entry.value"
+                      :options="districtFilters"
+                  /></b-td>
+                  <b-td
+                    ><v-select
+                      v-model="realtimeStatusParam.sensorType"
+                      label="txt"
+                      :reduce="entry => entry.value"
+                      :options="sensorTypes"
+                  /></b-td>
+                  <b-td>
+                    <v-select
+                      v-model="realtimeStatusParam.status"
+                      label="txt"
+                      :reduce="entry => entry.value"
+                      :options="statusTypes"
+                    />
+                  </b-td>
+                </b-tr>
+              </b-tbody>
+            </b-table-simple>
+          </div>
           <GmapMap
             ref="mapRef"
             :center="mapCenter"
-            :zoom="8"
-            map-type-id="terrain"
+            :zoom="12"
+            map-type-id="roadmap"
             class="map_canvas"
+            :options="{
+              zoomControl: true,
+              mapTypeControl: false,
+              scaleControl: false,
+              streetViewControl: false,
+              rotateControl: false,
+              fullscreenControl: true,
+              disableDefaultUi: false,
+            }"
           >
             <GmapMarker
               v-for="(m, index) in markers"
@@ -149,6 +159,10 @@
   </b-row>
 </template>
 <style scoped>
+.sensorFilter {
+  background-color: white;
+}
+
 .legend {
   /* min-width: 100px;*/
   background-color: white;
@@ -179,7 +193,7 @@ export default {
         county: '',
         district: '',
         sensorType: '',
-        status: 0,
+        status: '',
       },
       loader: undefined,
       timer: 0,
@@ -244,11 +258,11 @@ export default {
         },
         {
           txt: '屏東',
-          value: '屏東',
+          value: '屏東縣',
         },
         {
           txt: '宜蘭',
-          value: '宜蘭',
+          value: '宜蘭縣',
         },
       ],
       sensorTypes: [
@@ -288,19 +302,19 @@ export default {
       statusTypes: [
         {
           txt: '不限',
-          value: 0,
+          value: '',
         },
         {
           txt: '通訊中斷',
-          value: 1,
+          value: 'disconnect',
         },
         {
           txt: '收集率<95%',
-          value: 2,
+          value: 'lt95',
         },
         {
           txt: '連續三筆定值',
-          value: 3,
+          value: 'constant3',
         },
       ],
     };
@@ -323,28 +337,17 @@ export default {
       return ret;
     },
     mapCenter() {
-      if (this.realTimeStatus.length === 0)
-        return { lat: 23.97397424582721, lng: 120.97969180002414 };
-
-      let latMax = -1,
-        latMin = 1000,
-        lngMax = -1,
-        lngMin = 1000;
-
-      for (const stat of this.realTimeStatus) {
-        if (!stat.location) continue;
-
-        const lng = stat.location[0];
-        const lat = stat.location[1];
-
-        if (latMax < lat) latMax = lat;
-        if (latMin > lat) latMin = lat;
-
-        if (lngMax < lng) lngMax = lng;
-        if (lngMin > lng) lngMin = lng;
+      let county = this.realtimeStatusParam.county;
+      switch (county) {
+        case '基隆市':
+          return { lat: 25.127594828422044, lng: 121.7399713796935 };
+        case '宜蘭':
+          return { lat: 24.699449555878495, lng: 121.73719578861895 };
+        case '屏東':
+          return { lat: 22.55311029065028, lng: 120.55724117206266 };
       }
 
-      return { lat: (latMax + latMin) / 2, lng: (lngMax + lngMin) / 2 };
+      return { lat: 25.127594828422044, lng: 121.7399713796935 };
     },
     markers() {
       const ret = [];
@@ -416,11 +419,18 @@ export default {
     },
   },
   async mounted() {
+    /*
     const legend = document.getElementById('legend');
     this.$refs.mapRef.$mapPromise.then(map => {
       map.controls[google.maps.ControlPosition.LEFT_CENTER].push(legend);
+    });*/
+
+    const sensorFilter = document.getElementById('sensorFilter');
+    this.$refs.mapRef.$mapPromise.then(map => {
+      map.controls[google.maps.ControlPosition.TOP_CENTER].push(sensorFilter);
     });
 
+    //console.log(google.maps.ControlPosition.TOP_CENTER);
     /*
     this.loader = this.$loading.show({
       // Optional parameters

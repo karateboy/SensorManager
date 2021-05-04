@@ -509,7 +509,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
       val start = DateTime.now()
       for (recordList <- f) yield {
         val duration = new Duration(start, DateTime.now)
-        Logger.info(s"Realtime Status take ${duration.getMillis/1000}ms")
+        Logger.debug(s"Realtime Status take ${duration.getMillis/1000}ms")
         recordList.foreach(r=> {
           if(monitorOp.map.contains(r._id)) {
             r.shortCode =monitorOp.map(r._id).shortCode
