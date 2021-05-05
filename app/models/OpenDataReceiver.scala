@@ -123,25 +123,22 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
             RecordList(dt.toDate, epaId, location, mtRecords)
         }
 
-        Logger.info(s"Total ${recordLists.length} records")
+        if(recordLists.length != 0){
+          Logger.info(s"EPA total ${recordLists.length} records")
 
-        val f = recordOp.upsertManyRecord(recordLists)(recordOp.MinCollection)
-        f onComplete ({
-          case Success(_) =>
-            sysConfig.setEpaLastDataTime(latestRecordTime.toDate)
-            self ! GetEpaCurrentData
-          case Failure(ex) =>
-            Logger.error("failed", ex)
-            timer = Some(context.system.scheduler.
-              scheduleOnce(scala.concurrent.duration.Duration(10, TimeUnit.MINUTES), self, GetEpaCurrentData))
-        })
+          val f = recordOp.upsertManyRecord(recordLists)(recordOp.MinCollection)
+          f onComplete ({
+            case Success(_) =>
+              sysConfig.setEpaLastDataTime(latestRecordTime.toDate)
+            case Failure(ex) =>
+              Logger.error("failed", ex)
+          })
+        }
       }
 
       retEpaResult.fold(
         err => {
           Logger.error(JsError.toJson(err).toString())
-          timer = Some(context.system.scheduler.
-            scheduleOnce(scala.concurrent.duration.Duration(10, TimeUnit.MINUTES), self, GetEpaCurrentData))
         },
         results => {
           try {
@@ -149,11 +146,11 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
           } catch {
             case ex: Exception =>
               Logger.error("failed to handled epaRecord", ex)
-              timer = Some(context.system.scheduler.
-                scheduleOnce(scala.concurrent.duration.Duration(10, TimeUnit.MINUTES), self, GetEpaCurrentData))
           }
         }
       )
+      timer = Some(context.system.scheduler.
+        scheduleOnce(scala.concurrent.duration.Duration(10, TimeUnit.MINUTES), self, GetEpaCurrentData))
     }
   }
 

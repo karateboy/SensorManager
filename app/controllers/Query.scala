@@ -517,7 +517,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
             r.tags = Some(monitorOp.map(r._id).tags)
           }
         })
-        Ok(Json.toJson(recordList.take(100)))
+        Ok(Json.toJson(recordList))
       }
   }
 

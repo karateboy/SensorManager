@@ -11,7 +11,7 @@ import java.util.Date
 import scala.collection.immutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
-
+import scala.language.postfixOps
 case class RecordListID(time: Date, monitor: String)
 
 object RecordListID {
@@ -388,37 +388,38 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         Filters.exists("_id")
       }
 
-    val monitorFilter = if (county == "" && sensorType == "")
-      Filters.exists("_id")
-    else {
-      val monitors: immutable.Iterable[String] = monitorOp.map.filter(p => {
-        val m = p._2
-        if (county == "") {
-          m.tags.contains(sensorType)
-        } else {
-          m.county == Some(county) && {
-            if (sensorType == "")
-              true
-            else {
-              m.tags.contains(sensorType)
-            }
-          }
-        }
-      }) map {
-        _._1
-      }
-      Filters.in("monitor", monitors.toList: _*)
-    }
+    val epaMonitors = monitorOp.map.values.filter(m=>{
+      m.tags.contains(MonitorTag.EPA)
+    }) map {
+      _._id
+    } toList
+
+    val targetMonitors = monitorOp.map.values.filter(m => {
+      if (county == "")
+        true
+      else
+        m.county == Some(county)
+    }).filter(m=>{
+      if(sensorType == "")
+        true
+      else
+        m.tags.contains(sensorType)
+    }) map {
+      _._id
+    } toList
+    val mergedMonitors = Set(targetMonitors++epaMonitors :_*) toList
+    val monitorFilter =
+      Filters.in("monitor", mergedMonitors: _*)
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
-    val limitFilter = Aggregates.limit(2000)
+    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusHours(2).toDate)))
     val valueFilter = Aggregates.filter(Filters.and(pm25Filter, monitorFilter))
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
       Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"))
     val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    col.aggregate(Seq(sortFilter, limitFilter, valueFilter, latestFilter, removeIdStage)).toFuture()
+    col.aggregate(Seq(sortFilter, timeFrameFilter, valueFilter, latestFilter, removeIdStage)).toFuture()
   }
 
   def getDisconnectSummary(colName: String)
@@ -432,25 +433,29 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Aggregates.filter(Filters.gt("time", DateTime.now().minusMinutes(10).toDate))
     }
 
-    val targetMonitors: Seq[String] = monitorOp.map.filter(p => {
-      val m = p._2
+    val epaMonitors = monitorOp.map.values.filter(m=>{
+      m.tags.contains(MonitorTag.EPA)
+    }) map {
+      _._id
+    } toList
+
+    val targetMonitors = monitorOp.map.values.filter(m => {
       if (county == "")
         true
       else
         m.county == Some(county)
-    }).filter(p=>{
-      val m = p._2
+    }).filter(m=>{
       if(sensorType == "")
         true
       else
         m.tags.contains(sensorType)
     }) map {
-      _._1
+      _._id
     } toList
 
-    val monitorFilter = {
-      Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
-    }
+    val mergedMonitors = Set(targetMonitors++epaMonitors :_*) toList
+    val monitorFilter =
+      Aggregates.filter(Filters.in("monitor", mergedMonitors: _*))
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
@@ -469,7 +474,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   def getLast24HrCount(colName: String) = {
 
     val now = DateTime.now
-    val todayFilter = Aggregates.`match`(Filters.and(Filters.gte("time", now.minusDays(1).toDate),
+    val todayFilter = Aggregates.filter(Filters.and(Filters.gte("time", now.minusDays(1).toDate),
       Filters.lt("time", now.toDate)))
 
     val groupByMonitorCount = Aggregates.group(id = "$monitor", Accumulators.sum("count", 1))

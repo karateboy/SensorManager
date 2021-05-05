@@ -351,7 +351,12 @@ export default {
     },
     markers() {
       const ret = [];
-      let count = 0;
+      const epaUrl = (name, v) => {
+        let url = `https://chart.googleapis.com/chart?chst=d_fnote_title&chld=pinned_c|2|004400|l|${name}|PM2.5=${v}`;
+
+        return url;
+      };
+
       const getIconUrl = v => {
         let url = `https://chart.googleapis.com/chart?chst=d_bubble_text_small_withshadow&&chld=bb|`;
 
@@ -379,7 +384,10 @@ export default {
         if (!pm25Entry) continue;
         pm25 = pm25Entry.value;
 
-        const iconUrl = getIconUrl(pm25);
+        const iconUrl = stat.tags.includes('EPA')
+          ? epaUrl(this.mMap.get(stat._id).desc, pm25)
+          : getIconUrl(pm25);
+
         let infoText = stat.code
           ? `<strong>${stat.shortCode}/${stat.code}</strong>`
           : `<strong>${this.mMap.get(stat._id).desc}</strong>`;
@@ -394,7 +402,6 @@ export default {
           infoText,
           iconUrl,
         });
-        count++;
       }
 
       return ret;
