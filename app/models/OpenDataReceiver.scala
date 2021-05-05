@@ -28,7 +28,6 @@ object OpenDataReceiver {
                        Latitude: String,
                        SiteId: String)
 
-  case object GetEpaHourData
 
   case object GetEpaCurrentData
 
@@ -130,14 +129,19 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
         f onComplete ({
           case Success(_) =>
             sysConfig.setEpaLastDataTime(latestRecordTime.toDate)
+            self ! GetEpaCurrentData
           case Failure(ex) =>
             Logger.error("failed", ex)
+            timer = Some(context.system.scheduler.
+              scheduleOnce(scala.concurrent.duration.Duration(10, TimeUnit.MINUTES), self, GetEpaCurrentData))
         })
       }
 
       retEpaResult.fold(
         err => {
           Logger.error(JsError.toJson(err).toString())
+          timer = Some(context.system.scheduler.
+            scheduleOnce(scala.concurrent.duration.Duration(10, TimeUnit.MINUTES), self, GetEpaCurrentData))
         },
         results => {
           try {
@@ -145,6 +149,8 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
           } catch {
             case ex: Exception =>
               Logger.error("failed to handled epaRecord", ex)
+              timer = Some(context.system.scheduler.
+                scheduleOnce(scala.concurrent.duration.Duration(10, TimeUnit.MINUTES), self, GetEpaCurrentData))
           }
         }
       )

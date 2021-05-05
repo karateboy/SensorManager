@@ -4,6 +4,7 @@ import akka.actor._
 import org.apache.poi.ss.usermodel._
 import play.api._
 
+import java.io.File
 import javax.inject._
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, blocking}
@@ -13,7 +14,12 @@ import scala.util.{Failure, Success}
 object SensorMetaImporter
 {
   def listAllFiles(dir: String) = {
-    new java.io.File(dir).listFiles.filter(_.getName.endsWith(".xlsx"))
+    val files = new java.io.File(dir).listFiles
+    if(files == null)
+      Array.empty[File]
+    else{
+      files.filter(_.getName.endsWith(".xlsx"))
+    }
   }
 
   trait Factory {
@@ -45,7 +51,6 @@ class SensorMetaImporter @Inject()
         Future {
           blocking{
             importMetaData(f)
-            f.delete()
             self ! ImportComplete
           }
         }

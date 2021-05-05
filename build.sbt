@@ -34,9 +34,9 @@ mappings in Universal ++=
 mappings in Universal ++=
 (baseDirectory.value / "import" * "*" get) map
     (x => x -> ("importEPA/" + x.getName))
-	
- 	
-//libraryDependencies += "com.google.guava" % "guava" % "19.0"
+
+
+scalacOptions += "-feature"
 
 resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
 
