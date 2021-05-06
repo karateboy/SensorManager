@@ -9,7 +9,7 @@
         </b-row>
         <b-row>
           <b-col>
-            <b-table-simple bordered>
+            <b-table-simple bordered responsive outlined>
               <b-thead>
                 <b-tr
                   ><b-td class="text-center" colspan="4"
@@ -34,7 +34,7 @@
             </b-table-simple>
           </b-col>
           <b-col>
-            <b-table-simple bordered>
+            <b-table-simple bordered responsive outlined>
               <b-thead>
                 <b-tr
                   ><b-td class="text-center" colspan="5"
@@ -67,7 +67,7 @@
       <b-card title="監測地圖🚀">
         <div class="map_container">
           <div id="sensorFilter" class="sensorFilter mt-2">
-            <b-table-simple>
+            <b-table-simple small>
               <b-tr>
                 <b-th>縣市</b-th>
                 <b-th>濃度</b-th>

@@ -80,6 +80,11 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
 
     val f = wsClient.url(url).get()
     f onFailure (errorHandler)
+    f.onComplete({
+      case _=>
+        timer = Some(context.system.scheduler.
+          scheduleOnce(scala.concurrent.duration.Duration(10, TimeUnit.MINUTES), self, GetEpaCurrentData))
+    })
 
     for (ret <- f) yield {
       var latestRecordTime = DateTime.now() - 1.day
@@ -149,9 +154,8 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
           }
         }
       )
-      timer = Some(context.system.scheduler.
-        scheduleOnce(scala.concurrent.duration.Duration(10, TimeUnit.MINUTES), self, GetEpaCurrentData))
     }
+
   }
 
   override def postStop =
