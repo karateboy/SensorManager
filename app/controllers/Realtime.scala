@@ -59,12 +59,17 @@ class Realtime @Inject()
 
   def sensorSummary = Security.Authenticated.async {
     import recordOp.summaryWrites
-    val start = DateTime.now()
     val f = recordOp.getLast24HrCount(recordOp.MinCollection)
     for(ret <- f) yield {
-      val duration = new Duration(start, DateTime.now)
-      Logger.info(s"Sensor Summary ${duration.getStandardSeconds} sec")
-      Logger.info(ret.toString())
+      Ok(Json.toJson(ret))
+    }
+  }
+
+  def sensorDisconnectSummary= Security.Authenticated.async {
+    import recordOp.summaryWrites
+    val f = recordOp.getDisconnectSummary(recordOp.MinCollection)("","", "", "")
+    for(ret <- f) yield {
+
       Ok(Json.toJson(ret))
     }
   }

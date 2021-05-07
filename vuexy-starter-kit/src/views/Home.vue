@@ -149,10 +149,9 @@
               @closeclick="infoWinOpen = false"
             />
           </GmapMap>
-
-          <div id="legend" class="legend shadow border border-dark m-2">
-            <b-img src="../assets/images/legend.png" width="130" />
-          </div>
+        </div>
+        <div id="legend" class="legend shadow border border-dark m-2">
+          <b-img src="../assets/images/legend.png" fluid />
         </div>
       </b-card>
     </b-col>
