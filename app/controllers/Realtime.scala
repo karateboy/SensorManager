@@ -73,4 +73,37 @@ class Realtime @Inject()
       Ok(Json.toJson(ret))
     }
   }
+
+  def epaStatus()= Security.Authenticated.async {
+      implicit request =>
+        import recordOp.monitorRecordWrite
+        val f = recordOp.getLatestEpaStatus(TableType.mapCollection(TableType.min))
+        for (recordList <- f) yield {
+          recordList.foreach(r=> {
+            if(monitorOp.map.contains(r._id)) {
+              r.shortCode =monitorOp.map(r._id).shortCode
+              r.code = monitorOp.map(r._id).code
+              r.tags = Some(monitorOp.map(r._id).tags)
+            }
+          })
+          Ok(Json.toJson(recordList))
+        }
+    }
+
+  def sensorStatus(pm25Threshold:String, county:String, district:String, sensorType:String) =
+    Security.Authenticated.async {
+      implicit request =>
+        import recordOp.monitorRecordWrite
+        val f = recordOp.getLatestSensorStatus(TableType.mapCollection(TableType.min))(pm25Threshold, county, district, sensorType)
+        for (recordList <- f) yield {
+          recordList.foreach(r=> {
+            if(monitorOp.map.contains(r._id)) {
+              r.shortCode =monitorOp.map(r._id).shortCode
+              r.code = monitorOp.map(r._id).code
+              r.tags = Some(monitorOp.map(r._id).tags)
+            }
+          })
+          Ok(Json.toJson(recordList))
+        }
+    }
 }

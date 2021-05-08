@@ -354,45 +354,23 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       .sort(descending("time")).limit(1).toFuture()
   }
 
-  def getLatestRecordSummary(colName: String)
-                            (pm25Threshold: String, county: String, district: String, sensorType: String, status: String) = {
+  def getLatestSensorStatus(colName: String)
+                           (pm25Threshold: String, county: String, district: String, sensorType: String) = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
-    Logger.info(s"sensorType=$sensorType")
     val pm25Filter = try {
       val v = pm25Threshold.toInt
       if (v < 0) {
-        Filters.elemMatch("mtDataList", Filters.and(Filters.equal("mtName", "PM25"),
-          Filters.lt("value", Math.abs(v))))
+        Some(Filters.elemMatch("mtDataList", Filters.and(Filters.equal("mtName", "PM25"),
+          Filters.lt("value", Math.abs(v)))))
       } else {
-        Filters.elemMatch("mtDataList", Filters.and(Filters.equal("mtName", "PM25"),
-          Filters.gt("value", Math.abs(v))))
+        Some(Filters.elemMatch("mtDataList", Filters.and(Filters.equal("mtName", "PM25"),
+          Filters.gt("value", Math.abs(v)))))
       }
     } catch {
       case _: Throwable =>
-        Filters.equal("mtDataList.mtName", "PM25")
+        None
     }
-
-    val statusFilter =
-      if (status == "")
-        Filters.exists("_id")
-      else {
-        status match {
-          case "disconnect"=>
-            DateTime.now().minusMinutes(10).toDate
-            Filters.lt("time", DateTime.now().minusMinutes(10).toDate)
-          case ""=>
-            DateTime.now().minusMinutes(10).toDate
-            Filters.lt("time", DateTime.now().minusMinutes(10).toDate)
-        }
-        Filters.exists("_id")
-      }
-
-    val epaMonitors = monitorOp.map.values.filter(m=>{
-      m.tags.contains(MonitorTag.EPA)
-    }) map {
-      _._id
-    } toList
 
     val targetMonitors = monitorOp.map.values.filter(m => {
       if (county == "")
@@ -407,13 +385,43 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     }) map {
       _._id
     } toList
-    val mergedMonitors = Set(targetMonitors++epaMonitors :_*) toList
+
     val monitorFilter =
-      Filters.in("monitor", mergedMonitors: _*)
+      Some(Filters.in("monitor", targetMonitors: _*))
+
+    val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
+    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusMinutes(10).toDate)))
+    val valueFilter = {
+      val filters = Seq(pm25Filter, monitorFilter).flatten
+      if(filters.nonEmpty)
+        Aggregates.filter(Filters.and(filters :_*))
+      else
+        Aggregates.filter(Filters.exists("_id"))
+    }
+    val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
+      Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"))
+    val projectStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
+    val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
+    val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
+    col.aggregate(Seq(sortFilter, timeFrameFilter, valueFilter, latestFilter, projectStage)).toFuture()
+  }
+
+  def getLatestEpaStatus(colName: String) = {
+    import org.mongodb.scala.model.Projections._
+    import org.mongodb.scala.model.Sorts._
+
+    val epaMonitors = monitorOp.map.values.filter(m=>{
+      m.tags.contains(MonitorTag.EPA)
+    }) map {
+      _._id
+    } toList
+
+    val monitorFilter =
+      Filters.in("monitor", epaMonitors: _*)
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
     val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusHours(2).toDate)))
-    val valueFilter = Aggregates.filter(Filters.and(pm25Filter, monitorFilter))
+    val valueFilter = Aggregates.filter(Filters.and(monitorFilter))
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
       Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"))
     val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
@@ -491,8 +499,13 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Aggregates.filter(Filters.in("monitor", mergedMonitors: _*))
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
+    val extractPm25Filter = Aggregates.addFields(Field("pm25",
+    """$first: { $filter: { input: "$mtDataList", as: "pm25", cond: { $eq: [ "$$pm25.mtName", "PM25"]} } }}}}
+        |""".stripMargin
+    ))
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
-      Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"))
+      Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"),
+      Accumulators.max("max", ""), Accumulators.min("min", ""))
     val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)

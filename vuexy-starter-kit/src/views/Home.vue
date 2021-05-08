@@ -73,44 +73,45 @@
                 <b-th>濃度</b-th>
                 <b-th>區域劃分</b-th>
                 <b-th>類型</b-th>
-                <b-th>資料狀態</b-th>
+                <b-th>圖層選擇</b-th>
               </b-tr>
               <b-tbody>
                 <b-tr>
                   <b-td
                     ><v-select
-                      v-model="realtimeStatusParam.county"
+                      v-model="sensorStatusParam.county"
                       label="txt"
                       :reduce="entry => entry.value"
                       :options="countyFilters"
                   /></b-td>
                   <b-td
                     ><v-select
-                      v-model="realtimeStatusParam.pm25Threshold"
+                      v-model="sensorStatusParam.pm25Threshold"
                       label="txt"
                       :reduce="entry => entry.value"
                       :options="pm25Filters"
                   /></b-td>
                   <b-td
                     ><v-select
-                      v-model="realtimeStatusParam.district"
+                      v-model="sensorStatusParam.district"
                       label="txt"
                       :reduce="entry => entry.value"
                       :options="districtFilters"
                   /></b-td>
                   <b-td
                     ><v-select
-                      v-model="realtimeStatusParam.sensorType"
+                      v-model="sensorStatusParam.sensorType"
                       label="txt"
                       :reduce="entry => entry.value"
                       :options="sensorTypes"
                   /></b-td>
                   <b-td>
                     <v-select
-                      v-model="realtimeStatusParam.status"
+                      v-model="mapLayer"
                       label="txt"
+                      multiple
                       :reduce="entry => entry.value"
-                      :options="statusTypes"
+                      :options="mapLayerTypes"
                     />
                   </b-td>
                 </b-tr>
@@ -134,8 +135,17 @@
             }"
           >
             <GmapMarker
-              v-for="(m, index) in markers"
-              :key="index"
+              v-for="(m, index) in sensorMarkers"
+              :key="m._id"
+              :position="m.position"
+              :clickable="true"
+              :title="m.title"
+              :icon="m.iconUrl"
+              @click="toggleInfoWindow(m, index)"
+            />
+            <GmapMarker
+              v-for="(m, index) in epaMarkers"
+              :key="m._id"
               :position="m.position"
               :clickable="true"
               :title="m.title"
@@ -179,23 +189,19 @@
 <script>
 import { mapActions, mapState, mapGetters } from 'vuex';
 import axios from 'axios';
-import highcharts from 'highcharts';
 export default {
   data() {
     return {
-      realTimeStatusRaw: [],
-      realTimeStatusFilter: {
-        pm25Threshold: 25,
-      },
-      realtimeStatusParam: {
+      mapLayer: ['sensor', 'EPA'],
+      sensorStatus: [],
+      epaStatus: [],
+      sensorStatusParam: {
         pm25Threshold: '',
         county: '',
         district: '',
         sensorType: '',
-        status: '',
       },
       loader: undefined,
-      timer: 0,
       refreshTimer: 0,
       infoWindowPos: null,
       infoWinOpen: false,
@@ -298,10 +304,14 @@ export default {
           value: 'AO',
         },
       ],
-      statusTypes: [
+      mapLayerTypes: [
         {
-          txt: '不限',
-          value: '',
+          txt: '感測器',
+          value: 'sensor',
+        },
+        {
+          txt: '環保署',
+          value: 'EPA',
         },
         {
           txt: '通訊中斷',
@@ -312,8 +322,8 @@ export default {
           value: 'lt95',
         },
         {
-          txt: '連續三筆定值',
-          value: 'constant3',
+          txt: '定值',
+          value: 'constant',
         },
       ],
     };
@@ -324,19 +334,8 @@ export default {
     ...mapState('user', ['userInfo']),
     ...mapGetters('monitorTypes', ['mtMap']),
     ...mapGetters('monitors', ['mMap']),
-    realTimeStatus() {
-      let ret = this.realTimeStatusRaw.filter(stat => {
-        const pm25Entry = stat.mtDataList.find(v => v.mtName === 'PM25');
-
-        if (!pm25Entry) return false;
-
-        const pm25 = pm25Entry.value;
-        return true;
-      });
-      return ret;
-    },
     mapCenter() {
-      let county = this.realtimeStatusParam.county;
+      let county = this.sensorStatusParam.county;
       switch (county) {
         case '基隆市':
           return { lat: 25.127594828422044, lng: 121.7399713796935 };
@@ -348,95 +347,35 @@ export default {
 
       return { lat: 25.127594828422044, lng: 121.7399713796935 };
     },
-    markers() {
-      const ret = [];
-      const epaUrl = (name, v) => {
-        let url = `https://chart.googleapis.com/chart?chst=d_fnote_title&chld=pinned_c|2|004400|l|${name}|PM2.5=${v}`;
-
-        return url;
-      };
-
-      const getIconUrl = v => {
-        let url = `https://chart.googleapis.com/chart?chst=d_bubble_text_small_withshadow&&chld=bb|`;
-
-        if (v < 15.4) url += `${v}|009865|000000`;
-        else if (v < 35.4) url += `${v}|FFFB26|000000`;
-        else if (v < 54.4) url += `${v}|FF9835|000000`;
-        else if (v < 150.4) url += `${v}|CA0034|000000`;
-        else if (v < 250.4) url += `${v}|670099|000000`;
-        else if (v < 350.4) url += `${v}|7E0123|000000`;
-        else url += `${v}|7E0123|FFFFFF`;
-
-        return url;
-      };
-
-      for (const stat of this.realTimeStatus) {
-        if (!stat.location) continue;
-
-        const lng = stat.location[0];
-        const lat = stat.location[1];
-
-        let pm25 = 0;
-
-        const pm25Entry = stat.mtDataList.find(v => v.mtName === 'PM25');
-
-        if (!pm25Entry) continue;
-        pm25 = pm25Entry.value;
-
-        const iconUrl = stat.tags.includes('EPA')
-          ? epaUrl(this.mMap.get(stat._id).desc, pm25)
-          : getIconUrl(pm25);
-
-        let infoText = stat.code
-          ? `<strong>${stat.shortCode}/${stat.code}</strong>`
-          : `<strong>${this.mMap.get(stat._id).desc}</strong>`;
-        let title = stat.code
-          ? `${stat.code}`
-          : `${this.mMap.get(stat._id).desc}`;
-
-        ret.push({
-          title,
-          position: { lat, lng },
-          pm25,
-          infoText,
-          iconUrl,
-        });
-      }
-
-      return ret;
+    sensorMarkers() {
+      return this.markers(this.sensorStatus);
+    },
+    epaMarkers() {
+      return this.markers(this.epaStatus);
     },
   },
   watch: {
-    'realtimeStatusParam.pm25Threshold': function () {
-      this.getRealtimeStatus();
+    'sensorStatusParam.pm25Threshold': function () {
+      this.getSensorStatus();
     },
-    'realtimeStatusParam.county': function () {
-      if (this.realtimeStatusParam.county === null)
-        this.realtimeStatusParam.county = '';
-      this.getRealtimeStatus();
+    'sensorStatusParam.county': function () {
+      if (this.sensorStatusParam.county === null)
+        this.sensorStatusParam.county = '';
+      this.getSensorStatus();
     },
-    'realtimeStatusParam.district': function () {
-      this.getRealtimeStatus();
+    'sensorStatusParam.district': function () {
+      this.getSensorStatus();
     },
-    'realtimeStatusParam.sensorType': function () {
-      if (this.realtimeStatusParam.sensorType === null)
-        this.realtimeStatusParam.sensorType = '';
-      this.getRealtimeStatus();
+    mapLayer(newMap, oldMap) {
+      this.handlMapLayerChange(newMap, oldMap);
     },
   },
   async mounted() {
-    /*
-    const legend = document.getElementById('legend');
-    this.$refs.mapRef.$mapPromise.then(map => {
-      map.controls[google.maps.ControlPosition.LEFT_CENTER].push(legend);
-    });*/
-
     const sensorFilter = document.getElementById('sensorFilter');
     this.$refs.mapRef.$mapPromise.then(map => {
       map.controls[google.maps.ControlPosition.TOP_CENTER].push(sensorFilter);
     });
 
-    //console.log(google.maps.ControlPosition.TOP_CENTER);
     /*
     this.loader = this.$loading.show({
       // Optional parameters
@@ -449,9 +388,9 @@ export default {
     this.refreshTimer = setInterval(() => {
       this.refresh();
     }, 60000);
+    this.handlMapLayerChange(this.mapLayer, []);
   },
   beforeDestroy() {
-    clearInterval(this.timer);
     clearInterval(this.refreshTimer);
   },
   methods: {
@@ -486,18 +425,113 @@ export default {
     },
     async refresh() {
       this.getTodaySummary();
-      this.getRealtimeStatus();
     },
-    async getRealtimeStatus() {
-      const ret = await axios.get('/RealtimeStatus', {
-        params: this.realtimeStatusParam,
+    async redrawMap() {
+      for (const map of this.mapLayer) {
+        switch (map) {
+          case 'sensor':
+            this.getSensorStatus();
+            break;
+          case 'EPA':
+            break;
+        }
+      }
+    },
+    async getSensorStatus() {
+      const ret = await axios.get('/RealtimeSensor', {
+        params: this.sensorStatusParam,
       });
-      this.realTimeStatusRaw = ret.data;
+      this.sensorStatus = ret.data;
+    },
+    async getEpaStatus() {
+      const ret = await axios.get('/RealtimeEPA');
+      this.epaStatus = ret.data;
     },
     async getTodaySummary() {
       const res = await axios.get('/SensorSummary');
       const ret = res.data;
       this.sensorGroupSummary = ret;
+    },
+    handlMapLayerChange(newMap, oldMap) {
+      const mapToClear = oldMap.filter(map => newMap.indexOf(map) === -1);
+      mapToClear.forEach(map => {
+        switch (map) {
+          case 'sensor':
+            this.sensorStatus.splice(0, this.sensorStatus.length);
+            break;
+          case 'EPA':
+            this.epaStatus.splice(0, this.epaStatus.length);
+            break;
+        }
+      });
+      const mapToGet = newMap.filter(map => oldMap.indexOf(map) === -1);
+      mapToGet.forEach(map => {
+        switch (map) {
+          case 'sensor':
+            this.getSensorStatus();
+            break;
+          case 'EPA':
+            this.getEpaStatus();
+            break;
+        }
+      });
+    },
+    markers(statusArray) {
+      const ret = [];
+      const epaUrl = (name, v) => {
+        let url = `https://chart.googleapis.com/chart?chst=d_fnote_title&chld=pinned_c|2|004400|l|${name}|PM2.5=${v}`;
+
+        return url;
+      };
+
+      const getIconUrl = v => {
+        let url = `https://chart.googleapis.com/chart?chst=d_bubble_text_small_withshadow&&chld=bb|`;
+
+        if (v < 15.4) url += `${v}|009865|000000`;
+        else if (v < 35.4) url += `${v}|FFFB26|000000`;
+        else if (v < 54.4) url += `${v}|FF9835|000000`;
+        else if (v < 150.4) url += `${v}|CA0034|000000`;
+        else if (v < 250.4) url += `${v}|670099|000000`;
+        else if (v < 350.4) url += `${v}|7E0123|000000`;
+        else url += `${v}|7E0123|FFFFFF`;
+
+        return url;
+      };
+
+      for (const stat of statusArray) {
+        if (!stat.location) continue;
+
+        const lng = stat.location[0];
+        const lat = stat.location[1];
+
+        let pm25 = 0;
+
+        const pm25Entry = stat.mtDataList.find(v => v.mtName === 'PM25');
+
+        if (!pm25Entry) continue;
+        pm25 = pm25Entry.value;
+
+        const iconUrl = stat.tags.includes('EPA')
+          ? epaUrl(this.mMap.get(stat._id).desc, pm25)
+          : getIconUrl(pm25);
+
+        let infoText = stat.code
+          ? `<strong>${stat.shortCode}/${stat.code}</strong>`
+          : `<strong>${this.mMap.get(stat._id).desc}</strong>`;
+        let title = stat.code
+          ? `${stat.code}`
+          : `${this.mMap.get(stat._id).desc}`;
+
+        ret.push({
+          title,
+          position: { lat, lng },
+          pm25,
+          infoText,
+          iconUrl,
+        });
+      }
+
+      return ret;
     },
   },
 };
