@@ -10,6 +10,7 @@ import org.mongodb.scala.bson._
 
 import java.util.Date
 import javax.inject._
+import scala.collection.JavaConversions.{asScalaBuffer}
 import scala.concurrent.Future
 
 @Singleton
@@ -20,12 +21,12 @@ class SysConfig @Inject()(mongoDB: MongoDB){
   val valueKey = "value"
   val MonitorTypeVer = "Version"
   val EpaLastDataTime = "EpaLastDateTime"
-  val KLMetaImported = "KLMetaImoirted"
+  val SensorMetaFilename = "SensorMetaFilename"
 
   val defaultConfig:Map[String, Document] = Map(
     MonitorTypeVer -> Document(valueKey -> 1),
     EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate),
-    KLMetaImported -> Document(valueKey-> false)
+    SensorMetaFilename -> Document(valueKey -> Seq.empty[String])
   )
 
   def init() {
@@ -75,6 +76,8 @@ class SysConfig @Inject()(mongoDB: MongoDB){
 
   def set(_id: String, v: Date) = upsert(_id, Document(valueKey -> v))
   def set(_id: String, v: Boolean) = upsert(_id, Document(valueKey -> v))
+  def set(_id: String, v: String) = upsert(_id, Document(valueKey -> v))
+  def set(_id: String, v: Seq[String]) = upsert(_id, Document(valueKey -> v))
 
   def getEpaLastDataTime(): Future[Date] =
     for(v<-get(EpaLastDataTime)) yield
@@ -82,8 +85,13 @@ class SysConfig @Inject()(mongoDB: MongoDB){
 
   def setEpaLastDataTime(time:Date) = set(EpaLastDataTime, time)
 
-  def getKLMetaImported = for(v<-get(KLMetaImported)) yield
-    v.asBoolean().getValue
+  def getImportedSensorMetaFilename = for(v<-get(SensorMetaFilename)) yield {
+    val array = v.asArray().getValues
+    val result = array map {
+      v => v.asString().getValue
+    }
+    result.toList
+  }
 
-  def setKLMetaImported(v:Boolean) = set(KLMetaImported, v)
+  def setImportedSensorMetaFilename(filenames: Seq[String]) = set(SensorMetaFilename, filenames)
 }

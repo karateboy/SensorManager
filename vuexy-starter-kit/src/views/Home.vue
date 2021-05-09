@@ -195,6 +195,7 @@ export default {
       mapLayer: ['sensor', 'EPA'],
       sensorStatus: [],
       epaStatus: [],
+      disconnectedList: [],
       sensorStatusParam: {
         pm25Threshold: '',
         county: '',
@@ -426,17 +427,6 @@ export default {
     async refresh() {
       this.getTodaySummary();
     },
-    async redrawMap() {
-      for (const map of this.mapLayer) {
-        switch (map) {
-          case 'sensor':
-            this.getSensorStatus();
-            break;
-          case 'EPA':
-            break;
-        }
-      }
-    },
     async getSensorStatus() {
       const ret = await axios.get('/RealtimeSensor', {
         params: this.sensorStatusParam,
@@ -446,6 +436,18 @@ export default {
     async getEpaStatus() {
       const ret = await axios.get('/RealtimeEPA');
       this.epaStatus = ret.data;
+    },
+    async getDisconnected() {
+      const params = {
+        county: this.sensorStatusParam.county,
+        district: this.sensorStatusParam.district,
+        sensorType: this.sensorStatusParam.sensorType,
+      };
+      const ret = await axios.get('/RealtimeDisconnectedSensor', {
+        params,
+      });
+      console.log(ret.data);
+      this.disconnectedList = ret.data;
     },
     async getTodaySummary() {
       const res = await axios.get('/SensorSummary');
@@ -462,6 +464,9 @@ export default {
           case 'EPA':
             this.epaStatus.splice(0, this.epaStatus.length);
             break;
+          case 'disconnect':
+            this.disconnectedList.splice(0, this.disconnectedList.length);
+            break;
         }
       });
       const mapToGet = newMap.filter(map => oldMap.indexOf(map) === -1);
@@ -472,6 +477,9 @@ export default {
             break;
           case 'EPA':
             this.getEpaStatus();
+            break;
+          case 'disconnect':
+            this.getDisconnected();
             break;
         }
       });

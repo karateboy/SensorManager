@@ -32,6 +32,7 @@ GET      /HistoryReport/:monitor/:monitorType/:tabType/:start/:end              
 GET      /LatestData/:monitor/:monitorType/:tabType                               controllers.Query.latestData(monitor, monitorType, tabType)
 GET      /RealtimeEPA                                                             controllers.Realtime.epaStatus()
 GET      /RealtimeSensor                                                          controllers.Realtime.sensorStatus(pm25Threshold, county, district, sensorType)
+GET      /RealtimeDisconnectedSensor                                              controllers.Realtime.sensorDisconnected(county, district, sensorType)
 GET      /SensorSummary                                                           controllers.Realtime.sensorSummary
 
 GET      /CalibrationReport/:start/:end                                           controllers.Query.calibrationReport(start:Long, end:Long)

@@ -7,16 +7,34 @@ import play.api.libs.json._
 
 import scala.concurrent.ExecutionContext.Implicits.global
 
+case class SensorDetail(var sensorType: String,
+                        var roadName: String,
+                        var locationDesc: String,
+                        var authority: String,
+                        var epaCode: String,
+                        var target: String,
+                        var targetDetail: String,
+                        var height: Double,
+                        var distance: Seq[Double])
+
 case class Monitor(_id: String, desc: String, monitorTypes: Seq[String], var tags: Seq[String],
-                   location: Option[Seq[Double]] = None, var shortCode:Option[String]=None,
-                   var code:Option[String]=None, var county:Option[String]=None, var district:Option[String]=None)
+                   var location: Option[Seq[Double]] = None, var shortCode: Option[String] = None,
+                   var code: Option[String] = None, var enabled: Option[Boolean] = None,
+                   var county: Option[String] = None,
+                   var district: Option[String] = None,
+                   var sensorDetail: Option[SensorDetail] = None
+                  )
+
 object Monitor {
+  implicit val sdWrite = Json.writes[SensorDetail]
+  implicit val sdRead = Json.reads[SensorDetail]
   implicit val mWrite = Json.writes[Monitor]
   implicit val mRead = Json.reads[Monitor]
 
   val SELF_ID = ""
-  val selfMonitor = Monitor(SELF_ID, "本站", monitorTypes=Seq.empty[String], tags=Seq.empty[String])
-  def epaID(id:String) = s"epa$id"
+  val selfMonitor = Monitor(SELF_ID, "本站", monitorTypes = Seq.empty[String], tags = Seq.empty[String])
+
+  def epaID(id: String) = s"epa$id"
 }
 
 import javax.inject._
@@ -44,7 +62,7 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
   val colName = "monitors"
   mongoDB.database.createCollection(colName).toFuture()
 
-  val codecRegistry = fromRegistries(fromProviders(classOf[Monitor]), DEFAULT_CODEC_REGISTRY)
+  val codecRegistry = fromRegistries(fromProviders(classOf[Monitor], classOf[SensorDetail]), DEFAULT_CODEC_REGISTRY)
   val collection = mongoDB.database.getCollection[Monitor](colName).withCodecRegistry(codecRegistry)
   collection.createIndex(Indexes.ascending("monitorTypes")).toFuture()
   collection.createIndex(Indexes.ascending("tags")).toFuture()
@@ -90,12 +108,12 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
       hasSelfMonitor || p != SELF_ID
   })
 
-  def ensureMonitor(_id: String, desc:String, monitorTypes:Seq[String], tags:Seq[String]): Monitor = {
+  def ensureMonitor(_id: String, desc: String, monitorTypes: Seq[String], tags: Seq[String]): Monitor = {
     if (!map.contains(_id)) {
       val monitor = Monitor(_id, desc, monitorTypes, tags)
       newMonitor(monitor)
       monitor
-    }else
+    } else
       map(_id)
   }
 
@@ -149,8 +167,8 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
     }
     val pairs = monitors map { m => m._id -> m }
     map = map ++ pairs
-    val f= collection.bulkWrite(updateModels).toFuture()
-    f onFailure(errorHandler)
+    val f = collection.bulkWrite(updateModels).toFuture()
+    f onFailure (errorHandler)
     f
   }
 }

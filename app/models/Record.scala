@@ -372,7 +372,9 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         None
     }
 
-    val targetMonitors = monitorOp.map.values.filter(m => {
+    val targetMonitors = monitorOp.map.values.filter(m=>
+      m.tags.contains(MonitorTag.SENSOR)
+    ).filter(m => {
       if (county == "")
         true
       else
@@ -430,8 +432,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     col.aggregate(Seq(sortFilter, timeFrameFilter, valueFilter, latestFilter, removeIdStage)).toFuture()
   }
 
-  def getDisconnectSummary(colName: String)
-                            (county: String, district: String, sensorType: String, status: String): Future[Set[String]] = {
+  def getSensorDisconnected(colName: String)
+                           (county: String, district: String, sensorType: String): Future[Set[String]] = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
@@ -440,7 +442,9 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Aggregates.filter(Filters.gt("time", DateTime.now().minusMinutes(10).toDate))
     }
 
-    val targetMonitors = monitorOp.map.values.filter(m => {
+    val targetMonitors = monitorOp.map.values.filter(m=>m.tags.contains(MonitorTag.SENSOR))
+      .filter(m => m.enabled.getOrElse(true))
+      .filter(m => {
       if (county == "")
         true
       else
@@ -454,9 +458,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       _._id
     } toList
 
-    val mergedMonitors = Set(targetMonitors :_*) toList
     val monitorFilter =
-      Aggregates.filter(Filters.in("monitor", mergedMonitors: _*))
+      Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
@@ -467,8 +470,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val f = col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, latestFilter, removeIdStage)).toFuture()
     f.transform(ret =>{
       val targetSet: Set[String] = targetMonitors.toSet
-      val connectedSet = ret.map( _._id).toSet
-      targetSet -- connectedSet
+      val connected = ret.map( _._id)
+      targetSet -- connected
     }, ex=>ex)
   }
 
@@ -527,7 +530,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val col = mongoDB.database.getCollection(colName)
     val f1 = col.aggregate(Seq(todayFilter, groupByMonitorCount)).toFuture()
     val f2 = sensorOp.getFullSensorMap
-    val f3 = getDisconnectSummary(colName)("", "", "", "")
+    val f3 = getSensorDisconnected(colName)("", "", "")
     for {docList <- f1
          sensorMap <- f2
          disconnected <- f3
@@ -550,6 +553,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
             val group = sensorMap(monitorID).group
             val disconnected = groupDisconnectedCount.getOrElse(group, 0)
             groupDisconnectedCount = groupDisconnectedCount + (group -> (disconnected + 1))
+          }else{
+            Logger.info(s"unknown sensor ${monitorID}")
           }
       })
 

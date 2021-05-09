@@ -65,11 +65,9 @@ class Realtime @Inject()
     }
   }
 
-  def sensorDisconnectSummary= Security.Authenticated.async {
-    import recordOp.summaryWrites
-    val f = recordOp.getDisconnectSummary(recordOp.MinCollection)("","", "", "")
+  def sensorDisconnected(county:String, district:String, sensorType:String)= Security.Authenticated.async {
+    val f = recordOp.getSensorDisconnected(recordOp.MinCollection)(county=county, district=district, sensorType=sensorType)
     for(ret <- f) yield {
-
       Ok(Json.toJson(ret))
     }
   }
@@ -106,4 +104,22 @@ class Realtime @Inject()
           Ok(Json.toJson(recordList))
         }
     }
+/*
+  def sensorDisconnect() = Security.Authenticated.async {
+    implicit request =>
+      import recordOp.monitorRecordWrite
+      val f = recordOp.getDisconnectSummary(TableType.min)
+      for (recordList <- f) yield {
+        recordList.foreach(r=> {
+          if(monitorOp.map.contains(r._id)) {
+            r.shortCode =monitorOp.map(r._id).shortCode
+            r.code = monitorOp.map(r._id).code
+            r.tags = Some(monitorOp.map(r._id).tags)
+          }
+        })
+        Ok(Json.toJson(recordList))
+      }
+  }
+
+ */
 }
