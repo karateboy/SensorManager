@@ -65,6 +65,14 @@ class Realtime @Inject()
     }
   }
 
+  def disconnectSummary = Security.Authenticated.async {
+    implicit val writes = Json.writes[DisconnectSummary]
+    val f = recordOp.getLast24HrDisconnectSummary(recordOp.MinCollection)
+    for(ret <- f) yield {
+      Ok(Json.toJson(ret))
+    }
+  }
+
   def sensorDisconnected(county:String, district:String, sensorType:String)= Security.Authenticated.async {
     val f = recordOp.getSensorDisconnected(recordOp.MinCollection)(county=county, district=district, sensorType=sensorType)
     for(ret <- f) yield {
@@ -92,8 +100,31 @@ class Realtime @Inject()
     Security.Authenticated.async {
       implicit request =>
         import recordOp.monitorRecordWrite
+        val start= DateTime.now
         val f = recordOp.getLatestSensorStatus(TableType.mapCollection(TableType.min))(pm25Threshold, county, district, sensorType)
         for (recordList <- f) yield {
+          val duration = new Duration(start, DateTime.now)
+          Logger.info(s"sensorStatus take ${duration.getMillis/1000}ms")
+          recordList.foreach(r=> {
+            if(monitorOp.map.contains(r._id)) {
+              r.shortCode =monitorOp.map(r._id).shortCode
+              r.code = monitorOp.map(r._id).code
+              r.tags = Some(monitorOp.map(r._id).tags)
+            }
+          })
+          Ok(Json.toJson(recordList))
+        }
+    }
+
+  def sensorConstant(county:String, district:String, sensorType:String) =
+    Security.Authenticated.async {
+      implicit request =>
+        import recordOp.monitorRecordWrite
+        val start= DateTime.now
+        val f = recordOp.getLatestConstantSensor(TableType.mapCollection(TableType.min))(county, district, sensorType)
+        for (recordList <- f) yield {
+          val duration = new Duration(start, DateTime.now)
+          Logger.info(s"sensorStatus take ${duration.getMillis/1000}ms")
           recordList.foreach(r=> {
             if(monitorOp.map.contains(r._id)) {
               r.shortCode =monitorOp.map(r._id).shortCode

@@ -1,6 +1,6 @@
 name := """SensorManager"""
 
-version := "1.1.8"
+version := "1.1.9"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala, LauncherJarPlugin)
 
@@ -33,7 +33,7 @@ mappings in Universal ++=
 
 mappings in Universal ++=
 (baseDirectory.value / "import" * "*" get) map
-    (x => x -> ("importEPA/" + x.getName))
+    (x => x -> ("import/" + x.getName))
 
 
 scalacOptions += "-feature"

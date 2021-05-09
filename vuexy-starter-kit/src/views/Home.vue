@@ -19,7 +19,7 @@
                 <b-tr>
                   <b-th>群組</b-th>
                   <b-th>接收總數</b-th>
-                  <b-th>斷線</b-th>
+                  <b-th>定值</b-th>
                   <b-th>完整率&lt;95%</b-th>
                 </b-tr>
               </b-thead>
@@ -27,8 +27,8 @@
                 <b-tr v-for="group in sensorGroupSummary" :key="group.name">
                   <b-td>{{ group.name }}</b-td>
                   <b-td>{{ group.count }} </b-td>
-                  <b-td>{{ group.disconnected }}</b-td>
-                  <b-td>{{ group.expected }}</b-td>
+                  <b-td>{{ group.constant }}</b-td>
+                  <b-td>{{ group.count - group.expected }}</b-td>
                 </b-tr>
               </b-tbody>
             </b-table-simple>
@@ -50,12 +50,12 @@
                 </b-tr>
               </b-thead>
               <b-tbody>
-                <b-tr v-for="group in sensorGroupSummary" :key="group.name">
+                <b-tr v-for="group in disconnectSummary" :key="group.name">
                   <b-td>{{ group.name }}</b-td>
-                  <b-td></b-td>
-                  <b-td></b-td>
-                  <b-td></b-td>
-                  <b-td></b-td>
+                  <b-td>{{ group.kl }}</b-td>
+                  <b-td>{{ group.pt }}</b-td>
+                  <b-td>{{ group.yl }}</b-td>
+                  <b-td>{{ group.rest }}</b-td>
                 </b-tr>
               </b-tbody>
             </b-table-simple>
@@ -152,6 +152,24 @@
               :icon="m.iconUrl"
               @click="toggleInfoWindow(m, index)"
             />
+            <GmapMarker
+              v-for="(m, index) in constantMarkers"
+              :key="m._id"
+              :position="m.position"
+              :clickable="true"
+              :title="m.title"
+              :icon="m.iconUrl"
+              @click="toggleInfoWindow(m, index)"
+            />
+            <GmapMarker
+              v-for="(m, index) in disconnectedMarkers"
+              :key="m._id"
+              :position="m.position"
+              :clickable="true"
+              :title="m.title"
+              :icon="m.iconUrl"
+              @click="toggleInfoWindow(m, index)"
+            />
             <gmap-info-window
               :options="infoOptions"
               :position="infoWindowPos"
@@ -196,6 +214,7 @@ export default {
       sensorStatus: [],
       epaStatus: [],
       disconnectedList: [],
+      constantList: [],
       sensorStatusParam: {
         pm25Threshold: '',
         county: '',
@@ -217,6 +236,7 @@ export default {
         },
       },
       sensorGroupSummary: [],
+      disconnectSummary: [],
       pm25Filters: [
         {
           txt: '不限',
@@ -246,11 +266,11 @@ export default {
         },
         {
           txt: '屏東',
-          value: '屏東',
+          value: '屏東縣',
         },
         {
           txt: '宜蘭',
-          value: '宜蘭',
+          value: '宜蘭縣',
         },
       ],
       districtFilters: [
@@ -340,9 +360,9 @@ export default {
       switch (county) {
         case '基隆市':
           return { lat: 25.127594828422044, lng: 121.7399713796935 };
-        case '宜蘭':
+        case '宜蘭縣':
           return { lat: 24.699449555878495, lng: 121.73719578861895 };
-        case '屏東':
+        case '屏東縣':
           return { lat: 22.55311029065028, lng: 120.55724117206266 };
       }
 
@@ -354,18 +374,54 @@ export default {
     epaMarkers() {
       return this.markers(this.epaStatus);
     },
+    constantMarkers() {
+      return this.markers(this.constantList);
+    },
+    disconnectedMarkers() {
+      const ret = [];
+
+      for (const id of this.disconnectedList) {
+        let m = this.mMap.get(id);
+        if (!m.location) continue;
+
+        const lng = m.location[0];
+        const lat = m.location[1];
+
+        const iconUrl = `https://chart.googleapis.com/chart?chst=d_map_pin_icon&chld=caution|FF0000`;
+
+        let infoText = m.code
+          ? `<strong>${m.shortCode}/${m.code}</strong>`
+          : `<strong>${this.mMap.get(stat._id).desc}</strong>`;
+        let title = m.code ? `斷線 ${m.code}` : `${m.desc}`;
+
+        ret.push({
+          _id: id,
+          title,
+          position: { lat, lng },
+          infoText,
+          iconUrl,
+        });
+      }
+      return ret;
+    },
   },
   watch: {
     'sensorStatusParam.pm25Threshold': function () {
-      this.getSensorStatus();
+      if (this.mapLayer.indexOf('sensor') !== -1) this.getSensorStatus();
+      if (this.mapLayer.indexOf('disconnect') !== -1) this.getDisconnected();
+      if (this.mapLayer.indexOf('constant') !== -1) this.getConstantValue();
     },
     'sensorStatusParam.county': function () {
       if (this.sensorStatusParam.county === null)
         this.sensorStatusParam.county = '';
-      this.getSensorStatus();
+      if (this.mapLayer.indexOf('sensor') !== -1) this.getSensorStatus();
+      if (this.mapLayer.indexOf('disconnect') !== -1) this.getDisconnected();
+      if (this.mapLayer.indexOf('constant') !== -1) this.getConstantValue();
     },
     'sensorStatusParam.district': function () {
-      this.getSensorStatus();
+      if (this.mapLayer.indexOf('sensor') !== -1) this.getSensorStatus();
+      if (this.mapLayer.indexOf('disconnect') !== -1) this.getDisconnected();
+      if (this.mapLayer.indexOf('constant') !== -1) this.getConstantValue();
     },
     mapLayer(newMap, oldMap) {
       this.handlMapLayerChange(newMap, oldMap);
@@ -426,6 +482,7 @@ export default {
     },
     async refresh() {
       this.getTodaySummary();
+      this.getDisconnectSummary();
     },
     async getSensorStatus() {
       const ret = await axios.get('/RealtimeSensor', {
@@ -446,13 +503,28 @@ export default {
       const ret = await axios.get('/RealtimeDisconnectedSensor', {
         params,
       });
-      console.log(ret.data);
       this.disconnectedList = ret.data;
+    },
+    async getConstantValue() {
+      const params = {
+        county: this.sensorStatusParam.county,
+        district: this.sensorStatusParam.district,
+        sensorType: this.sensorStatusParam.sensorType,
+      };
+      const ret = await axios.get('/RealtimeConstantValueSensor', {
+        params,
+      });
+      this.constantList = ret.data;
     },
     async getTodaySummary() {
       const res = await axios.get('/SensorSummary');
       const ret = res.data;
       this.sensorGroupSummary = ret;
+    },
+    async getDisconnectSummary() {
+      const res = await axios.get('/DisconnectSummary');
+      const ret = res.data;
+      this.disconnectSummary = ret;
     },
     handlMapLayerChange(newMap, oldMap) {
       const mapToClear = oldMap.filter(map => newMap.indexOf(map) === -1);
@@ -467,22 +539,50 @@ export default {
           case 'disconnect':
             this.disconnectedList.splice(0, this.disconnectedList.length);
             break;
+          case 'constant':
+            this.constantList.splice(0, this.constantList.length);
+            break;
         }
       });
       const mapToGet = newMap.filter(map => oldMap.indexOf(map) === -1);
       mapToGet.forEach(map => {
         switch (map) {
           case 'sensor':
+            this.removelimitedSensorFromMap();
             this.getSensorStatus();
             break;
           case 'EPA':
             this.getEpaStatus();
             break;
           case 'disconnect':
+            this.removeSensorFromMapLayer();
             this.getDisconnected();
+            break;
+          case 'constant':
+            this.removeSensorFromMapLayer();
+            this.getConstantValue();
             break;
         }
       });
+    },
+    removeSensorFromMapLayer() {
+      const sensorIdx = this.mapLayer.indexOf('sensor');
+      if (sensorIdx !== -1) {
+        this.mapLayer.splice(sensorIdx, 1);
+        this.sensorStatus.splice(0, this.sensorStatus.length);
+      }
+    },
+    removelimitedSensorFromMap() {
+      const disconnectIdx = this.mapLayer.indexOf('disconnect');
+      if (disconnectIdx !== -1) {
+        this.mapLayer.splice(disconnectIdx, 1);
+        this.disconnectedList.splice(0, this.disconnectedList.length);
+      }
+      const constantIdx = this.mapLayer.indexOf('constant');
+      if (constantIdx !== -1) {
+        this.mapLayer.splice(constantIdx, 1);
+        this.constantList.splice(0, this.constantList.length);
+      }
     },
     markers(statusArray) {
       const ret = [];
@@ -509,6 +609,7 @@ export default {
       for (const stat of statusArray) {
         if (!stat.location) continue;
 
+        const _id = stat._id;
         const lng = stat.location[0];
         const lat = stat.location[1];
 
@@ -531,6 +632,7 @@ export default {
           : `${this.mMap.get(stat._id).desc}`;
 
         ret.push({
+          _id,
           title,
           position: { lat, lng },
           pm25,

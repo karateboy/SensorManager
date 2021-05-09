@@ -129,8 +129,7 @@ class SensorMetaImporter @Inject()
           })
           monitor.shortCode = Some(shortCode)
           monitor.code = Some(code)
-          val tagSet = Set(monitor.tags: _*) + code.reverse.take(2).reverse
-          monitor.tags = tagSet.toSeq
+          monitor.tags = Seq(MonitorTag.SENSOR, code.reverse.take(2).reverse)
           monitor.enabled = Some(enabled)
           monitor.county = Some(county)
           monitor.district = Some(district)
