@@ -659,9 +659,9 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       val groupSummaryList =
         for (group <- countyGroupMap.keys.toList) yield {
           val total = groupCountMap(group)
-          val kl = countyGroupMap(group)("基隆市")
-          val pt = countyGroupMap(group)("屏東縣")
-          val yl = countyGroupMap(group)("宜蘭縣")
+          val kl = countyGroupMap(group).getOrElse("基隆市", 0)
+          val pt = countyGroupMap(group).getOrElse("屏東縣", 0)
+          val yl = countyGroupMap(group).getOrElse("宜蘭縣", 0)
           val rest = total - kl - pt - yl
           DisconnectSummary(group, kl = kl, pt = pt, yl = yl, rest = rest)
         }

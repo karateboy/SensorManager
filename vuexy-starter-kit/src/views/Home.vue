@@ -273,24 +273,6 @@ export default {
           value: '宜蘭縣',
         },
       ],
-      districtFilters: [
-        {
-          txt: '不限',
-          value: '',
-        },
-        {
-          txt: '基隆',
-          value: '基隆市',
-        },
-        {
-          txt: '屏東',
-          value: '屏東縣',
-        },
-        {
-          txt: '宜蘭',
-          value: '宜蘭縣',
-        },
-      ],
       sensorTypes: [
         {
           txt: '不限',
@@ -355,6 +337,74 @@ export default {
     ...mapState('user', ['userInfo']),
     ...mapGetters('monitorTypes', ['mtMap']),
     ...mapGetters('monitors', ['mMap']),
+    districtFilters() {
+      if (this.sensorStatusParam.county === '基隆市') {
+        return [
+          { txt: '不限', value: '' },
+          { txt: '安樂區', value: 'AL' },
+          { txt: '七堵區', value: 'QD' },
+          { txt: '仁愛區', value: 'RA' },
+          { txt: '中正區', value: 'ZZ' },
+          { txt: '暖暖區', value: 'NN' },
+          { txt: '中山區', value: 'ZS' },
+          { txt: '信義區', value: 'XY' },
+        ];
+      } else if (this.sensorStatusParam.county === '屏東縣') {
+        return [
+          { txt: '不限', value: '' },
+          { txt: '屏東市', value: 'PT' },
+          { txt: '恆春鎮', value: 'HC' },
+          { txt: '琉球鄉', value: 'LQ' },
+          { txt: '內埔鄉', value: 'NP' },
+          { txt: '麟洛鄉', value: 'LL' },
+          { txt: '車城鄉', value: 'CC' },
+          { txt: '九如鄉', value: 'JR' },
+          { txt: '三地門鄉', value: 'SD' },
+          { txt: '里港鄉', value: 'LG' },
+          { txt: '霧台鄉', value: 'WT' },
+          { txt: '鹽埔鄉', value: 'YP' },
+          { txt: '佳冬鄉', value: 'JD' },
+          { txt: '竹田鄉', value: 'JT' },
+          { txt: '長治鄉', value: 'CJ' },
+          { txt: '東港鎮', value: 'DG' },
+          { txt: '枋山鄉', value: 'FS' },
+          { txt: '新園鄉', value: 'SY' },
+          { txt: '枋寮鄉', value: 'FL' },
+          { txt: '瑪家鄉', value: 'MJ' },
+          { txt: '泰武鄉', value: 'TW' },
+          { txt: '潮州鎮', value: 'CZ' },
+          { txt: '來義鄉', value: 'LY' },
+          { txt: '新埤鄉', value: 'SP' },
+          { txt: '南州鄉', value: 'NC' },
+          { txt: '萬巒鄉', value: 'WL' },
+          { txt: '林邊鄉', value: 'LB' },
+          { txt: '崁頂鄉', value: 'KD' },
+          { txt: '獅子鄉', value: 'SZ' },
+          { txt: '萬丹鄉', value: 'WD' },
+          { txt: '高樹鄉', value: 'GS' },
+          { txt: '滿州鄉', value: 'MZ' },
+          { txt: '牡丹鄉', value: 'MD' },
+          { txt: '春日鄉', value: 'CR' },
+        ];
+      } else if (this.sensorStatusParam.county === '宜蘭縣') {
+        return [
+          { txt: '不限', value: '' },
+          { txt: '蘇澳鎮', value: 'SA' },
+          { txt: '冬山鄉', value: 'DS' },
+          { txt: '南澳鄉', value: 'NA' },
+          { txt: '五結鄉', value: 'WJ' },
+          { txt: '壯圍鄉', value: 'ZW' },
+          { txt: '宜蘭市', value: 'YL' },
+          { txt: '羅東鎮', value: 'LD' },
+          { txt: '頭城鎮', value: 'TC' },
+          { txt: '礁溪鄉', value: 'JS' },
+          { txt: '員山鄉', value: 'YS' },
+          { txt: '三星鄉', value: 'SS' },
+          { txt: '大同鄉', value: 'DT' },
+        ];
+      }
+      return [{ txt: '不限', value: '' }];
+    },
     mapCenter() {
       let county = this.sensorStatusParam.county;
       switch (county) {
@@ -407,21 +457,18 @@ export default {
   },
   watch: {
     'sensorStatusParam.pm25Threshold': function () {
-      if (this.mapLayer.indexOf('sensor') !== -1) this.getSensorStatus();
-      if (this.mapLayer.indexOf('disconnect') !== -1) this.getDisconnected();
-      if (this.mapLayer.indexOf('constant') !== -1) this.getConstantValue();
+      this.refreshMapStatus();
     },
     'sensorStatusParam.county': function () {
       if (this.sensorStatusParam.county === null)
         this.sensorStatusParam.county = '';
-      if (this.mapLayer.indexOf('sensor') !== -1) this.getSensorStatus();
-      if (this.mapLayer.indexOf('disconnect') !== -1) this.getDisconnected();
-      if (this.mapLayer.indexOf('constant') !== -1) this.getConstantValue();
+      this.refreshMapStatus();
     },
     'sensorStatusParam.district': function () {
-      if (this.mapLayer.indexOf('sensor') !== -1) this.getSensorStatus();
-      if (this.mapLayer.indexOf('disconnect') !== -1) this.getDisconnected();
-      if (this.mapLayer.indexOf('constant') !== -1) this.getConstantValue();
+      this.refreshMapStatus();
+    },
+    'sensorStatusParam.sensorType': function () {
+      this.refreshMapStatus();
     },
     mapLayer(newMap, oldMap) {
       this.handlMapLayerChange(newMap, oldMap);
@@ -453,6 +500,11 @@ export default {
   methods: {
     ...mapActions('monitorTypes', ['fetchMonitorTypes']),
     ...mapActions('monitors', ['fetchMonitors']),
+    refreshMapStatus() {
+      if (this.mapLayer.indexOf('sensor') !== -1) this.getSensorStatus();
+      if (this.mapLayer.indexOf('disconnect') !== -1) this.getDisconnected();
+      if (this.mapLayer.indexOf('constant') !== -1) this.getConstantValue();
+    },
     toggleInfoWindow(marker, idx) {
       this.infoWindowPos = marker.position;
       this.infoOptions.content = marker.infoText;
