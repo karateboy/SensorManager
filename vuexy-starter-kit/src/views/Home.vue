@@ -462,6 +462,9 @@ export default {
     'sensorStatusParam.county': function () {
       if (this.sensorStatusParam.county === null)
         this.sensorStatusParam.county = '';
+
+      // reset district filter
+      this.sensorStatusParam.district = '';
       this.refreshMapStatus();
     },
     'sensorStatusParam.district': function () {

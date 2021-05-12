@@ -8,16 +8,6 @@ val topic1 = "861108035980803/sensor"
 val pattern = "WECC/SAQ200/([0-9]+)/sensor".r
 val pattern1 = "WECC/SAQ200/([0-9]+)/.*".r
 val pattern1(a) =  topic
+val d = "蘇澳鎮(SA)"
+val district1 = d.dropWhile(_ != '(').drop(1).takeWhile(_ != ')')
 
-implicit val w1: OWrites[Point] = new OWrites[Point] {
-  override def writes(o: Point):JsObject = {
-    val build: FunctionalBuilder[OWrites]#CanBuild2[Double, Double] = (
-      (JsPath\"lat").write[Double] and
-        (JsPath\"lon").write[Double])
-    build((0,0))
-  }
-}
-
-implicit val r1: Reads[Point] = new Reads[Point] {
-  override def reads(json: JsValue) = ???
-}

@@ -366,6 +366,11 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         true
       else
         m.county == Some(county)
+    }).filter(m =>{
+      if(district == "")
+        true
+      else
+        m.district == Some(district)
     }).filter(m => {
       if (sensorType == "")
         true
@@ -414,6 +419,11 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         true
       else
         m.county == Some(county)
+    }).filter(m =>{
+      if(district == "")
+        true
+      else
+        m.district == Some(district)
     }).filter(m => {
       if (sensorType == "")
         true
@@ -488,7 +498,12 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
           true
         else
           m.county == Some(county)
-      }).filter(m => {
+      }).filter(m =>{
+      if(district == "")
+        true
+      else
+        m.district == Some(district)
+    }).filter(m => {
       if (sensorType == "")
         true
       else
