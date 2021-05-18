@@ -1,7 +1,7 @@
 <template>
   <b-row class="match-height">
     <b-col lg="12" md="12">
-      <b-card ref="loadingContainer" title="過去24小時統計">
+      <b-card ref="loadingContainer">
         <b-row>
           <b-col><div id="chart_container1" /></b-col>
           <b-col><div id="chart_container2" /></b-col>
@@ -13,7 +13,7 @@
               <b-thead>
                 <b-tr
                   ><b-td class="text-center" colspan="4"
-                    >系統接受狀況</b-td
+                    >資料接收狀況 (前24小時)</b-td
                   ></b-tr
                 >
                 <b-tr>
@@ -38,7 +38,7 @@
               <b-thead>
                 <b-tr
                   ><b-td class="text-center" colspan="5"
-                    >通訊中斷資訊</b-td
+                    >通訊中斷狀況 (前10分鐘)</b-td
                   ></b-tr
                 >
                 <b-tr>
@@ -64,15 +64,18 @@
       </b-card>
     </b-col>
     <b-col lg="12" md="12">
-      <b-card title="監測地圖🚀">
+      <b-card img-src="../assets/images/legend.png" img-width="75%">
+        <!-- <div id="legend" class="legend shadow border border-dark m-2">
+          <b-img src="../assets/images/legend.png" fluid />
+        </div> -->
         <div class="map_container">
           <div id="sensorFilter" class="sensorFilter mt-2">
             <b-table-simple small>
               <b-tr>
                 <b-th>縣市</b-th>
-                <b-th>濃度</b-th>
                 <b-th>區域劃分</b-th>
                 <b-th>類型</b-th>
+                <b-th>濃度</b-th>
                 <b-th>圖層選擇</b-th>
               </b-tr>
               <b-tbody>
@@ -83,13 +86,6 @@
                       label="txt"
                       :reduce="entry => entry.value"
                       :options="countyFilters"
-                  /></b-td>
-                  <b-td
-                    ><v-select
-                      v-model="sensorStatusParam.pm25Threshold"
-                      label="txt"
-                      :reduce="entry => entry.value"
-                      :options="pm25Filters"
                   /></b-td>
                   <b-td
                     ><v-select
@@ -104,6 +100,13 @@
                       label="txt"
                       :reduce="entry => entry.value"
                       :options="sensorTypes"
+                  /></b-td>
+                  <b-td
+                    ><v-select
+                      v-model="sensorStatusParam.pm25Threshold"
+                      label="txt"
+                      :reduce="entry => entry.value"
+                      :options="pm25Filters"
                   /></b-td>
                   <b-td>
                     <v-select
@@ -177,9 +180,6 @@
               @closeclick="infoWinOpen = false"
             />
           </GmapMap>
-        </div>
-        <div id="legend" class="legend shadow border border-dark m-2">
-          <b-img src="../assets/images/legend.png" fluid />
         </div>
       </b-card>
     </b-col>
@@ -432,7 +432,7 @@ export default {
 
       for (const id of this.disconnectedList) {
         let m = this.mMap.get(id);
-        if (!m.location) continue;
+        if (!m || !m.location) continue;
 
         const lng = m.location[0];
         const lat = m.location[1];
@@ -441,7 +441,7 @@ export default {
 
         let infoText = m.code
           ? `<strong>${m.shortCode}/${m.code}</strong>`
-          : `<strong>${this.mMap.get(stat._id).desc}</strong>`;
+          : `<strong>${m.desc}</strong>`;
         let title = m.code ? `斷線 ${m.code}` : `${m.desc}`;
 
         ret.push({

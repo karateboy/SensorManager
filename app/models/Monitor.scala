@@ -60,7 +60,6 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
   import org.mongodb.scala.bson.codecs.Macros._
 
   val colName = "monitors"
-  mongoDB.database.createCollection(colName).toFuture()
 
   val codecRegistry = fromRegistries(fromProviders(classOf[Monitor], classOf[SensorDetail]), DEFAULT_CODEC_REGISTRY)
   val collection = mongoDB.database.getCollection[Monitor](colName).withCodecRegistry(codecRegistry)

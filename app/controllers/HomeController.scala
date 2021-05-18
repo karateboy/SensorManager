@@ -1,5 +1,6 @@
 package controllers
 
+import akka.actor.ActorSystem
 import com.github.nscala_time.time.Imports._
 import models._
 import play.api._
@@ -8,15 +9,14 @@ import play.api.data._
 import play.api.libs.json._
 import play.api.mvc._
 
+import java.nio.file.Files
 import javax.inject._
 
-class HomeController @Inject()(environment: play.api.Environment, recordOp: RecordOp,
+class HomeController @Inject()(environment: play.api.Environment,
                                userOp: UserOp, instrumentOp: InstrumentOp, dataCollectManagerOp: DataCollectManagerOp,
                                monitorTypeOp: MonitorTypeOp, query: Query, monitorOp: MonitorOp, groupOp: GroupOp,
-                               instrumentTypeOp: InstrumentTypeOp, monitorStatusOp: MonitorStatusOp,
-                               sensorOp: MqttSensorOp) extends Controller {
-
-  val title = "資料擷取器"
+                               instrumentTypeOp: InstrumentTypeOp, monitorStatusOp: MonitorStatusOp, actorSystem: ActorSystem,
+                               recordOp: RecordOp) extends Controller {
 
   val epaReportPath: String = environment.rootPath + "/importEPA/"
 
@@ -581,4 +581,15 @@ class HomeController @Inject()(environment: play.api.Environment, recordOp: Reco
 
   case class EditData(id: String, data: String)
 
+  def uploadSensorData = Security.Authenticated(parse.multipartFormData) {
+    implicit request =>
+      request.body.file("data").map { dataFile =>
+        val filename = dataFile.filename
+        val filePath = Files.createTempFile("temp", ".csv");
+        val file = dataFile.ref.moveTo(filePath.toFile, true)
+        actorSystem.actorOf(SensorDataImporter.props(recordOp = recordOp, dataFile=file), "dataImporter")
+      }
+
+      Ok(Json.obj("ok" -> true))
+  }
 }

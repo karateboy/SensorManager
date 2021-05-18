@@ -344,7 +344,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
                            (pm25Threshold: String, county: String, district: String, sensorType: String) = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
-    Logger.info(s"county=$county")
     val pm25Filter = try {
       val v = pm25Threshold.toInt
       if (v < 0) {
@@ -380,7 +379,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       _._id
     } toList
 
-    Logger.debug(s"targetMonitors = ${targetMonitors.length}")
     val monitorFilter =
       Some(Filters.in("monitor", targetMonitors: _*))
 
@@ -433,7 +431,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       _._id
     } toList
 
-    Logger.debug(s"targetMonitors = ${targetMonitors.length}")
     val monitorFilter =
       Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
 
@@ -571,10 +568,10 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
           }
       })
 
-      val expectedCount = 24 * 60 / 3 * 95 / 100
+      val expectedCount = 24 * 60  * 95 / 100
 
       val groupSummaryList =
-        for (group <- todaySensorRecordCount.keys.toList) yield {
+        for (group <- todaySensorRecordCount.keys.toList.sorted) yield {
           val groupMonitorCount = monitorOp.map.values.count(m => {
             if (m.sensorDetail.isDefined)
               m.sensorDetail.get.sensorType == group
@@ -624,7 +621,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       _._id
     } toList
 
-    Logger.debug(s"targetMonitors = ${targetMonitors.length}")
     val monitorFilter =
       Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
 
@@ -672,7 +668,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       }
 
       val groupSummaryList =
-        for (group <- countyGroupMap.keys.toList) yield {
+        for (group <- countyGroupMap.keys.toList.sorted) yield {
           val total = groupCountMap(group)
           val kl = countyGroupMap(group).getOrElse("基隆市", 0)
           val pt = countyGroupMap(group).getOrElse("屏東縣", 0)

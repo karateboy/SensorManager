@@ -11,13 +11,12 @@ import scala.concurrent.{Future, blocking}
 import scala.util.{Failure, Success}
 
 
-object SensorMetaImporter
-{
+object SensorMetaImporter {
   def listAllFiles(dir: String) = {
     val files = new java.io.File(dir).listFiles
-    if(files == null)
+    if (files == null)
       Array.empty[File]
-    else{
+    else {
       files.filter(_.getName.endsWith(".xlsx"))
     }
   }
@@ -25,31 +24,36 @@ object SensorMetaImporter
   trait Factory {
     def apply(): Actor
   }
+
   case class ImportSensorMeta(path: String)
-  case class ImportComplete(filename:String)
+
+  case class ImportComplete(filename: String)
 }
 
 
-
 class SensorMetaImporter @Inject()
-(monitorOp: MonitorOp, environment: play.api.Environment, sysConfig: SysConfig)
+(monitorOp: MonitorOp, environment: play.api.Environment, sysConfig: SysConfig, monitorGroupOp: MonitorGroupOp)
   extends Actor {
 
   import SensorMetaImporter._
+
   val importPath: String = environment.rootPath + "/import/"
   self ! ImportSensorMeta(importPath)
 
   var fileToBeImported = Seq.empty[String]
   var fileImported = Seq.empty[String]
+
   def receive = {
     case ImportSensorMeta(path) =>
       val files = listAllFiles(path)
-      fileToBeImported = files map { _.getName }
+      fileToBeImported = files map {
+        _.getName
+      }
       for (f <- files) {
         Future {
-          blocking{
-            for(filename <- sysConfig.getImportedSensorMetaFilename){
-              if(!filename.contains(f.getName)){
+          blocking {
+            for (filename <- sysConfig.getImportedSensorMetaFilename) {
+              if (!filename.contains(f.getName)) {
                 Logger.info(s"Start import ${f.getName}")
                 importMetaData(f)
                 self ! ImportComplete(f.getName)
@@ -61,7 +65,7 @@ class SensorMetaImporter @Inject()
     case ImportComplete(filename) =>
       fileImported = fileToBeImported :+ filename
       val remain = fileToBeImported.toSet -- fileImported.toSet
-      if(remain.isEmpty) {
+      if (remain.isEmpty) {
         Logger.info(s"Import meta complete ${fileImported.toString()}")
         sysConfig.setImportedSensorMetaFilename(fileToBeImported)
         self ! PoisonPill
@@ -70,14 +74,37 @@ class SensorMetaImporter @Inject()
 
   import java.io.{File, FileInputStream}
 
-  def importMetaData(f: File)={
+  def importMetaData(f: File) = {
     Logger.info(s"Import ${f.getAbsolutePath}")
     val wb = WorkbookFactory.create(new FileInputStream(f));
     val sheet = wb.getSheetAt(0)
 
+    var monitorGroups = List.empty[MonitorGroup]
+
+    def importMonitorGroupName: Unit = {
+      val nameRow = sheet.getRow(0)
+      var col = 22
+      var finished = false
+      do {
+        val cell = nameRow.getCell(col)
+        if (cell == null)
+          finished = true
+        else {
+          val groupName = nameRow.getCell(col).getStringCellValue
+          if(groupName.nonEmpty){
+            val mg = MonitorGroup(_id = groupName, Seq.empty[String])
+            monitorGroups = monitorGroups.::(mg)
+          }
+        }
+        col = col + 1
+      } while (!finished)
+    }
+
+    importMonitorGroupName
+
     var rowN = 1
     var finish = false
-    var monitorSeq =  Seq.empty[Monitor]
+    var monitorSeq = Seq.empty[Monitor]
     do {
       var row = sheet.getRow(rowN)
       if (row == null)
@@ -94,7 +121,7 @@ class SensorMetaImporter @Inject()
           val roadName = row.getCell(8).getStringCellValue
           val locationDesc = {
             val cell = row.getCell(9)
-            if(cell.getCellType == Cell.CELL_TYPE_STRING)
+            if (cell.getCellType == Cell.CELL_TYPE_STRING)
               cell.getStringCellValue
             else
               cell.getNumericCellValue.toString
@@ -107,20 +134,22 @@ class SensorMetaImporter @Inject()
           val year = row.getCell(15).getStringCellValue
           val lng = row.getCell(16).getNumericCellValue
           val lat = row.getCell(17).getNumericCellValue
+
           def getDistance() = {
             var ret = Seq.empty[Double]
             var col = 18
-            try{
-              for(col <- 18 to 21){
+            try {
+              for (col <- 18 to 21) {
                 val d = row.getCell(col).getNumericCellValue
                 ret = ret :+ d
               }
               ret
-            }catch {
-              case _:Throwable=>
+            } catch {
+              case _: Throwable =>
                 ret
             }
           }
+
           val distance = getDistance()
           val monitor = monitorOp.map.getOrElse(monitorID, {
             val defaultMt = Seq(MonitorType.PM25, MonitorType.PM10)
@@ -137,31 +166,46 @@ class SensorMetaImporter @Inject()
           monitor.location = Some(Seq(lng, lat))
           monitor.location = Some(Seq(lng, lat))
           val detail = SensorDetail(
-            sensorType=sensorType,
-            roadName=roadName,
-            locationDesc=locationDesc,
-            authority=authority,
-            epaCode=epaCode,
+            sensorType = sensorType,
+            roadName = roadName,
+            locationDesc = locationDesc,
+            authority = authority,
+            epaCode = epaCode,
             target = target,
             targetDetail = targetDetail,
             height = height,
             distance = distance
           )
-          monitor.sensorDetail=Some(detail)
+          monitor.sensorDetail = Some(detail)
           monitorSeq = monitorSeq :+ monitor
-        }catch{
-          case ex:Throwable=>
+          //Update monitorGroup
+          for (idx <- Range(0, monitorGroups.length - 1)) {
+            val col = idx + 22
+            try {
+              val cell = row.getCell(col).getNumericCellValue
+              if (cell != 0) {
+                val mg = monitorGroups(idx)
+                mg.member = mg.member :+ (monitor._id)
+              }
+            } catch {
+              case _: Throwable =>
+              // Simply ignore
+            }
+          }
+        } catch {
+          case ex: Throwable =>
             Logger.error(s"failed to handle $rowN", ex)
         }
         rowN += 1
       }
     } while (!finish)
 
+    monitorGroupOp.upsertMany(monitorGroups)
     val updateFuture = monitorOp.upsertMany(monitorSeq)
     updateFuture.onComplete({
-      case Success(_)=>
+      case Success(_) =>
         Logger.info("Sensor meta import complete.")
-      case Failure(exception)=>
+      case Failure(exception) =>
         Logger.error("failed to import meta", exception)
     })
 

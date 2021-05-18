@@ -82,8 +82,8 @@ export default [
         route: 'group-management',
       },
       {
-        title: '資料管理',
-        route: 'data-management',
+        title: '上傳資料',
+        route: 'upload-data',
       },
     ],
   },

@@ -14,7 +14,7 @@
       class="bookmark-wrapper align-items-center flex-grow-1 d-none d-lg-flex"
     >
       <dark-Toggler class="d-none d-lg-block" />
-      <strong class="display-4">空氣品質感測器維運操作平台</strong>
+      <h3 class="mt-1 mb-1">空氣品質感測器維運操作平台</h3>
     </div>
 
     <b-navbar-nav class="nav align-items-center ml-auto">

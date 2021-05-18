@@ -1,6 +1,6 @@
 name := """SensorManager"""
 
-version := "1.1.11"
+version := "1.1.12"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala, LauncherJarPlugin)
 
@@ -9,7 +9,7 @@ scalaVersion := "2.11.12"
 libraryDependencies ++= Seq(
   ws,
   filters,
-  "com.github.tototoshi" %% "scala-csv" % "1.3.7",
+  "com.github.tototoshi" %% "scala-csv" % "1.3.8",
   "net.sf.marineapi" % "marineapi" % "0.10.0"
 )
 

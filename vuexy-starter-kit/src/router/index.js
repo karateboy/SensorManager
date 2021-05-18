@@ -219,18 +219,18 @@ const router = new VueRouter({
       },
     },
     {
-      path: '/data-management',
-      name: 'data-management',
-      component: () => import('@/views/DataManagement.vue'),
+      path: '/upload-data',
+      name: 'upload-data',
+      component: () => import('@/views/UploadData.vue'),
       meta: {
-        pageTitle: '資料管理',
+        pageTitle: '上傳資料',
         breadcrumb: [
           {
             text: '系統管理',
             active: true,
           },
           {
-            text: '資料管理',
+            text: '上傳資料',
             active: true,
           },
         ],
