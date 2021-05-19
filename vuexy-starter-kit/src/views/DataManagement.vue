@@ -80,7 +80,7 @@ import vSelect from 'vue-select';
 import DatePicker from 'vue2-datepicker';
 import 'vue2-datepicker/index.css';
 import 'vue2-datepicker/locale/zh-tw';
-import Ripple from 'vue-ripple-directive';
+const Ripple = require('vue-ripple-directive');
 import { mapState, mapGetters, mapActions } from 'vuex';
 import moment from 'moment';
 import axios from 'axios';
@@ -103,8 +103,8 @@ export default Vue.extend({
         // { txt: '秒資料', id: 'second' },
       ],
       form: {
-        monitors: [],
-        monitorTypes: [],
+        monitors: Array<any>(),
+        monitorTypes: Array<any>(),
         dataType: 'hour',
         range,
       },

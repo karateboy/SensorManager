@@ -38,7 +38,7 @@
 </style>
 <script lang="ts">
 import Vue from 'vue';
-import Ripple from 'vue-ripple-directive';
+const Ripple = require('vue-ripple-directive');
 import axios from 'axios';
 
 export default Vue.extend({
@@ -48,23 +48,14 @@ export default Vue.extend({
   data() {
     return {
       form: {
-        uploadFile: undefined,
+        uploadFile: '',
       },
     };
   },
   computed: {},
   methods: {
-    async recalculate() {
-      const monitors = this.form.monitors.join(':');
-      const url = `/Recalculate/${monitors}/${this.form.range[0]}/${this.form.range[1]}`;
-
-      const ret = await axios.get(url);
-      if (ret.data.ok) {
-        this.$bvModal.msgBoxOk('成功');
-      }
-    },
     upload() {
-      let file = this.form.uploadFile;
+      let file: string = this.form.uploadFile;
 
       var formData = new FormData();
       formData.append('data', file);

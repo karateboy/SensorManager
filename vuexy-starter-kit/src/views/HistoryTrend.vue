@@ -129,7 +129,7 @@ import vSelect from 'vue-select';
 import DatePicker from 'vue2-datepicker';
 import 'vue2-datepicker/index.css';
 import 'vue2-datepicker/locale/zh-tw';
-import Ripple from 'vue-ripple-directive';
+const Ripple = require('vue-ripple-directive');
 import { mapState, mapActions } from 'vuex';
 import moment from 'moment';
 import axios from 'axios';
@@ -196,8 +196,8 @@ export default Vue.extend({
         },
       ],
       form: {
-        monitors: [],
-        monitorTypes: [],
+        monitors: Array<string>(),
+        monitorTypes: Array<string>(),
         reportUnit: 'Min',
         statusFilter: 'all',
         chartType: 'line',
@@ -244,7 +244,7 @@ export default Vue.extend({
           alignTicks: false,
         };
 
-        const pointFormatter = function pointFormatter() {
+        const pointFormatter = function pointFormatter(this: any) {
           const d = new Date(this.x);
           return `${d.toLocaleString()}:${Math.round(this.y)}度`;
         };

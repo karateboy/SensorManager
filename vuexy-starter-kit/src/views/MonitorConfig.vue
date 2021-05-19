@@ -49,7 +49,7 @@
 </template>
 <script lang="ts">
 import Vue from 'vue';
-import Ripple from 'vue-ripple-directive';
+const Ripple = require('vue-ripple-directive');
 import { mapActions, mapState } from 'vuex';
 import axios from 'axios';
 /*
@@ -95,7 +95,7 @@ export default Vue.extend({
     // const monitors = [];
 
     return {
-      editMonitors: [],
+      editMonitors: Array<any>(),
       display: false,
       columns,
     };
@@ -128,7 +128,7 @@ export default Vue.extend({
     rollback() {
       this.editMonitors = this.monitors;
     },
-    markDirty(item) {
+    markDirty(item: any) {
       item.dirty = true;
     },
   },
