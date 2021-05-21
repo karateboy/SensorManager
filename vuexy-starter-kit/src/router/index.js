@@ -129,6 +129,24 @@ const router = new VueRouter({
       },
     },
     {
+      path: '/decay-report',
+      name: 'decay-report',
+      component: () => import('@/views/DecayReport.vue'),
+      meta: {
+        pageTitle: '衰減分析報表',
+        breadcrumb: [
+          {
+            text: '報表查詢',
+            active: true,
+          },
+          {
+            text: '衰減分析報表',
+            active: true,
+          },
+        ],
+      },
+    },
+    {
       path: '/instrument-management',
       name: 'instrument-management',
       component: () => import('@/views/InstrumentManagement.vue'),

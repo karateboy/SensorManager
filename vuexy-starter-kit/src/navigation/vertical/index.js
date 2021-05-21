@@ -51,6 +51,10 @@ export default [
         title: '月份時報表',
         route: 'monthly-hour-report',
       },
+      {
+        title: '衰減報表',
+        route: 'decay-report',
+      },
     ],
   },
   {

@@ -86,6 +86,8 @@ GET      /Excel/monitorReport/:reportType/:reportDate                           
 
 GET      /MonthlyHourReport/:monitorType/:reportDate                              controllers.Report.monthlyHourReport(monitorType, reportDate:Long, outputTypeStr="html")
 
+GET      /DecayReport/:county/:reportDate                                         controllers.Report.decayReport(county, reportDate:Long)
+
 #Upload
 POST    /sensorData                                                               controllers.HomeController.uploadSensorData
 #JSON

@@ -6,6 +6,7 @@ import play.api._
 
 import java.io.File
 import javax.inject._
+import scala.::
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, blocking}
 import scala.util.{Failure, Success}
@@ -93,11 +94,12 @@ class SensorMetaImporter @Inject()
           val groupName = nameRow.getCell(col).getStringCellValue
           if(groupName.nonEmpty){
             val mg = MonitorGroup(_id = groupName, Seq.empty[String])
-            monitorGroups = monitorGroups.::(mg)
+            monitorGroups = monitorGroups.:+(mg)
           }
         }
         col = col + 1
       } while (!finished)
+      Logger.info(monitorGroups.toString())
     }
 
     importMonitorGroupName
@@ -186,6 +188,8 @@ class SensorMetaImporter @Inject()
               if (cell != 0) {
                 val mg = monitorGroups(idx)
                 mg.member = mg.member :+ (monitor._id)
+                if(idx==0)
+                  Logger.info(s"${mg.toString}")
               }
             } catch {
               case _: Throwable =>

@@ -64,7 +64,16 @@
       </b-card>
     </b-col>
     <b-col lg="12" md="12">
-      <b-card img-src="../assets/images/legend.png" img-width="75%">
+      <b-card>
+        <b-row>
+          <b-col cols="2" class="text-center align-middle"
+            ><h3>監測地圖</h3></b-col
+          >
+          <b-col cols="10"
+            ><b-img src="../assets/images/legend.png" fluid
+          /></b-col>
+        </b-row>
+
         <!-- <div id="legend" class="legend shadow border border-dark m-2">
           <b-img src="../assets/images/legend.png" fluid />
         </div> -->
@@ -207,6 +216,7 @@
 <script>
 import { mapActions, mapState, mapGetters } from 'vuex';
 import axios from 'axios';
+
 export default {
   data() {
     return {
@@ -217,7 +227,7 @@ export default {
       constantList: [],
       sensorStatusParam: {
         pm25Threshold: '',
-        county: '',
+        county: '基隆市',
         district: '',
         sensorType: '',
       },
@@ -229,7 +239,7 @@ export default {
 
       infoOptions: {
         content: '',
-        //optional: offset infowindow so it visually sits nicely on top of our marker
+        // optional: offset infowindow so it visually sits nicely on top of our marker
         pixelOffset: {
           width: 0,
           height: -35,
@@ -349,7 +359,8 @@ export default {
           { txt: '中山區', value: 'ZS' },
           { txt: '信義區', value: 'XY' },
         ];
-      } else if (this.sensorStatusParam.county === '屏東縣') {
+      }
+      if (this.sensorStatusParam.county === '屏東縣') {
         return [
           { txt: '不限', value: '' },
           { txt: '屏東市', value: 'PT' },
@@ -386,7 +397,8 @@ export default {
           { txt: '牡丹鄉', value: 'MD' },
           { txt: '春日鄉', value: 'CR' },
         ];
-      } else if (this.sensorStatusParam.county === '宜蘭縣') {
+      }
+      if (this.sensorStatusParam.county === '宜蘭縣') {
         return [
           { txt: '不限', value: '' },
           { txt: '蘇澳鎮', value: 'SA' },
@@ -406,7 +418,7 @@ export default {
       return [{ txt: '不限', value: '' }];
     },
     mapCenter() {
-      let county = this.sensorStatusParam.county;
+      const { county } = this.sensorStatusParam;
       switch (county) {
         case '基隆市':
           return { lat: 25.127594828422044, lng: 121.7399713796935 };
@@ -431,18 +443,19 @@ export default {
       const ret = [];
 
       for (const id of this.disconnectedList) {
-        let m = this.mMap.get(id);
+        const m = this.mMap.get(id);
         if (!m || !m.location) continue;
 
         const lng = m.location[0];
         const lat = m.location[1];
 
-        const iconUrl = `https://chart.googleapis.com/chart?chst=d_map_pin_icon&chld=caution|FF0000`;
+        const iconUrl =
+          'https://chart.googleapis.com/chart?chst=d_map_pin_icon&chld=caution|FF0000';
 
-        let infoText = m.code
+        const infoText = m.code
           ? `<strong>${m.shortCode}/${m.code}</strong>`
           : `<strong>${m.desc}</strong>`;
-        let title = m.code ? `斷線 ${m.code}` : `${m.desc}`;
+        const title = m.code ? `斷線 ${m.code}` : `${m.desc}`;
 
         ret.push({
           _id: id,
@@ -512,12 +525,12 @@ export default {
       this.infoWindowPos = marker.position;
       this.infoOptions.content = marker.infoText;
 
-      //check if its the same marker that was selected if yes toggle
+      // check if its the same marker that was selected if yes toggle
       if (this.currentMidx == idx) {
         this.infoWinOpen = !this.infoWinOpen;
       }
 
-      //if different marker set infowindow to open and reset current marker index
+      // if different marker set infowindow to open and reset current marker index
       else {
         this.infoWinOpen = true;
         this.currentMidx = idx;
@@ -525,15 +538,15 @@ export default {
     },
     getPM25Class(v) {
       if (v < 12) return { FPMI1: true };
-      else if (v < 24) return { FPMI2: true };
-      else if (v < 36) return { FPMI3: true };
-      else if (v < 42) return { FPMI4: true };
-      else if (v < 48) return { FPMI5: true };
-      else if (v < 54) return { FPMI6: true };
-      else if (v < 59) return { FPMI7: true };
-      else if (v < 65) return { FPMI8: true };
-      else if (v < 71) return { FPMI9: true };
-      else return { FPMI10: true };
+      if (v < 24) return { FPMI2: true };
+      if (v < 36) return { FPMI3: true };
+      if (v < 42) return { FPMI4: true };
+      if (v < 48) return { FPMI5: true };
+      if (v < 54) return { FPMI6: true };
+      if (v < 59) return { FPMI7: true };
+      if (v < 65) return { FPMI8: true };
+      if (v < 71) return { FPMI9: true };
+      return { FPMI10: true };
     },
     async refresh() {
       this.getTodaySummary();
@@ -642,13 +655,14 @@ export default {
     markers(statusArray) {
       const ret = [];
       const epaUrl = (name, v) => {
-        let url = `https://chart.googleapis.com/chart?chst=d_fnote_title&chld=pinned_c|2|004400|l|${name}|PM2.5=${v}`;
+        const url = `https://chart.googleapis.com/chart?chst=d_fnote_title&chld=pinned_c|2|004400|l|${name}|PM2.5=${v}`;
 
         return url;
       };
 
       const getIconUrl = v => {
-        let url = `https://chart.googleapis.com/chart?chst=d_bubble_text_small_withshadow&&chld=bb|`;
+        let url =
+          'https://chart.googleapis.com/chart?chst=d_bubble_text_small_withshadow&&chld=bb|';
 
         if (v < 15.4) url += `${v}|009865|000000`;
         else if (v < 35.4) url += `${v}|FFFB26|000000`;
@@ -664,7 +678,7 @@ export default {
       for (const stat of statusArray) {
         if (!stat.location) continue;
 
-        const _id = stat._id;
+        const { _id } = stat;
         const lng = stat.location[0];
         const lat = stat.location[1];
 
@@ -679,10 +693,10 @@ export default {
           ? epaUrl(this.mMap.get(stat._id).desc, pm25)
           : getIconUrl(pm25);
 
-        let infoText = stat.code
+        const infoText = stat.code
           ? `<strong>${stat.shortCode}/${stat.code}</strong>`
           : `<strong>${this.mMap.get(stat._id).desc}</strong>`;
-        let title = stat.code
+        const title = stat.code
           ? `${stat.code}`
           : `${this.mMap.get(stat._id).desc}`;
 

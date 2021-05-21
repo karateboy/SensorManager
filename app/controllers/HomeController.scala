@@ -1,6 +1,7 @@
 package controllers
 
-import akka.actor.ActorSystem
+import akka.actor.{ActorPaths, ActorRef, ActorSystem}
+import akka.util.Timeout
 import com.github.nscala_time.time.Imports._
 import models._
 import play.api._
@@ -11,6 +12,7 @@ import play.api.mvc._
 
 import java.nio.file.Files
 import javax.inject._
+import scala.concurrent.duration.SECONDS
 
 class HomeController @Inject()(environment: play.api.Environment,
                                userOp: UserOp, instrumentOp: InstrumentOp, dataCollectManagerOp: DataCollectManagerOp,
@@ -583,13 +585,15 @@ class HomeController @Inject()(environment: play.api.Environment,
 
   def uploadSensorData = Security.Authenticated(parse.multipartFormData) {
     implicit request =>
-      request.body.file("data").map { dataFile =>
-        val filename = dataFile.filename
+      val dataFileOpt = request.body.file("data")
+      if(dataFileOpt.isEmpty)
+        Ok(Json.obj("ok" -> true))
+      else{
+        val dataFile = dataFileOpt.get
         val filePath = Files.createTempFile("temp", ".csv");
         val file = dataFile.ref.moveTo(filePath.toFile, true)
-        actorSystem.actorOf(SensorDataImporter.props(recordOp = recordOp, dataFile=file), "dataImporter")
+        val actorRef: ActorRef = actorSystem.actorOf(SensorDataImporter.props(recordOp = recordOp, dataFile=file), "dataImporter")
+        Ok(Json.obj("actorPath" -> actorRef.path.toSerializationFormat))
       }
-
-      Ok(Json.obj("ok" -> true))
   }
 }

@@ -8,6 +8,7 @@ import org.apache.poi.xssf.usermodel._
 import java.io._
 import java.nio.file.{Files, _}
 import javax.inject._
+import scala.collection.mutable
 
 @Singleton
 class ExcelUtility @Inject()
@@ -145,6 +146,52 @@ class ExcelUtility @Inject()
       }
     }
 
+    finishExcel(reportFilePath, pkg, wb)
+  }
+
+  def getPeriods(start: DateTime, endTime: DateTime, d: Period): List[DateTime] = {
+    import scala.collection.mutable.ListBuffer
+
+    val buf = ListBuffer[DateTime]()
+    var current = start
+    while (current < endTime) {
+      buf.append(current)
+      current += d
+    }
+
+    buf.toList
+  }
+
+  def getDecayReport(start:DateTime, monitors:Seq[String], recordMap: mutable.Map[DateTime, mutable.Map[String, Double]]) = {
+    val (reportFilePath, pkg, wb) = prepareTemplate("decayReport.xlsx")
+    val evaluator = wb.getCreationHelper().createFormulaEvaluator()
+    val format = wb.createDataFormat();
+
+    val sheet = wb.getSheetAt(0)
+
+    for((monitor, idx)<- monitors.zipWithIndex){
+      val row = sheet.getRow(1)
+      val cell = row.getCell(idx+2)
+      cell.setCellValue(monitor)
+    }
+
+    val timeSeq = getPeriods(start, start + 1.month, 1.hour)
+    for{(time, idx) <- timeSeq.zipWithIndex
+      row = sheet.getRow(idx +2)
+        }{
+      val timeCell = row.createCell(0)
+      timeCell.setCellValue(time.toString(DateTimeFormat.forPattern("YYYY/MM/dd HH:mm")))
+      if(recordMap.contains(time)){
+        val timeMap: mutable.Map[String, Double] = recordMap(time)
+        for((monitor, idx)<- monitors.zipWithIndex){
+          if(timeMap.contains(monitor)){
+            val cell = row.getCell(idx+2)
+            val value = timeMap(monitor)
+            cell.setCellValue(value)
+          }
+        }
+      }
+    }
     finishExcel(reportFilePath, pkg, wb)
   }
 }

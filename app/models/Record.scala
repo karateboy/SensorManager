@@ -279,36 +279,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     Map(pairs: _*)
   }
 
-  def getRecord2Map(colName: String)
-                   (mtList: List[String], startTime: DateTime, endTime: DateTime, monitor: String = Monitor.SELF_ID)
-                   (skip: Int = 0, limit: Int = 500) = {
-    import org.mongodb.scala.model.Filters._
-    import org.mongodb.scala.model.Sorts._
-
-    val col = getCollection(colName)
-
-    val f = col.find(and(equal("monitor", monitor), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
-      .sort(ascending("time")).skip(skip).limit(limit).toFuture()
-    val docs = waitReadyResult(f)
-
-    val pairs =
-      for {
-        mt <- mtList
-      } yield {
-        val list =
-          for {
-            doc <- docs
-            time = doc.time
-            mtMap = doc.mtMap if mtMap.contains(mt)
-          } yield {
-            Record(new DateTime(time.getTime), mtMap(mt).value, mtMap(mt).status, monitor)
-          }
-
-        mt -> list
-      }
-    Map(pairs: _*)
-  }
-
   def getRecordListFuture(colName: String)
                          (startTime: DateTime, endTime: DateTime, monitors: Seq[String] = Seq(Monitor.SELF_ID)) = {
     import org.mongodb.scala.model.Filters._
@@ -316,8 +286,39 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
 
     val col = getCollection(colName)
 
-    col.find(and(in("monitor", monitors: _*), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
+    val f = col.find(and(in("monitor", monitors: _*), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
       .sort(ascending("time")).toFuture()
+
+    f onFailure(errorHandler)
+    f
+  }
+
+  def getRecordMapFuture(colName: String)
+                  (monitor: String, mtList: Seq[String], startTime: DateTime, endTime: DateTime): Future[Map[String, Seq[Record]]] = {
+    import org.mongodb.scala.model.Filters._
+    import org.mongodb.scala.model.Sorts._
+
+    val col = getCollection(colName)
+    val f = col.find(and(equal("monitor", monitor), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
+      .sort(ascending("time")).toFuture()
+    for(docs <- f) yield {
+      val pairs =
+        for {
+          mt <- mtList
+        } yield {
+          val list =
+            for {
+              doc <- docs
+              time = doc.time
+              mtMap = doc.mtMap if mtMap.contains(mt)
+            } yield {
+              Record(new DateTime(time.getTime), mtMap(mt).value, mtMap(mt).status, monitor)
+            }
+
+          mt -> list
+        }
+      Map(pairs: _*)
+    }
   }
 
   def getRecordWithLimitFuture(colName: String)(startTime: DateTime, endTime: DateTime, limit: Int,

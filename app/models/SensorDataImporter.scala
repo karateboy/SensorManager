@@ -52,7 +52,12 @@ class SensorDataImporter (recordOp: RecordOp, dataFile: File) extends Actor {
     val docs =
       for (record <- reader.allWithHeaders()) yield {
         val deviceID = record("DEVICE_NAME")
-        val time = LocalDateTime.parse(record("TIME"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss")).toDate
+        val time = try {
+          LocalDateTime.parse(record("TIME"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss")).toDate
+        }catch {
+          case _:IllegalArgumentException =>
+            LocalDateTime.parse(record("TIME"), DateTimeFormat.forPattern("YYYY/MM/dd HH:mm")).toDate
+        }
         val value = record("VALUE(小時平均值)").toDouble
         count = count +1
         RecordList(time = time, monitor = deviceID, mtDataList = Seq(MtRecord(mtName = MonitorType.PM25, value, MonitorStatus.NormalStat)))
