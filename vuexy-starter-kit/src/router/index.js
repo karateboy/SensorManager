@@ -255,6 +255,24 @@ const router = new VueRouter({
       },
     },
     {
+      path: '/system-config',
+      name: 'system-config',
+      component: () => import('@/views/SystemConfig.vue'),
+      meta: {
+        pageTitle: '系統設定',
+        breadcrumb: [
+          {
+            text: '系統管理',
+            active: true,
+          },
+          {
+            text: '系統設定',
+            active: true,
+          },
+        ],
+      },
+    },
+    {
       path: '/login',
       name: 'login',
       component: () => import('@/views/Login.vue'),

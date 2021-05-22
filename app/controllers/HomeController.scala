@@ -1,7 +1,6 @@
 package controllers
 
 import akka.actor.{ActorPaths, ActorRef, ActorSystem}
-import akka.util.Timeout
 import com.github.nscala_time.time.Imports._
 import models._
 import play.api._
@@ -14,11 +13,13 @@ import java.nio.file.Files
 import javax.inject._
 import scala.concurrent.duration.SECONDS
 
+import scala.concurrent.ExecutionContext.Implicits.global
+
 class HomeController @Inject()(environment: play.api.Environment,
                                userOp: UserOp, instrumentOp: InstrumentOp, dataCollectManagerOp: DataCollectManagerOp,
                                monitorTypeOp: MonitorTypeOp, query: Query, monitorOp: MonitorOp, groupOp: GroupOp,
                                instrumentTypeOp: InstrumentTypeOp, monitorStatusOp: MonitorStatusOp, actorSystem: ActorSystem,
-                               recordOp: RecordOp) extends Controller {
+                               recordOp: RecordOp, sysConfig: SysConfig) extends Controller {
 
   val epaReportPath: String = environment.rootPath + "/importEPA/"
 
@@ -592,8 +593,42 @@ class HomeController @Inject()(environment: play.api.Environment,
         val dataFile = dataFileOpt.get
         val filePath = Files.createTempFile("temp", ".csv");
         val file = dataFile.ref.moveTo(filePath.toFile, true)
-        val actorRef: ActorRef = actorSystem.actorOf(SensorDataImporter.props(recordOp = recordOp, dataFile=file), "dataImporter")
-        Ok(Json.obj("actorPath" -> actorRef.path.toSerializationFormat))
+        val actorName = SensorDataImporter.start(recordOp = recordOp, dataFile=file)(actorSystem)
+        Ok(Json.obj("actorName" -> actorName))
       }
+  }
+
+  def getUploadProgress(actorName:String) = Security.Authenticated {
+    Ok(Json.obj("finished"->SensorDataImporter.isFinished(actorName)))
+  }
+
+  def getSystemConfig(key:String) = Security.Authenticated.async{
+    key match {
+      case SysConfig.SensorGPS =>
+        for(ret <- sysConfig.get(SysConfig.SensorGPS))
+          yield {
+            Ok(Json.obj(SysConfig.valueKey->ret.asBoolean().getValue))
+          }
+    }
+  }
+
+  case class BooleanValue(value:Boolean)
+  def setSystemConfig(key:String)= Security.Authenticated(BodyParsers.parse.json){
+    implicit request =>
+    key match {
+      case SysConfig.SensorGPS =>
+        implicit val reads = Json.reads[BooleanValue]
+        val ret = request.body.validate[BooleanValue]
+        ret.fold(
+          err=>{
+          Logger.error(JsError.toJson(err).toString())
+            BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(err).toString()))
+          },
+          value=>{
+            sysConfig.set(SysConfig.SensorGPS, value.value)
+            Ok(Json.obj("ok"->true))
+          }
+        )
+    }
   }
 }

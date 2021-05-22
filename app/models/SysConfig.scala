@@ -13,20 +13,25 @@ import javax.inject._
 import scala.collection.JavaConversions.{asScalaBuffer}
 import scala.concurrent.Future
 
+object SysConfig {
+  val valueKey = "value"
+  val MonitorTypeVer = "Version"
+  val EpaLastDataTime = "EpaLastDateTime"
+  val SensorMetaFilename = "SensorMetaFilename"
+  val SensorGPS = "SensorGPS"
+
+}
 @Singleton
 class SysConfig @Inject()(mongoDB: MongoDB){
   val ColName = "sysConfig"
   val collection = mongoDB.database.getCollection(ColName)
 
-  val valueKey = "value"
-  val MonitorTypeVer = "Version"
-  val EpaLastDataTime = "EpaLastDateTime"
-  val SensorMetaFilename = "SensorMetaFilename"
-
+  import SysConfig._
   val defaultConfig:Map[String, Document] = Map(
     MonitorTypeVer -> Document(valueKey -> 1),
     EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate),
-    SensorMetaFilename -> Document(valueKey -> Seq.empty[String])
+    SensorMetaFilename -> Document(valueKey -> Seq.empty[String]),
+    SensorGPS-> Document(valueKey->false)
   )
 
   def init() {

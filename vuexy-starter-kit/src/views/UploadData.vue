@@ -38,8 +38,10 @@
 </style>
 <script lang="ts">
 import Vue from 'vue';
+import { mapMutations } from 'vuex';
 const Ripple = require('vue-ripple-directive');
 import axios from 'axios';
+import 'vue-loading-overlay/dist/vue-loading.css';
 
 export default Vue.extend({
   directives: {
@@ -47,19 +49,25 @@ export default Vue.extend({
   },
   data() {
     return {
+      actorName: '',
       form: {
         uploadFile: '',
       },
+      timer: 0,
     };
   },
   computed: {},
+  beforeDestroy() {
+    clearTimeout(this.timer);
+  },
   methods: {
+    ...mapMutations(['setLoading']),
     upload() {
       let file: string = this.form.uploadFile;
 
       var formData = new FormData();
       formData.append('data', file);
-
+      this.setLoading({ loading: true, message: '資料上傳中' });
       axios
         .post('/sensorData', formData, {
           headers: {
@@ -68,8 +76,12 @@ export default Vue.extend({
         })
         .then(res => {
           if (res.status === 200) {
-            this.$bvModal.msgBoxOk('上傳成功', { headerBgVariant: 'info' });
+            this.actorName = res.data.actorName;
+            this.setLoading({ loading: true, message: '資料庫匯入中' });
+            this.timer = setTimeout(this.checkFinished, 1000);
+            //this.$bvModal.msgBoxOk('上傳成功', { headerBgVariant: 'info' });
           } else {
+            this.setLoading({ loading: false });
             this.$bvModal.msgBoxOk(
               `上傳失敗 ${res.status} - ${res.statusText}`,
               {
@@ -79,6 +91,15 @@ export default Vue.extend({
           }
         })
         .catch(err => alert(err));
+    },
+    async checkFinished() {
+      const res = await axios.get(`/UploadProgress/${this.actorName}`);
+      if (res.data.finished) {
+        this.setLoading({ loading: false });
+        this.$bvModal.msgBoxOk('上傳成功', { headerBgVariant: 'info' });
+      } else {
+        this.timer = setTimeout(this.checkFinished, 1000);
+      }
     },
   },
 });

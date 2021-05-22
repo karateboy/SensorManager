@@ -14,6 +14,28 @@ import scala.util.{Failure, Success}
 
 
 object SensorDataImporter {
+  var n = 0
+  def getName = {
+    n = n +1
+    s"dataImporter${n}"
+  }
+  private var actorRefMap = Map.empty[String, ActorRef]
+
+  def start(recordOp: RecordOp, dataFile: File)(implicit actorSystem: ActorSystem) = {
+    val name = getName
+    val actorRef = actorSystem.actorOf(SensorDataImporter.props(recordOp = recordOp, dataFile=dataFile), name)
+    actorRefMap = actorRefMap + (name -> actorRef)
+    name
+  }
+
+  def finish(actorName:String)={
+    actorRefMap = actorRefMap.filter(p=>{ p._1 != actorName})
+  }
+
+  def isFinished(actorName:String) = {
+    !actorRefMap.contains(actorName)
+  }
+
   def props(recordOp: RecordOp, dataFile: File) = Props(classOf[SensorDataImporter], recordOp, dataFile)
 
   case object Import
@@ -41,6 +63,7 @@ class SensorDataImporter (recordOp: RecordOp, dataFile: File) extends Actor {
         }
       }
     case Complete =>
+      finish(context.self.path.name)
       self ! PoisonPill
 
   }

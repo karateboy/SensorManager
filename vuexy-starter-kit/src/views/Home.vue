@@ -504,6 +504,7 @@ export default {
     }); */
 
     await this.fetchMonitors();
+    await this.fetchMonitorTypes();
     this.refresh();
     this.refreshTimer = setInterval(() => {
       this.refresh();
@@ -664,13 +665,14 @@ export default {
         let url =
           'https://chart.googleapis.com/chart?chst=d_bubble_text_small_withshadow&&chld=bb|';
 
-        if (v < 15.4) url += `${v}|009865|000000`;
-        else if (v < 35.4) url += `${v}|FFFB26|000000`;
-        else if (v < 54.4) url += `${v}|FF9835|000000`;
-        else if (v < 150.4) url += `${v}|CA0034|000000`;
-        else if (v < 250.4) url += `${v}|670099|000000`;
-        else if (v < 350.4) url += `${v}|7E0123|000000`;
-        else url += `${v}|7E0123|FFFFFF`;
+        let valueStr = v.toFixed(this.mtMap.get('PM25').prec);
+        if (v < 15.4) url += `${valueStr}|009865|000000`;
+        else if (v < 35.4) url += `${valueStr}|FFFB26|000000`;
+        else if (v < 54.4) url += `${valueStr}|FF9835|000000`;
+        else if (v < 150.4) url += `${valueStr}|CA0034|000000`;
+        else if (v < 250.4) url += `${valueStr}|670099|000000`;
+        else if (v < 350.4) url += `${valueStr}|7E0123|000000`;
+        else url += `${valueStr}|7E0123|FFFFFF`;
 
         return url;
       };

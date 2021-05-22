@@ -89,6 +89,10 @@ export default [
         title: '上傳資料',
         route: 'upload-data',
       },
+      {
+        title: '系統設定',
+        route: 'system-config',
+      },
     ],
   },
 ];

@@ -1,5 +1,10 @@
 <template>
   <div id="app" class="h-100" :class="[skinClasses]">
+    <loading :active.sync="isLoading" :is-full-page="true">
+      <template #after>
+        &nbsp;&nbsp;<i>{{ loadingMessage }}</i>
+      </template>
+    </loading>
     <component :is="layout">
       <router-view />
     </component>
@@ -14,8 +19,11 @@ import { $themeColors, $themeBreakpoints, $themeConfig } from '@themeConfig';
 import { provideToast } from 'vue-toastification/composition';
 import { watch } from '@vue/composition-api';
 import useAppConfig from '@core/app-config/useAppConfig';
-import { mapActions } from 'vuex';
+import { mapState } from 'vuex';
 import { useWindowSize, useCssVar } from '@vueuse/core';
+const Loading = require('vue-loading-overlay');
+
+import 'vue-loading-overlay/dist/vue-loading.css';
 
 import store from '@/store';
 
@@ -30,6 +38,7 @@ export default {
     LayoutHorizontal,
     LayoutVertical,
     LayoutFull,
+    Loading,
   },
   setup() {
     const { skin, skinClasses } = useAppConfig();
@@ -63,6 +72,7 @@ export default {
   // ! We can move this computed: layout & contentLayoutType once we get to use Vue 3
   // Currently, router.currentRoute is not reactive and doesn't trigger any change
   computed: {
+    ...mapState(['isLoading', 'loadingMessage']),
     layout() {
       if (this.$route.meta.layout === 'full') return 'layout-full';
       return `layout-${this.contentLayoutType}`;

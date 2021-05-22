@@ -88,8 +88,11 @@ GET      /MonthlyHourReport/:monitorType/:reportDate                            
 
 GET      /DecayReport/:county/:reportDate                                         controllers.Report.decayReport(county, reportDate:Long)
 
+GET      /SystemConfig/:key                                                       controllers.HomeController.getSystemConfig(key)
+POST     /SystemConfig/:key                                                       controllers.HomeController.setSystemConfig(key)
 #Upload
 POST    /sensorData                                                               controllers.HomeController.uploadSensorData
+GET     /UploadProgress/:actorName                                                controllers.HomeController.getUploadProgress(actorName)
 #JSON
 GET      /MonitorType                                                             controllers.HomeController.monitorTypeList
 POST     /MonitorType/:id                                                         controllers.HomeController.upsertMonitorType(id)

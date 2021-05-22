@@ -12,6 +12,17 @@ import user from './user';
 Vue.use(Vuex);
 
 export default new Vuex.Store({
+  state: {
+    isLoading: false,
+    loadingMessage: '...',
+  },
+  mutations: {
+    setLoading(state, param) {
+      const { loading, message } = param;
+      state.isLoading = loading;
+      if (message) state.loadingMessage = message;
+    },
+  },
   modules: {
     app,
     appConfig,
