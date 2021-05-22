@@ -151,7 +151,8 @@ export default {
     this.validationForm();
   },
   methods: {
-    ...mapMutations('user', ['setUserInfo', 'setLogin']),
+    ...mapMutations(['setLogin']),
+    ...mapMutations('user', ['setUserInfo']),
     validationForm() {
       this.$refs.loginValidation.validate().then(success => {
         if (success) {

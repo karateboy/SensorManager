@@ -8,7 +8,6 @@ import {
 import VueCompositionAPI from '@vue/composition-api';
 import axios from 'axios';
 import moment from 'moment';
-import jscookie from 'js-cookie';
 import Highcharts from 'highcharts';
 import ex from 'highcharts/modules/exporting';
 import csv from 'highcharts/modules/export-data';
@@ -123,7 +122,7 @@ Vue.config.productionTip = false;
 
 router.beforeEach((to, from, next) => {
   // FIXME
-  if (store.state.user.login || to.name === 'login') {
+  if (store.state.login || to.name === 'login') {
     next();
   } else {
     next({ name: 'login' });
@@ -137,6 +136,7 @@ Vue.use(VueGoogleMap, {
   },
   installComponents: true,
 });
+
 new Vue({
   router,
   store,

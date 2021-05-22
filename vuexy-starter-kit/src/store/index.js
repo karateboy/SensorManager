@@ -15,6 +15,7 @@ export default new Vuex.Store({
   state: {
     isLoading: false,
     loadingMessage: '...',
+    login: false,
   },
   mutations: {
     setLoading(state, param) {
@@ -22,6 +23,9 @@ export default new Vuex.Store({
       state.isLoading = loading;
       if (message) state.loadingMessage = message;
     },
+    setLogin(state, login) {
+      state.login = login;
+    }
   },
   modules: {
     app,

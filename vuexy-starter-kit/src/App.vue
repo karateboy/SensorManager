@@ -13,16 +13,16 @@
 <style lang="scss">
 @import '@core/scss/vue/libs/vue-select.scss';
 </style>
-<script>
+<script lang="ts">
 // This will be populated in `beforeCreate` hook
-import { $themeColors, $themeBreakpoints, $themeConfig } from '@themeConfig';
+import { $themeColors, $themeBreakpoints, $themeConfig } from '../themeConfig';
+
 import { provideToast } from 'vue-toastification/composition';
 import { watch } from '@vue/composition-api';
-import useAppConfig from '@core/app-config/useAppConfig';
+const useAppConfig = require('@core/app-config/useAppConfig');
 import { mapState } from 'vuex';
 import { useWindowSize, useCssVar } from '@vueuse/core';
 const Loading = require('vue-loading-overlay');
-
 import 'vue-loading-overlay/dist/vue-loading.css';
 
 import store from '@/store';
@@ -31,8 +31,9 @@ const LayoutVertical = () => import('@/layouts/vertical/LayoutVertical.vue');
 const LayoutHorizontal = () =>
   import('@/layouts/horizontal/LayoutHorizontal.vue');
 const LayoutFull = () => import('@/layouts/full/LayoutFull.vue');
+import Vue from 'vue';
 
-export default {
+export default Vue.extend({
   components: {
     // Layouts
     LayoutHorizontal,
@@ -94,9 +95,10 @@ export default {
       'dark',
     ];
 
+    const themeColors: any = $themeColors;
     // eslint-disable-next-line no-plusplus
     for (let i = 0, len = colors.length; i < len; i++) {
-      $themeColors[colors[i]] = useCssVar(
+      themeColors[colors[i]] = useCssVar(
         `--${colors[i]}`,
         document.documentElement,
       ).value.trim();
@@ -105,9 +107,10 @@ export default {
     // Set Theme Breakpoints
     const breakpoints = ['xs', 'sm', 'md', 'lg', 'xl'];
 
+    const themeBreakpoints: any = $themeBreakpoints;
     // eslint-disable-next-line no-plusplus
     for (let i = 0, len = breakpoints.length; i < len; i++) {
-      $themeBreakpoints[breakpoints[i]] = Number(
+      themeBreakpoints[breakpoints[i]] = Number(
         useCssVar(
           `--breakpoint-${breakpoints[i]}`,
           document.documentElement,
@@ -119,5 +122,5 @@ export default {
     const { isRTL } = $themeConfig.layout;
     document.documentElement.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
   },
-};
+});
 </script>
