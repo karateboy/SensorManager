@@ -224,6 +224,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
     )
     val ret = Json.parse(payload).validate[Message]
     ret.fold(err => {
+      Logger.error(payload)
       Logger.error(JsError.toJson(err).toString())
     },
       message => {
@@ -279,6 +280,6 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
 
   }
 
-  case class Message(id: String, desc: String, lat: Double, lon: Double, time: String, data: Seq[JsValue])
+  case class Message(id: String, lat: Double, lon: Double, time: String, data: Seq[JsValue])
 
 }

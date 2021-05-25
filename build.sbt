@@ -1,6 +1,6 @@
 name := """SensorManager"""
 
-version := "1.1.12"
+version := "1.1.16"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala, LauncherJarPlugin)
 
@@ -24,6 +24,9 @@ libraryDependencies += "org.eclipse.paho" % "org.eclipse.paho.client.mqttv3" % "
 
 // https://mvnrepository.com/artifact/com.opencsv/opencsv
 libraryDependencies += "com.opencsv" % "opencsv" % "5.4"
+
+// https://mvnrepository.com/artifact/org.apache.poi/poi-ooxml
+libraryDependencies += "org.apache.poi" % "poi-ooxml" % "5.0.0"
 
 routesGenerator := StaticRoutesGenerator
 

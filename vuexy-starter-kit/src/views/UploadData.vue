@@ -4,6 +4,19 @@
       <b-form @submit.prevent>
         <b-row>
           <b-col>
+            <b-form-group v-slot="{ ariaDescribedby }" label="資料種類">
+              <b-form-radio-group
+                id="file-type-group"
+                v-model="fileType"
+                :options="fileTypeList"
+                :aria-describedby="ariaDescribedby"
+                name="file-type-options"
+              ></b-form-radio-group>
+            </b-form-group>
+          </b-col>
+        </b-row>
+        <b-row>
+          <b-col>
             <b-form-file
               v-model="form.uploadFile"
               :state="Boolean(form.uploadFile)"
@@ -50,6 +63,11 @@ export default Vue.extend({
   data() {
     return {
       actorName: '',
+      fileType: '',
+      fileTypeList: [
+        { text: '感測器', value: 'sensor' },
+        { text: '環保署測站', value: 'epa' },
+      ],
       form: {
         uploadFile: '',
       },
@@ -69,7 +87,7 @@ export default Vue.extend({
       formData.append('data', file);
       this.setLoading({ loading: true, message: '資料上傳中' });
       axios
-        .post('/sensorData', formData, {
+        .post(`/ImportData/${this.fileType}`, formData, {
           headers: {
             'Content-Type': 'multipart/form-data',
           },

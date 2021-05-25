@@ -25,7 +25,7 @@ export default new Vuex.Store({
     },
     setLogin(state, login) {
       state.login = login;
-    }
+    },
   },
   modules: {
     app,

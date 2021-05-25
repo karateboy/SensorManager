@@ -58,5 +58,11 @@ class MonitorGroupOp @Inject()(mongoDB: MongoDB) {
     f onFailure (errorHandler)
     f
   }
+
+  def getList() = {
+    val f = collection.find(Filters.exists("_id")).toFuture()
+    f onFailure(errorHandler())
+    f
+  }
 }
 

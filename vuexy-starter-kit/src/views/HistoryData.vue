@@ -4,6 +4,19 @@
       <b-form @submit.prevent>
         <b-row>
           <b-col cols="12">
+            <b-form-group
+              label="測點群組"
+              label-for="monitorGroup"
+              label-cols-md="3"
+            >
+              <v-select
+                id="monitorGroup"
+                v-model="monitorGroup"
+                label="_id"
+                :reduce="mg => mg"
+                :options="monitorGroupList"
+              />
+            </b-form-group>
             <b-form-group label="測點" label-for="monitor" label-cols-md="3">
               <v-select
                 id="monitor"
@@ -85,7 +98,7 @@
         </b-row>
       </b-form>
     </b-card>
-    <b-card v-show="display">
+    <b-card v-show="display" :title="resultTitle">
       <b-table
         striped
         hover
@@ -94,6 +107,8 @@
         show-empty
         :per-page="15"
         :current-page="currentPage"
+        responsive
+        sticky-header="800px"
       >
         <template #thead-top>
           <b-tr>
@@ -132,9 +147,14 @@ import DatePicker from 'vue2-datepicker';
 import 'vue2-datepicker/index.css';
 import 'vue2-datepicker/locale/zh-tw';
 const Ripple = require('vue-ripple-directive');
-import { mapState, mapGetters, mapActions } from 'vuex';
+import { mapState, mapGetters, mapActions, mapMutations } from 'vuex';
 import moment from 'moment';
 import axios from 'axios';
+
+interface MonitorGroup {
+  _id: string;
+  member: string[];
+}
 
 export default Vue.extend({
   components: {
@@ -147,12 +167,15 @@ export default Vue.extend({
 
   data() {
     const range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
+    let monitorGroup: MonitorGroup | undefined = undefined;
     return {
       dataTypes: [
         { txt: '小時資料', id: 'hour' },
         { txt: '分鐘資料', id: 'min' },
         // { txt: '秒資料', id: 'second' },
       ],
+      monitorGroupList: Array<MonitorGroup>(),
+      monitorGroup,
       form: {
         monitors: Array<any>(),
         monitorTypes: Array<any>(),
@@ -162,7 +185,7 @@ export default Vue.extend({
       display: false,
       columns: Array<any>(),
       rows: Array<any>(),
-      currentPage: 0,
+      currentPage: 1,
     };
   },
   computed: {
@@ -170,10 +193,19 @@ export default Vue.extend({
     ...mapState('monitors', ['monitors']),
     ...mapGetters('monitorTypes', ['mtMap']),
     ...mapGetters('monitors', ['mMap']),
+    resultTitle(): string {
+      return `總共${this.rows.length}筆`;
+    },
+  },
+  watch: {
+    monitorGroup(newValue: MonitorGroup) {
+      this.form.monitors = newValue.member;
+    },
   },
   async mounted() {
     await this.fetchMonitorTypes();
     await this.fetchMonitors();
+    await this.getMonitorGroups();
 
     if (this.monitors.length !== 0) {
       this.form.monitors.push(this.monitors[0]._id);
@@ -186,7 +218,9 @@ export default Vue.extend({
   methods: {
     ...mapActions('monitorTypes', ['fetchMonitorTypes']),
     ...mapActions('monitors', ['fetchMonitors']),
+    ...mapMutations(['setLoading']),
     async query() {
+      this.setLoading({ loading: true });
       this.display = true;
       this.rows = [];
       this.columns = this.getColumns();
@@ -195,11 +229,16 @@ export default Vue.extend({
       const url = `/HistoryReport/${monitors}/${monitorTypes}/${this.form.dataType}/${this.form.range[0]}/${this.form.range[1]}`;
 
       const ret = await axios.get(url);
+      this.setLoading({ loading: false });
       for (const row of ret.data.rows) {
         row.date = moment(row.date).format('lll');
       }
 
       this.rows = ret.data.rows;
+    },
+    async getMonitorGroups() {
+      const ret = await axios.get('/MonitorGroups');
+      this.monitorGroupList = ret.data;
     },
     cellDataTd(i: number) {
       return (_value: any, _key: any, item: any) =>
@@ -214,6 +253,7 @@ export default Vue.extend({
       ret.push({
         key: 'date',
         label: '時間',
+        stickyColumn: true,
       });
       let i = 0;
       for (const mt of this.form.monitorTypes) {

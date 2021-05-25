@@ -34,6 +34,7 @@ GET      /RealtimeEPA                                                           
 GET      /RealtimeSensor                                                          controllers.Realtime.sensorStatus(pm25Threshold, county, district, sensorType)
 GET      /RealtimeDisconnectedSensor                                              controllers.Realtime.sensorDisconnected(county, district, sensorType)
 GET      /RealtimeConstantValueSensor                                             controllers.Realtime.sensorConstant(county, district, sensorType)
+GET      /Lt95Sensor                                                              controllers.Realtime.lessThan95sensor(county, district, sensorType)
 GET      /SensorSummary                                                           controllers.Realtime.sensorSummary
 GET      /DisconnectSummary                                                       controllers.Realtime.disconnectSummary
 
@@ -91,7 +92,7 @@ GET      /DecayReport/:county/:reportDate                                       
 GET      /SystemConfig/:key                                                       controllers.HomeController.getSystemConfig(key)
 POST     /SystemConfig/:key                                                       controllers.HomeController.setSystemConfig(key)
 #Upload
-POST    /sensorData                                                               controllers.HomeController.uploadSensorData
+POST    /ImportData/:fileType                                                     controllers.HomeController.importData(fileType)
 GET     /UploadProgress/:actorName                                                controllers.HomeController.getUploadProgress(actorName)
 #JSON
 GET      /MonitorType                                                             controllers.HomeController.monitorTypeList
@@ -102,7 +103,7 @@ GET      /SignalValues                                                          
 
 GET      /Monitors                                                                controllers.HomeController.monitorList
 PUT      /Monitor/:id                                                             controllers.HomeController.upsertMonitor(id)
-
+GET      /MonitorGroups                                                           controllers.HomeController.monitorGroupList
 
 GET      /Record/:monitorType/:start/:end                                         controllers.Query.recordList(monitorType, start:Long, end:Long)
 PUT      /Record/:tabType                                                         controllers.Query.updateRecord(tabType)

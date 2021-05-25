@@ -19,7 +19,7 @@ class HomeController @Inject()(environment: play.api.Environment,
                                userOp: UserOp, instrumentOp: InstrumentOp, dataCollectManagerOp: DataCollectManagerOp,
                                monitorTypeOp: MonitorTypeOp, query: Query, monitorOp: MonitorOp, groupOp: GroupOp,
                                instrumentTypeOp: InstrumentTypeOp, monitorStatusOp: MonitorStatusOp, actorSystem: ActorSystem,
-                               recordOp: RecordOp, sysConfig: SysConfig) extends Controller {
+                               recordOp: RecordOp, sysConfig: SysConfig, monitorGroupOp: MonitorGroupOp) extends Controller {
 
   val epaReportPath: String = environment.rootPath + "/importEPA/"
 
@@ -584,7 +584,7 @@ class HomeController @Inject()(environment: play.api.Environment,
 
   case class EditData(id: String, data: String)
 
-  def uploadSensorData = Security.Authenticated(parse.multipartFormData) {
+  def importData(fileTypeStr:String) = Security.Authenticated(parse.multipartFormData) {
     implicit request =>
       val dataFileOpt = request.body.file("data")
       if(dataFileOpt.isEmpty)
@@ -593,13 +593,17 @@ class HomeController @Inject()(environment: play.api.Environment,
         val dataFile = dataFileOpt.get
         val filePath = Files.createTempFile("temp", ".csv");
         val file = dataFile.ref.moveTo(filePath.toFile, true)
-        val actorName = SensorDataImporter.start(recordOp = recordOp, dataFile=file)(actorSystem)
+        val fileType = if(fileTypeStr == "sensor")
+          DataImporter.SensorData
+        else
+          DataImporter.EpaData
+        val actorName = DataImporter.start(monitorOp=monitorOp ,recordOp = recordOp, dataFile=file, fileType = fileType)(actorSystem)
         Ok(Json.obj("actorName" -> actorName))
       }
   }
 
   def getUploadProgress(actorName:String) = Security.Authenticated {
-    Ok(Json.obj("finished"->SensorDataImporter.isFinished(actorName)))
+    Ok(Json.obj("finished"->DataImporter.isFinished(actorName)))
   }
 
   def getSystemConfig(key:String) = Security.Authenticated.async{
@@ -630,5 +634,12 @@ class HomeController @Inject()(environment: play.api.Environment,
           }
         )
     }
+  }
+  def monitorGroupList = Security.Authenticated.async{
+    implicit request=>
+      implicit val writes = Json.writes[MonitorGroup]
+      val f = monitorGroupOp.getList()
+      for(ret <- f) yield
+        Ok(Json.toJson(ret))
   }
 }

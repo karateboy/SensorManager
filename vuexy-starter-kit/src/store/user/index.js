@@ -1,6 +1,6 @@
 export default {
   namespaced: true,
-  state: {    
+  state: {
     userInfo: {
       _id: '',
       name: '',
@@ -18,7 +18,7 @@ export default {
       state.userInfo.isAdmin = val.isAdmin;
       state.userInfo.group = val.group;
       state.userInfo.monitorTypeOfInterest = val.monitorTypeOfInterest;
-    }    
+    },
   },
   actions: {},
 };

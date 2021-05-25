@@ -19,7 +19,7 @@
                 <b-tr>
                   <b-th>群組</b-th>
                   <b-th>接收總數</b-th>
-                  <b-th>定值</b-th>
+                  <b-th>定值 (最近10分鐘)</b-th>
                   <b-th>完整率&lt;95%</b-th>
                 </b-tr>
               </b-thead>
@@ -66,9 +66,17 @@
     <b-col lg="12" md="12">
       <b-card>
         <b-row>
-          <b-col cols="2" class="text-center align-middle"
-            ><h3>監測地圖</h3></b-col
-          >
+          <b-col cols="2">
+            <b-table-simple borderless>
+              <b-tbody>
+                <b-tr>
+                  <b-td class="text-center align-middle"
+                    ><h3>監測地圖</h3></b-td
+                  >
+                </b-tr>
+              </b-tbody>
+            </b-table-simple>
+          </b-col>
           <b-col cols="10"
             ><b-img src="../assets/images/legend.png" fluid
           /></b-col>
@@ -78,6 +86,26 @@
           <b-img src="../assets/images/legend.png" fluid />
         </div> -->
         <div class="map_container">
+          <div id="mapFilter" class="sensorFilter mt-2 ml-2">
+            <b-table-simple small>
+              <b-tr>
+                <b-th>圖層選擇</b-th>
+              </b-tr>
+              <b-tbody>
+                <b-tr>
+                  <b-td>
+                    <v-select
+                      v-model="mapLayer"
+                      label="txt"
+                      multiple
+                      :reduce="entry => entry.value"
+                      :options="mapLayerTypes"
+                    />
+                  </b-td>
+                </b-tr>
+              </b-tbody>
+            </b-table-simple>
+          </div>
           <div id="sensorFilter" class="sensorFilter mt-2">
             <b-table-simple small>
               <b-tr>
@@ -85,7 +113,7 @@
                 <b-th>區域劃分</b-th>
                 <b-th>類型</b-th>
                 <b-th>濃度</b-th>
-                <b-th>圖層選擇</b-th>
+                <b-th>異常狀態</b-th>
               </b-tr>
               <b-tbody>
                 <b-tr>
@@ -117,15 +145,14 @@
                       :reduce="entry => entry.value"
                       :options="pm25Filters"
                   /></b-td>
-                  <b-td>
-                    <v-select
-                      v-model="mapLayer"
+                  <b-td
+                    ><v-select
+                      v-model="errorStatus"
                       label="txt"
-                      multiple
                       :reduce="entry => entry.value"
-                      :options="mapLayerTypes"
-                    />
-                  </b-td>
+                      :options="errorFilters"
+                      multiple
+                  /></b-td>
                 </b-tr>
               </b-tbody>
             </b-table-simple>
@@ -182,6 +209,15 @@
               :icon="m.iconUrl"
               @click="toggleInfoWindow(m, index)"
             />
+            <GmapMarker
+              v-for="(m, index) in lt95Markers"
+              :key="m._id + 'lt95'"
+              :position="m.position"
+              :clickable="true"
+              :title="m.title"
+              :icon="m.iconUrl"
+              @click="toggleInfoWindow(m, index)"
+            />
             <gmap-info-window
               :options="infoOptions"
               :position="infoWindowPos"
@@ -225,13 +261,14 @@ export default {
       epaStatus: [],
       disconnectedList: [],
       constantList: [],
+      lt95List: [],
+      errorStatus: [],
       sensorStatusParam: {
         pm25Threshold: '',
         county: '基隆市',
         district: '',
         sensorType: '',
       },
-      loader: undefined,
       refreshTimer: 0,
       infoWindowPos: null,
       infoWinOpen: false,
@@ -326,6 +363,8 @@ export default {
           txt: '環保署',
           value: 'EPA',
         },
+      ],
+      errorFilters: [
         {
           txt: '通訊中斷',
           value: 'disconnect',
@@ -431,15 +470,32 @@ export default {
       return { lat: 25.127594828422044, lng: 121.7399713796935 };
     },
     sensorMarkers() {
+      if (
+        this.mapLayer.indexOf('sensor') === -1 ||
+        this.errorStatus.length !== 0
+      )
+        return [];
+
       return this.markers(this.sensorStatus);
     },
     epaMarkers() {
+      if (this.mapLayer.indexOf('epa') === -1) return [];
+
       return this.markers(this.epaStatus);
     },
     constantMarkers() {
+      if (this.errorStatus.indexOf('constant') === -1) return [];
+
       return this.markers(this.constantList);
     },
+    lt95Markers() {
+      if (this.errorStatus.indexOf('lt95') === -1) return [];
+
+      return this.markers(this.lt95List);
+    },
     disconnectedMarkers() {
+      if (this.errorStatus.indexOf('disconnect') === -1) return [];
+
       const ret = [];
 
       for (const id of this.disconnectedList) {
@@ -489,19 +545,17 @@ export default {
     mapLayer(newMap, oldMap) {
       this.handlMapLayerChange(newMap, oldMap);
     },
+    errorStatus(newError, oldError) {
+      this.handleErrorStatusChange(newError, oldError);
+    },
   },
   async mounted() {
     const sensorFilter = document.getElementById('sensorFilter');
+    const mapFilter = document.getElementById('mapFilter');
     this.$refs.mapRef.$mapPromise.then(map => {
       map.controls[google.maps.ControlPosition.TOP_CENTER].push(sensorFilter);
+      map.controls[google.maps.ControlPosition.TOP_LEFT].push(mapFilter);
     });
-
-    /*
-    this.loader = this.$loading.show({
-      // Optional parameters
-      container: null,
-      canCancel: false,
-    }); */
 
     await this.fetchMonitors();
     await this.fetchMonitorTypes();
@@ -519,8 +573,9 @@ export default {
     ...mapActions('monitors', ['fetchMonitors']),
     refreshMapStatus() {
       if (this.mapLayer.indexOf('sensor') !== -1) this.getSensorStatus();
-      if (this.mapLayer.indexOf('disconnect') !== -1) this.getDisconnected();
-      if (this.mapLayer.indexOf('constant') !== -1) this.getConstantValue();
+      if (this.errorStatus.indexOf('disconnect') !== -1) this.getDisconnected();
+      if (this.errorStatus.indexOf('constant') !== -1) this.getConstantValue();
+      if (this.errorStatus.indexOf('lt95') !== -1) this.getLt95List();
     },
     toggleInfoWindow(marker, idx) {
       this.infoWindowPos = marker.position;
@@ -585,6 +640,18 @@ export default {
       });
       this.constantList = ret.data;
     },
+    async getLt95List() {
+      const params = {
+        county: this.sensorStatusParam.county,
+        district: this.sensorStatusParam.district,
+        sensorType: this.sensorStatusParam.sensorType,
+      };
+      const ret = await axios.get('/Lt95Sensor', {
+        params,
+      });
+
+      this.lt95List = ret.data;
+    },
     async getTodaySummary() {
       const res = await axios.get('/SensorSummary');
       const ret = res.data;
@@ -595,21 +662,44 @@ export default {
       const ret = res.data;
       this.disconnectSummary = ret;
     },
+    handleErrorStatusChange(newMap, oldMap) {
+      const mapToClear = oldMap.filter(map => newMap.indexOf(map) === -1);
+      mapToClear.forEach(map => {
+        switch (map) {
+          case 'disconnect':
+            this.disconnectedList = [];
+            break;
+          case 'constant':
+            this.constantList = [];
+            break;
+          case 'lt95':
+            this.lt95List = [];
+            break;
+        }
+      });
+      const mapToGet = newMap.filter(map => oldMap.indexOf(map) === -1);
+      mapToGet.forEach(map => {
+        switch (map) {
+          case 'disconnect':
+            this.getDisconnected();
+            break;
+          case 'constant':
+            this.getConstantValue();
+            break;
+          case 'lt95':
+            this.getLt95List();
+        }
+      });
+    },
     handlMapLayerChange(newMap, oldMap) {
       const mapToClear = oldMap.filter(map => newMap.indexOf(map) === -1);
       mapToClear.forEach(map => {
         switch (map) {
           case 'sensor':
-            this.sensorStatus.splice(0, this.sensorStatus.length);
+            this.sensorStatus = [];
             break;
           case 'EPA':
-            this.epaStatus.splice(0, this.epaStatus.length);
-            break;
-          case 'disconnect':
-            this.disconnectedList.splice(0, this.disconnectedList.length);
-            break;
-          case 'constant':
-            this.constantList.splice(0, this.constantList.length);
+            this.epaStatus = [];
             break;
         }
       });
@@ -617,46 +707,28 @@ export default {
       mapToGet.forEach(map => {
         switch (map) {
           case 'sensor':
-            this.removelimitedSensorFromMap();
             this.getSensorStatus();
             break;
           case 'EPA':
             this.getEpaStatus();
             break;
-          case 'disconnect':
-            this.removeSensorFromMapLayer();
-            this.getDisconnected();
-            break;
-          case 'constant':
-            this.removeSensorFromMapLayer();
-            this.getConstantValue();
-            break;
         }
       });
-    },
-    removeSensorFromMapLayer() {
-      const sensorIdx = this.mapLayer.indexOf('sensor');
-      if (sensorIdx !== -1) {
-        this.mapLayer.splice(sensorIdx, 1);
-        this.sensorStatus.splice(0, this.sensorStatus.length);
-      }
-    },
-    removelimitedSensorFromMap() {
-      const disconnectIdx = this.mapLayer.indexOf('disconnect');
-      if (disconnectIdx !== -1) {
-        this.mapLayer.splice(disconnectIdx, 1);
-        this.disconnectedList.splice(0, this.disconnectedList.length);
-      }
-      const constantIdx = this.mapLayer.indexOf('constant');
-      if (constantIdx !== -1) {
-        this.mapLayer.splice(constantIdx, 1);
-        this.constantList.splice(0, this.constantList.length);
-      }
     },
     markers(statusArray) {
       const ret = [];
       const epaUrl = (name, v) => {
-        const url = `https://chart.googleapis.com/chart?chst=d_fnote_title&chld=pinned_c|2|004400|l|${name}|PM2.5=${v}`;
+        let url = `https://chart.googleapis.com/chart?chst=d_map_spin&chld=1|0|`;
+
+        if (v < 15.4) url += `009865`;
+        else if (v < 35.4) url += `FFFB26`;
+        else if (v < 54.4) url += `FF9835`;
+        else if (v < 150.4) url += `CA0034`;
+        else if (v < 250.4) url += `670099`;
+        else if (v < 350.4) url += `7E0123`;
+        else url += `7E0123`;
+
+        url += `|11|_|${v}`;
 
         return url;
       };
@@ -717,5 +789,3 @@ export default {
   },
 };
 </script>
-
-<style></style>

@@ -99,7 +99,6 @@ class SensorMetaImporter @Inject()
         }
         col = col + 1
       } while (!finished)
-      Logger.info(monitorGroups.toString())
     }
 
     importMonitorGroupName
@@ -123,7 +122,7 @@ class SensorMetaImporter @Inject()
           val roadName = row.getCell(8).getStringCellValue
           val locationDesc = {
             val cell = row.getCell(9)
-            if (cell.getCellType == Cell.CELL_TYPE_STRING)
+            if (cell.getCellType == CellType.STRING)
               cell.getStringCellValue
             else
               cell.getNumericCellValue.toString

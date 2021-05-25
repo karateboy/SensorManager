@@ -19,7 +19,7 @@ import { $themeColors, $themeBreakpoints, $themeConfig } from '../themeConfig';
 
 import { provideToast } from 'vue-toastification/composition';
 import { watch } from '@vue/composition-api';
-const useAppConfig = require('@core/app-config/useAppConfig');
+import useAppConfig from './@core/app-config/useAppConfig';
 import { mapState } from 'vuex';
 import { useWindowSize, useCssVar } from '@vueuse/core';
 const Loading = require('vue-loading-overlay');

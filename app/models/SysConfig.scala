@@ -42,8 +42,7 @@ class SysConfig @Inject()(mongoDB: MongoDB){
         waitReadyResult(f)
       }
     }
-    val values = Seq.empty[String]
-    val idSet = values
+    val idSet = defaultConfig.keySet
 
     //Clean up unused
     val f1 = collection.deleteMany(Filters.not(Filters.in("_id", idSet.toList: _*))).toFuture()
