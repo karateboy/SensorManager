@@ -247,11 +247,11 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
         }
 
         if(recordLists.length != 0){
-          Logger.info(s"EPA total ${recordLists.length} records")
-
           val f = recordOp.upsertManyRecord(recordLists)(recordOp.MinCollection)
           f onComplete ({
-            case Success(_) =>
+            case Success(ret) =>
+              if(ret.getUpserts.size() != 0)
+                Logger.info(s"EPA current upsert ${ret.getUpserts.size()} records")
 
             case Failure(ex) =>
               Logger.error("failed", ex)

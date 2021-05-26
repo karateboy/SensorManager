@@ -479,8 +479,7 @@ export default {
       return this.markers(this.sensorStatus);
     },
     epaMarkers() {
-      if (this.mapLayer.indexOf('epa') === -1) return [];
-
+      if (this.mapLayer.indexOf('EPA') === -1) return [];
       return this.markers(this.epaStatus);
     },
     constantMarkers() {
