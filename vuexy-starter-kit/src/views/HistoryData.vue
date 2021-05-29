@@ -4,6 +4,15 @@
       <b-form @submit.prevent>
         <b-row>
           <b-col cols="12">
+            <b-form-group label="縣市" label-for="county" label-cols-md="3">
+              <v-select
+                id="county"
+                v-model="county"
+                label="txt"
+                :reduce="county => county.value"
+                :options="countyFilters"
+              />
+            </b-form-group>
             <b-form-group
               label="測點群組"
               label-for="monitorGroup"
@@ -14,7 +23,7 @@
                 v-model="monitorGroup"
                 label="_id"
                 :reduce="mg => mg"
-                :options="monitorGroupList"
+                :options="filteredMonitorGroupList"
               />
             </b-form-group>
             <b-form-group label="測點" label-for="monitor" label-cols-md="3">
@@ -23,7 +32,7 @@
                 v-model="form.monitors"
                 label="desc"
                 :reduce="mt => mt._id"
-                :options="monitors"
+                :options="filteredMonitors"
                 multiple
               />
             </b-form-group>
@@ -150,11 +159,7 @@ const Ripple = require('vue-ripple-directive');
 import { mapState, mapGetters, mapActions, mapMutations } from 'vuex';
 import moment from 'moment';
 import axios from 'axios';
-
-interface MonitorGroup {
-  _id: string;
-  member: string[];
-}
+import { MonitorGroup } from './types';
 
 export default Vue.extend({
   components: {
@@ -168,6 +173,24 @@ export default Vue.extend({
   data() {
     const range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
     let monitorGroup: MonitorGroup | undefined = undefined;
+    const countyFilters = [
+      {
+        txt: '不限',
+        value: '',
+      },
+      {
+        txt: '基隆',
+        value: '基隆市',
+      },
+      {
+        txt: '屏東',
+        value: '屏東縣',
+      },
+      {
+        txt: '宜蘭',
+        value: '宜蘭縣',
+      },
+    ];
     return {
       dataTypes: [
         { txt: '小時資料', id: 'hour' },
@@ -176,6 +199,8 @@ export default Vue.extend({
       ],
       monitorGroupList: Array<MonitorGroup>(),
       monitorGroup,
+      countyFilters,
+      county: '',
       form: {
         monitors: Array<any>(),
         monitorTypes: Array<any>(),
@@ -195,6 +220,35 @@ export default Vue.extend({
     ...mapGetters('monitors', ['mMap']),
     resultTitle(): string {
       return `總共${this.rows.length}筆`;
+    },
+    filteredMonitorGroupList(): Array<MonitorGroup> {
+      if (this.county === '') return this.monitorGroupList;
+      else {
+        return this.monitorGroupList.filter(
+          (value: MonitorGroup, index: number) => {
+            let prefix = '';
+            switch (this.county) {
+              case '基隆市':
+                prefix = 'K';
+                break;
+              case '屏東縣':
+                prefix = 'P';
+                break;
+              case '宜蘭縣':
+                prefix = 'Y';
+                break;
+            }
+
+            return value._id.startsWith(prefix);
+          },
+        );
+      }
+    },
+    filteredMonitors(): Array<any> {
+      if (this.county === '') return this.monitors;
+      return this.monitors.filter((monitor: any, index: number) => {
+        return monitor.county === this.county;
+      });
     },
   },
   watch: {

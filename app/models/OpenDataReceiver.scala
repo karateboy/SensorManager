@@ -71,7 +71,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
     case GetEpaHourData =>
       for(epaLast <- sysConfig.getEpaLastDataTime()){
         val start = new DateTime(epaLast) - 1.day
-        val end = DateTime.now().withMillisOfDay(0)
+        val end = DateTime.now().withMillisOfDay(0).minusDays(1)
         if (start < end) {
           getEpaHourData(start, end)
         }
@@ -197,7 +197,6 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
 
 
   def getCurrentData(limit: Int) = {
-    Logger.info("Get EPA current data")
     import com.github.nscala_time.time.Imports._
     val url = s"https://data.epa.gov.tw/api/v1/aqx_p_432?format=json&limit=${limit}&api_key=9be7b239-557b-4c10-9775-78cadfc555e9"
 

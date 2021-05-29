@@ -717,7 +717,7 @@ export default {
     markers(statusArray) {
       const ret = [];
       const epaUrl = (name, v) => {
-        let url = `https://chart.googleapis.com/chart?chst=d_map_spin&chld=1|0|`;
+        let url = `https://chart.googleapis.com/chart?chst=d_map_spin&chld=1.5|0|`;
 
         if (v < 15.4) url += `009865`;
         else if (v < 35.4) url += `FFFB26`;
@@ -727,7 +727,7 @@ export default {
         else if (v < 350.4) url += `7E0123`;
         else url += `7E0123`;
 
-        url += `|11|_|${v}`;
+        url += `|17|b|${v}`;
 
         return url;
       };

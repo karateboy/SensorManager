@@ -23,8 +23,9 @@ export default {
     async fetchMonitors({ commit }) {
       try {
         const res = await axios.get('/Monitors');
-        const payload = res && res.data;
-        commit('setMonitors', payload);
+        if (res.status === 200) {
+          commit('setMonitors', res.data);
+        }
       } catch (err) {
         throw new Error(err);
       }

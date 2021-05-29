@@ -4,6 +4,28 @@
       <b-form @submit.prevent>
         <b-row>
           <b-col cols="12">
+            <b-form-group label="縣市" label-for="county" label-cols-md="3">
+              <v-select
+                id="county"
+                v-model="county"
+                label="txt"
+                :reduce="county => county.value"
+                :options="countyFilters"
+              />
+            </b-form-group>
+            <b-form-group
+              label="測點群組"
+              label-for="monitorGroup"
+              label-cols-md="3"
+            >
+              <v-select
+                id="monitorGroup"
+                v-model="monitorGroup"
+                label="_id"
+                :reduce="mg => mg"
+                :options="filteredMonitorGroupList"
+              />
+            </b-form-group>
             <b-form-group label="測點" label-for="monitor" label-cols-md="3">
               <v-select
                 id="monitor"
@@ -130,10 +152,11 @@ import DatePicker from 'vue2-datepicker';
 import 'vue2-datepicker/index.css';
 import 'vue2-datepicker/locale/zh-tw';
 const Ripple = require('vue-ripple-directive');
-import { mapState, mapActions } from 'vuex';
+import { mapState, mapActions, mapMutations } from 'vuex';
 import moment from 'moment';
 import axios from 'axios';
 import highcharts from 'highcharts';
+import { MonitorGroup } from './types';
 
 export default Vue.extend({
   components: {
@@ -146,6 +169,25 @@ export default Vue.extend({
 
   data() {
     const range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
+    let monitorGroup: MonitorGroup | undefined = undefined;
+    const countyFilters = [
+      {
+        txt: '不限',
+        value: '',
+      },
+      {
+        txt: '基隆',
+        value: '基隆市',
+      },
+      {
+        txt: '屏東',
+        value: '屏東縣',
+      },
+      {
+        txt: '宜蘭',
+        value: '宜蘭縣',
+      },
+    ];
     return {
       statusFilters: [
         { id: 'all', txt: '全部' },
@@ -195,6 +237,10 @@ export default Vue.extend({
           desc: '點圖',
         },
       ],
+      monitorGroupList: Array<MonitorGroup>(),
+      monitorGroup,
+      countyFilters,
+      county: '',
       form: {
         monitors: Array<string>(),
         monitorTypes: Array<string>(),
@@ -208,24 +254,60 @@ export default Vue.extend({
   computed: {
     ...mapState('monitorTypes', ['monitorTypes']),
     ...mapState('monitors', ['monitors']),
-  },
-  mounted() {
-    this.fetchMonitorTypes().then(() => {
-      if (this.monitorTypes.length !== 0) {
-        this.form.monitorTypes.push('PM25');
-      }
-    });
+    filteredMonitorGroupList(): Array<MonitorGroup> {
+      if (this.county === '') return this.monitorGroupList;
+      else {
+        return this.monitorGroupList.filter(
+          (value: MonitorGroup, index: number) => {
+            let prefix = '';
+            switch (this.county) {
+              case '基隆市':
+                prefix = 'K';
+                break;
+              case '屏東縣':
+                prefix = 'P';
+                break;
+              case '宜蘭縣':
+                prefix = 'Y';
+                break;
+            }
 
-    this.fetchMonitors().then(() => {
-      if (this.monitors.length !== 0) {
-        this.form.monitors.push(this.monitors[0]._id);
+            return value._id.startsWith(prefix);
+          },
+        );
       }
-    });
+    },
+    filteredMonitors(): Array<any> {
+      if (this.county === '') return this.monitors;
+      return this.monitors.filter((monitor: any, index: number) => {
+        return monitor.county === this.county;
+      });
+    },
+  },
+  watch: {
+    monitorGroup(newValue: MonitorGroup) {
+      this.form.monitors = newValue.member;
+    },
+  },
+  async mounted() {
+    await this.getMonitorGroups();
+    await this.fetchMonitorTypes();
+    await this.fetchMonitors();
+
+    if (this.monitorTypes.length !== 0) {
+      this.form.monitorTypes.push('PM25');
+    }
+
+    if (this.monitors.length !== 0) {
+      this.form.monitors.push(this.monitors[0]._id);
+    }
   },
   methods: {
     ...mapActions('monitorTypes', ['fetchMonitorTypes']),
     ...mapActions('monitors', ['fetchMonitors']),
+    ...mapMutations(['setLoading']),
     async query() {
+      this.setLoading({ loading: true });
       this.display = true;
       const monitors = this.form.monitors.join(':');
       const url = `/HistoryTrend/${monitors}/${this.form.monitorTypes.join(
@@ -235,6 +317,8 @@ export default Vue.extend({
       }/${this.form.range[1]}`;
       const res = await axios.get(url);
       const ret = res.data;
+
+      this.setLoading({ loading: false });
       if (this.form.chartType !== 'boxplot') {
         ret.chart = {
           type: this.form.chartType,
@@ -290,6 +374,10 @@ export default Vue.extend({
         };
       }
       highcharts.chart('chart_container', ret);
+    },
+    async getMonitorGroups() {
+      const ret = await axios.get('/MonitorGroups');
+      this.monitorGroupList = ret.data;
     },
   },
 });

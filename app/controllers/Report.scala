@@ -3,13 +3,11 @@ package controllers
 import com.github.nscala_time.time.Imports._
 import models.ModelHelper._
 import models._
-import play.api.Logger
 import play.api.libs.json.Json
 import play.api.mvc._
 
 import java.nio.file.Files
 import javax.inject._
-import scala.collection.immutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.postfixOps
@@ -397,7 +395,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           val epaGroupFuture = Future {
             MonitorGroup("基隆站", Seq("epa1"))
           }
-          val sensorGroupFuture = Seq("K0LO01", "K1LO01", "K0KM01", "K1KM01", "K0AL99", "K1AL99") map monitorGroupOp.get
+          val sensorGroupFuture = Seq("K0LO01", "K1LO01", "K0KM01", "K1KM01") map monitorGroupOp.get
           sensorGroupFuture.+:(epaGroupFuture)
         case "屏東縣" =>
           val epaGroupFuture = Future {
@@ -413,7 +411,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           getMonitorRecordMap(mg, reportDate)
     }
 
-    def getLast18MonthSensorReport: Future[immutable.IndexedSeq[Seq[SensorMonthReport]]] = {
+    def getLast18MonthSensorReport = {
       val monitorGroupListFuture =
         county match {
           case "基隆市" =>
@@ -424,9 +422,8 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
             sensorGroupFuture.+:(epaGroupFuture)
         }
 
-      val last18monthF = {
         val allF = {
-          for (i <- 1 to 18) yield {
+          for (i <- 0 to 17) yield {
             val ff = {
               monitorGroupListFuture map {
                 mgF =>
@@ -438,116 +435,16 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           }
         }
         Future.sequence(allF)
-      }
-
-      for (last18month <- last18monthF) yield {
-        for (recordTuple <- last18month) yield {
-          for ((epaIdx, mgIdx) <- Seq((0, 1), (0, 2))) yield {
-            val start = recordTuple(epaIdx)._3
-            val timeSeq = getPeriods(start, start + 1.month, 1.hour)
-
-            def records(idx: Int): Seq[Seq[Option[Double]]] = {
-              val (mg, timeRecordMap, start) = recordTuple(idx)
-              for {time <- timeSeq} yield {
-                if (timeRecordMap.contains(time)) {
-                  val recordMap = timeRecordMap(time)
-                  mg.member map {
-                    recordMap.get(_)
-                  }
-                } else
-                  Seq.empty[Option[Double]]
-              }
-            }
-
-            val biasRecord = {
-              val (_, epaTimeRecordMap, _) = recordTuple(epaIdx)
-              val (mg, timeRecordMap, _) = recordTuple(mgIdx)
-
-              for {time <- timeSeq} yield {
-                if (timeRecordMap.contains(time) && epaTimeRecordMap.contains(time)) {
-                  val recordMap = timeRecordMap(time)
-                  val epaValue = epaTimeRecordMap(time).values.head
-                  mg.member map { sensor =>
-                    for (v <- recordMap.get(sensor)) yield {
-                      if (epaValue != 0)
-                        Math.abs((v - epaValue) * 100 / epaValue)
-                      else
-                        0
-                    }
-                  }
-                } else
-                  Seq.empty[Option[Double]]
-              }
-            }
-
-            val (min, max, median) = {
-              val sensorRecords = records(mgIdx)
-              val flattenRecords: Seq[Double] = sensorRecords flatMap { x => x flatMap (a => a) }
-              val sorted = flattenRecords.sorted
-              if (sorted.length != 0) {
-                (Some(sorted.head), Some(sorted.reverse.head), Some(sorted(sorted.length / 2)))
-              } else {
-                (None, None, None)
-              }
-            }
-            val (biasMin, biasMax, biasMedian) = {
-              val flattenRecords = biasRecord flatMap { x => x flatMap (a => a) }
-              val sorted = flattenRecords.sorted
-              if (sorted.length != 0) {
-                (Some(sorted.head), Some(sorted.reverse.head), Some(sorted(sorted.length / 2)))
-              } else {
-                (None, None, None)
-              }
-            }
-            val rr: Option[Double] = {
-              val rrRecord: Seq[Seq[Option[(Double, Double, Double)]]] = {
-                val (_, epaTimeRecordMap, _) = recordTuple(epaIdx)
-                val (mg, timeRecordMap, start) = recordTuple(mgIdx)
-                for {time <- timeSeq} yield {
-                  if (timeRecordMap.contains(time) && epaTimeRecordMap.contains(time) && epaTimeRecordMap(time).size != 0) {
-                    val recordMap = timeRecordMap(time)
-                    val epaValue = epaTimeRecordMap(time).values.head
-                    mg.member map { sensor =>
-                      for (v <- recordMap.get(sensor)) yield
-                        (v, epaValue, Math.pow(v - epaValue, 2))
-                    }
-                  } else
-                    Seq.empty[Option[(Double, Double, Double)]]
-                }
-              }
-
-              val flattenRecords: Seq[(Double, Double, Double)] = rrRecord flatMap { x => x flatMap (a => a) }
-              val n = flattenRecords.length
-              if (n == 0) {
-                None
-              } else {
-                val epaValues = flattenRecords map {
-                  _._2
-                }
-                val ssRes = flattenRecords map {
-                  _._3
-                } sum
-                val epaAvg = epaValues.sum / n
-                val ssTOT: Double = epaValues map { v => Math.pow(v - epaAvg, 2) } sum
-                val rr = 1d - ssRes / ssTOT
-                Some(rr)
-              }
-            }
-
-            SensorMonthReport(start, min, max, median, biasMin, biasMax, biasMedian, rr)
-          }
-        }
-      }
     }
 
 
     val allF = Future.sequence(recordMapListFF map {
       _.flatMap(x => x)
     })
-    for {result <- allF
-         sensorReport <- getLast18MonthSensorReport
+    for {thisMonthReport <- allF
+         historyReport <- getLast18MonthSensorReport
          } yield {
-      val excelFile = excelUtility.getDecayReport(reportDate, result, sensorReport.toList)
+      val excelFile = excelUtility.getDecayReport(thisMonthReport, historyReport.toList)
       Ok.sendFile(excelFile, fileName = _ =>
         s"${county}${reportDate.toString(DateTimeFormat.forPattern("YYYYMM"))}衰減報告.xlsx",
         onClose = () => {

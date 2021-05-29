@@ -118,7 +118,6 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, dataFile: File, fil
   def importEpaData() = {
     Logger.info(s"Start import ${dataFile.getName}")
     val reader = CSVReader.open(dataFile, "Big5")
-    var count = 0
     val docs =
       for {record <- reader.allWithHeaders()
            monitorType = record("測項") if monitorType == "PM2.5"
@@ -133,17 +132,17 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, dataFile: File, fil
           case _: IllegalArgumentException =>
             LocalDateTime.parse(record("時間"), DateTimeFormat.forPattern("YYYY/MM/dd HH:mm")).toDate
         }
-        val value = try {
-          record("資料").toDouble
+
+        try {
+          val value = record("資料").toDouble
+          RecordList(time = time, monitor = monitorOpt.get._1, mtDataList = Seq(MtRecord(mtName = MonitorType.PM25, value, MonitorStatus.NormalStat)))
         } catch {
           case _:java.lang.NumberFormatException =>
-            0
+            RecordList(time = time, monitor = monitorOpt.get._1, mtDataList = Seq.empty[MtRecord])
         }
-
-        count = count + 1
-        RecordList(time = time, monitor = monitorOpt.get._1, mtDataList = Seq(MtRecord(mtName = MonitorType.PM25, value, MonitorStatus.NormalStat)))
       }
-    Logger.info(s"Total $count records")
+
+    Logger.info(s"Total ${docs.length} records")
     val f = recordOp.upsertManyRecord(docs = docs)(recordOp.HourCollection)
     f onFailure (errorHandler)
     f onComplete ({

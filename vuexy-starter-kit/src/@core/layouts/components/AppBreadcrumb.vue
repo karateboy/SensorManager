@@ -40,7 +40,7 @@
       cols="12"
     >
       <b-dropdown variant="link" no-caret toggle-class="p-0" right>
-        <template #button-content>
+        <!-- <template #button-content>
           <b-button
             v-ripple.400="'rgba(255, 255, 255, 0.15)'"
             variant="primary"
@@ -48,7 +48,7 @@
           >
             <feather-icon icon="SettingsIcon" />
           </b-button>
-        </template>
+        </template> -->
 
         <b-dropdown-item>
           <feather-icon icon="CheckSquareIcon" size="16" />
@@ -97,7 +97,7 @@ export default {
     BCol,
     BDropdown,
     BDropdownItem,
-    BButton,
+    //BButton,
   },
 };
 </script>
