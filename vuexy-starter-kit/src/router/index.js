@@ -29,10 +29,10 @@ const router = new VueRouter({
       name: 'realtime-data',
       component: () => import('@/views/RealtimeData.vue'),
       meta: {
-        pageTitle: '即時資料',
+        pageTitle: '即時狀況資訊',
         breadcrumb: [
           {
-            text: '即時資料',
+            text: '即時狀況資訊',
             active: true,
           },
         ],

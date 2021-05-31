@@ -27,10 +27,11 @@ case class MonitorRecord(time: Date, mtDataList: Seq[MtRecord], _id: String, var
 
 case class MtRecord(mtName: String, value: Double, status: String)
 
-case class GroupSummary(name: String, count: Int, expected: Int, constant: Int)
+case class GroupSummary(name: String, expectedCount: Int, count: Int, expected: Int, constant: Int)
 
 case class DisconnectSummary(name: String, kl: Int, pt: Int, yl: Int, rest: Int)
-case class SensorMonthReport(start:DateTime, min: Option[Double], max: Option[Double], median: Option[Double],
+
+case class SensorMonthReport(start: DateTime, min: Option[Double], max: Option[Double], median: Option[Double],
                              biasMin: Option[Double], biasMax: Option[Double], biasMedian: Option[Double], rr: Option[Double])
 
 object RecordList {
@@ -84,6 +85,29 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   import org.mongodb.scala.bson.codecs.Macros._
 
   val codecRegistry = fromRegistries(fromProviders(classOf[RecordList], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
+  /*
+  * val addPm25DataStage = Aggregates.addFields(Field("pm25Data",
+      Document("$first" ->
+        Document("$filter" -> Document(
+          "input" -> "$mtDataList",
+          "as" -> "mtData",
+          "cond" -> Document(
+            "$eq" -> Seq("$$mtData.mtName", "PM25")
+          )
+        )
+        ))))
+  * */
+  val addPm25DataStage: Bson = {
+    val filterDoc = Document("$filter" -> Document(
+      "input" -> "$mtDataList",
+      "as" -> "mtData",
+      "cond" -> Document(
+        "$eq" -> Seq("$$mtData.mtName", "PM25")
+      )))
+    val bsonArray = BsonArray(filterDoc.toBsonDocument, new BsonInt32(0))
+    Aggregates.addFields(Field("pm25Data",
+      Document("$arrayElemAt" -> bsonArray)))
+  }
 
   def init() {
     for (colNames <- mongoDB.database.listCollectionNames().toFuture()) {
@@ -104,6 +128,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     }
   }
 
+  createDefaultIndex(Seq(HourCollection, MinCollection))
+
   def createDefaultIndex(colNames: Seq[String]) = {
     for (colName <- colNames) {
       val col = getCollection(colName)
@@ -116,7 +142,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     }
   }
 
-  createDefaultIndex(Seq(HourCollection, MinCollection))
+  init
 
   def upgrade() = {
     Logger.info("upgrade record!")
@@ -140,8 +166,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       }
     }
   }
-
-  init
 
   def upgrade2() = {
     Logger.info("upgrade record!")
@@ -291,19 +315,19 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val f = col.find(and(in("monitor", monitors: _*), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
       .sort(ascending("time")).toFuture()
 
-    f onFailure(errorHandler)
+    f onFailure (errorHandler)
     f
   }
 
   def getRecordMapFuture(colName: String)
-                  (monitor: String, mtList: Seq[String], startTime: DateTime, endTime: DateTime): Future[Map[String, Seq[Record]]] = {
+                        (monitor: String, mtList: Seq[String], startTime: DateTime, endTime: DateTime): Future[Map[String, Seq[Record]]] = {
     import org.mongodb.scala.model.Filters._
     import org.mongodb.scala.model.Sorts._
 
     val col = getCollection(colName)
     val f = col.find(and(equal("monitor", monitor), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
       .sort(ascending("time")).toFuture()
-    for(docs <- f) yield {
+    for (docs <- f) yield {
       val pairs =
         for {
           mt <- mtList
@@ -368,8 +392,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         true
       else
         m.county == Some(county)
-    }).filter(m =>{
-      if(district == "")
+    }).filter(m => {
+      if (district == "")
         true
       else
         m.district == Some(district)
@@ -398,7 +422,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
     val pipeline =
-      if(pm25Filter.isEmpty)
+      if (pm25Filter.isEmpty)
         Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, addPm25ValueStage, latestFilter, projectStage)
       else
         Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, addPm25ValueStage, latestFilter, pm25Filter.get, projectStage)
@@ -418,8 +442,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         true
       else
         m.county == Some(county)
-    }).filter(m =>{
-      if(district == "")
+    }).filter(m => {
+      if (district == "")
         true
       else
         m.district == Some(district)
@@ -456,7 +480,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   }
 
   def getLessThan95Sensor(colName: String)
-                             (county: String, district: String, sensorType: String) = {
+                         (county: String, district: String, sensorType: String) = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
@@ -467,8 +491,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         true
       else
         m.county == Some(county)
-    }).filter(m =>{
-      if(district == "")
+    }).filter(m => {
+      if (district == "")
         true
       else
         m.district == Some(district)
@@ -491,7 +515,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"),
       Accumulators.sum("count", 1))
 
-    val lessThan95Filter = Aggregates.filter(Filters.lt("count", 24*60*95/100))
+    val lessThan95Filter = Aggregates.filter(Filters.lt("count", 24 * 60 * 95 / 100))
     val projectStage = Aggregates.project(fields(
       Projections.include("time", "monitor", "id", "mtDataList", "location", "count")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
@@ -540,8 +564,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
           true
         else
           m.county == Some(county)
-      }).filter(m =>{
-      if(district == "")
+      }).filter(m => {
+      if (district == "")
         true
       else
         m.district == Some(district)
@@ -613,7 +637,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
           }
       })
 
-      val expectedCount = 24 * 60  * 95 / 100
+      val expectedCount = 24 * 60 * 95 / 100
 
       val groupSummaryList =
         for (group <- todaySensorRecordCount.keys.toList.sorted) yield {
@@ -626,34 +650,10 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
           val groupRecordCount = todaySensorRecordCount(group)
           val expected = groupRecordCount.count(p => p >= expectedCount)
           val constant = groupConstantCount.getOrElse(group, 0)
-          GroupSummary(group, groupMonitorCount, expected, constant)
+          GroupSummary(group, groupMonitorCount, groupRecordCount.size, expected, constant)
         }
       groupSummaryList
     }
-  }
-
-  /*
-  * val addPm25DataStage = Aggregates.addFields(Field("pm25Data",
-      Document("$first" ->
-        Document("$filter" -> Document(
-          "input" -> "$mtDataList",
-          "as" -> "mtData",
-          "cond" -> Document(
-            "$eq" -> Seq("$$mtData.mtName", "PM25")
-          )
-        )
-        ))))
-  * */
-  val addPm25DataStage: Bson = {
-    val filterDoc = Document("$filter" -> Document(
-      "input" -> "$mtDataList",
-      "as" -> "mtData",
-      "cond" -> Document(
-        "$eq" -> Seq("$$mtData.mtName", "PM25")
-      )))
-    val bsonArray = BsonArray(filterDoc.toBsonDocument, new BsonInt32(0))
-    Aggregates.addFields(Field("pm25Data",
-      Document("$arrayElemAt" -> bsonArray)))
   }
 
   def getLast10MinConstantSensor(colName: String) = {

@@ -12,13 +12,14 @@
             <b-table-simple bordered responsive outlined>
               <b-thead>
                 <b-tr
-                  ><b-td class="text-center" colspan="4"
+                  ><b-td class="text-center" colspan="5"
                     >資料接收狀況 (前24小時)</b-td
                   ></b-tr
                 >
                 <b-tr>
                   <b-th>群組</b-th>
-                  <b-th>接收總數</b-th>
+                  <b-th>應接收數</b-th>
+                  <b-th>實際接收數</b-th>
                   <b-th>定值 (最近10分鐘)</b-th>
                   <b-th>完整率&lt;95%</b-th>
                 </b-tr>
@@ -26,6 +27,7 @@
               <b-tbody>
                 <b-tr v-for="group in sensorGroupSummary" :key="group.name">
                   <b-td>{{ group.name }}</b-td>
+                  <b-td>{{ group.expectedCount }} </b-td>
                   <b-td>{{ group.count }} </b-td>
                   <b-td>{{ group.constant }}</b-td>
                   <b-td>{{ group.count - group.expected }}</b-td>
