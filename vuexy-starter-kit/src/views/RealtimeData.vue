@@ -52,6 +52,8 @@ import Vue from 'vue';
 import { mapActions, mapState, mapGetters, mapMutations } from 'vuex';
 import axios from 'axios';
 interface Sensor {
+  _id: string;
+  road: string;
   status: string;
 }
 
@@ -66,7 +68,7 @@ export default Vue.extend({
         value: 'disconnect',
       },
       {
-        txt: '收集率<95%',
+        txt: '完整率 < 90%',
         value: 'lt95',
       },
       {
@@ -146,8 +148,18 @@ export default Vue.extend({
           sortable: true,
         },
         {
-          key: 'location',
+          key: 'road',
+          label: '路名',
+          sortable: true,
+        },
+        {
+          key: 'locationDesc',
           label: '位置',
+          sortable: true,
+        },
+        {
+          key: 'location',
+          label: '經緯度',
           sortable: true,
         },
         {
@@ -252,12 +264,20 @@ export default Vue.extend({
       if (this.errorStatus.indexOf('constant') !== -1)
         for (let sensor of this.constantList) {
           sensor.status = '定值';
+          const m = this.mMap.get(sensor._id);
+          if (m.sensorDetail) {
+            sensor.road = m.sensorDetail.roadName;
+          }
           ret.push(sensor);
         }
 
       if (this.errorStatus.indexOf('lt95') !== -1)
         for (const sensor of this.lt95List) {
-          sensor.status = '低於95%';
+          sensor.status = '低於90%';
+          const m = this.mMap.get(sensor._id);
+          if (m.sensorDetail) {
+            sensor.road = m.sensorDetail.roadName;
+          }
           ret.push(sensor);
         }
 
@@ -267,6 +287,10 @@ export default Vue.extend({
           if (!m || !m.location) continue;
 
           let sensor = Object.assign({ status: '斷線' }, m);
+          if (m.sensorDetail) {
+            sensor.locationDesc = m.sensorDetail.locationDesc;
+            sensor.road = m.sensorDetail.roadName;
+          }
 
           ret.push(sensor);
         }
@@ -276,25 +300,31 @@ export default Vue.extend({
   },
   watch: {
     'sensorStatusParam.county': function () {
+      if (this.sensorStatusParam.county === null)
+        this.sensorStatusParam.county = '';
+
       this.sensorStatusParam.district = '';
       this.getErrorSensors();
     },
     'sensorStatusParam.district': function () {
+      if (this.sensorStatusParam.district === null)
+        this.sensorStatusParam.district = '';
+
       this.getErrorSensors();
     },
     'sensorStatusParam.sensorType': function () {
+      if (this.sensorStatusParam.sensorType === null)
+        this.sensorStatusParam.sensorType = '';
+
       this.getErrorSensors();
     },
   },
   async mounted() {
     await this.fetchMonitors();
     this.getErrorSensors();
-    this.timer = setInterval(this.getErrorSensors, 60000);
   },
 
-  beforeDestroy() {
-    clearInterval(this.timer);
-  },
+  beforeDestroy() {},
 
   methods: {
     ...mapActions('monitors', ['fetchMonitors']),

@@ -23,11 +23,18 @@ case class Record(time: DateTime, value: Double, status: String, monitor: String
 
 case class MonitorRecord(time: Date, mtDataList: Seq[MtRecord], _id: String, var location: Option[Seq[Double]],
                          count: Option[Int], pm25Max: Option[Double], pm25Min: Option[Double],
-                         var shortCode: Option[String], var code: Option[String], var tags: Option[Seq[String]])
+                         var shortCode: Option[String], var code: Option[String], var tags: Option[Seq[String]],
+                         var locationDesc: Option[String])
 
 case class MtRecord(mtName: String, value: Double, status: String)
 
-case class GroupSummary(name: String, expectedCount: Int, count: Int, expected: Int, constant: Int)
+case class CountByCounty(kl: Int, pt: Int, yl: Int, rest: Int)
+
+case class GroupSummary(name: String, totalCount: CountByCounty,
+                        count: CountByCounty,
+                        lessThanExpected: CountByCounty,
+                        constant: CountByCounty,
+                        disconnected: CountByCounty)
 
 case class DisconnectSummary(name: String, kl: Int, pt: Int, yl: Int, rest: Int)
 
@@ -69,6 +76,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   import org.mongodb.scala.model._
   import play.api.libs.json._
 
+  implicit val ccWrite = Json.writes[CountByCounty]
   implicit val mtRecordWrites = Json.writes[MtRecord]
   implicit val recordListWrite = Json.writes[RecordList]
   implicit val summaryWrites = Json.writes[GroupSummary]
@@ -246,8 +254,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     f
   }
 
-  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
-
   def upsertRecord(doc: RecordList)(colName: String) = {
     import org.mongodb.scala.model.ReplaceOptions
 
@@ -304,6 +310,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       }
     Map(pairs: _*)
   }
+
+  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
 
   def getRecordListFuture(colName: String)
                          (startTime: DateTime, endTime: DateTime, monitors: Seq[String] = Seq(Monitor.SELF_ID)) = {
@@ -479,7 +487,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, addPm25ValueStage, latestFilter, constantFilter, projectStage)).toFuture()
   }
 
-  def getLessThan95Sensor(colName: String)
+  def getLessThan90Sensor(colName: String)
                          (county: String, district: String, sensorType: String) = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
@@ -515,12 +523,12 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"),
       Accumulators.sum("count", 1))
 
-    val lessThan95Filter = Aggregates.filter(Filters.lt("count", 24 * 60 * 95 / 100))
+    val lessThan90Filter = Aggregates.filter(Filters.lt("count", 24 * 60 * 90 / 100))
     val projectStage = Aggregates.project(fields(
       Projections.include("time", "monitor", "id", "mtDataList", "location", "count")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, latestFilter, lessThan95Filter, projectStage)).toFuture()
+    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, latestFilter, lessThan90Filter, projectStage)).toFuture()
   }
 
   def getLatestEpaStatus(colName: String) = {
@@ -604,53 +612,84 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val groupByMonitorCount = Aggregates.group(id = "$monitor", Accumulators.sum("count", 1))
     val col = mongoDB.database.getCollection(colName)
     val f1 = col.aggregate(Seq(todayFilter, groupByMonitorCount)).toFuture()
+    val f2 = getLast10MinDisconnected(colName)
     val f3 = getLast10MinConstantSensor(colName)
     for {docList <- f1
+         disconnectedMonitors <- f2
          constantMonitors <- f3
          } yield {
-      var todaySensorRecordCount = Map.empty[String, Seq[Int]]
+      var receivedCountMap = Map.empty[String, Seq[(String, Int)]]
       docList foreach { doc =>
         val count = doc("count").asInt32().getValue
         val monitorId = doc("_id").asString().getValue
         if (monitorOp.map.contains(monitorId)) {
-          for {detail <- monitorOp.map(monitorId).sensorDetail
+          val monitor = monitorOp.map(monitorId)
+          for {detail <- monitor.sensorDetail
+               county <- monitor.county
                group = detail.sensorType
                } {
-            val monitorCount = todaySensorRecordCount.getOrElse(group, List.empty[Int])
-            todaySensorRecordCount = todaySensorRecordCount + (group -> monitorCount.:+(count))
+            val currentSeq = receivedCountMap.getOrElse(group, Seq.empty[(String, Int)])
+            receivedCountMap = receivedCountMap + (group -> currentSeq.:+((county, count)))
           }
         }
       }
-      var groupConstantCount = Map.empty[String, Int]
-      constantMonitors foreach ({
-        monitorRecord =>
-          if (monitorOp.map.contains(monitorRecord._id)) {
-            for {
-              detail <- monitorOp.map(monitorRecord._id).sensorDetail
-              group = detail.sensorType
-            } {
-              val constant = groupConstantCount.getOrElse(group, 0)
-              groupConstantCount = groupConstantCount + (group -> (constant + 1))
-            }
-          } else {
-            Logger.info(s"unknown sensor ${monitorRecord._id}")
-          }
-      })
-
-      val expectedCount = 24 * 60 * 95 / 100
 
       val groupSummaryList =
-        for (group <- todaySensorRecordCount.keys.toList.sorted) yield {
-          val groupMonitorCount = monitorOp.map.values.count(m => {
-            if (m.sensorDetail.isDefined)
-              m.sensorDetail.get.sensorType == group
-            else
-              false
-          })
-          val groupRecordCount = todaySensorRecordCount(group)
-          val expected = groupRecordCount.count(p => p >= expectedCount)
-          val constant = groupConstantCount.getOrElse(group, 0)
-          GroupSummary(group, groupMonitorCount, groupRecordCount.size, expected, constant)
+        for (group <- receivedCountMap.keys.toList.sorted) yield {
+          def getCountyByCountyByMonitorIDs(ids : Set[String]) = {
+            var (kl, pt, yl, rest) = (0, 0, 0, 0)
+            ids.foreach(id => {
+              val m = monitorOp.map(id)
+              for {detail <- m.sensorDetail if detail.sensorType == group
+                   county <- m.county
+                   } {
+                county match {
+                  case "基隆市" =>
+                    kl = kl + 1
+                  case "屏東縣" =>
+                    pt = pt + 1
+                  case "宜蘭縣" =>
+                    yl = yl + 1
+                  case _ =>
+                    rest = rest + 1
+                }
+              }
+            })
+            CountByCounty(kl = kl, pt = pt, yl = yl, rest = rest)
+          }
+
+          val groupMonitorCount =
+            getCountyByCountyByMonitorIDs(monitorOp.map.keys.toSet)
+
+          def getCountByCounty(countyCountSeq: Seq[(String, Int)]): CountByCounty = {
+            var countyCountMap = Map.empty[String, Int]
+            countyCountSeq.foreach(cc => {
+              val county = cc._1
+              val countyCount = countyCountMap.getOrElse(county, 0)
+              countyCountMap = countyCountMap + (county -> (countyCount + 1))
+            })
+            val total = countyCountMap map {
+              _._2
+            } sum
+            val kl = countyCountMap.getOrElse("基隆市", 0)
+            val pt = countyCountMap.getOrElse("屏東縣", 0)
+            val yl = countyCountMap.getOrElse("宜蘭縣", 0)
+            val rest = total - kl - pt - yl
+            CountByCounty(kl = kl, pt = pt, yl = yl, rest = rest)
+          }
+
+          val receivedCount = getCountByCounty(receivedCountMap(group))
+          val expectedCount = 24 * 60 * 90 / 100
+          val lessThanExpectedCount = getCountByCounty(receivedCountMap(group).filter(_._2 < expectedCount))
+          val disconnected =
+            getCountyByCountyByMonitorIDs(disconnectedMonitors)
+
+          val constant = {
+            val monitorIDs = constantMonitors map {_._id}
+            getCountyByCountyByMonitorIDs(monitorIDs.toSet)
+          }
+
+          GroupSummary(group, groupMonitorCount, receivedCount, lessThanExpectedCount, constant, disconnected)
         }
       groupSummaryList
     }

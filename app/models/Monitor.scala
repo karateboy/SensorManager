@@ -170,4 +170,18 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
     f onFailure (errorHandler)
     f
   }
+
+  def populateMonitorRecord(mr:MonitorRecord, gpsUsage:Boolean): Unit ={
+    if(map.contains(mr._id)){
+      val monitor = map(mr._id)
+      mr.shortCode = monitor.shortCode
+      mr.code = monitor.code
+      mr.tags = Some(monitor.tags)
+      for(detail<-monitor.sensorDetail)
+        mr.locationDesc = Some(detail.locationDesc)
+
+      if(!gpsUsage)
+        mr.location = monitor.location
+    }
+  }
 }

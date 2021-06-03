@@ -8,56 +8,57 @@
           <b-col><div id="chart_container3" /></b-col>
         </b-row>
         <b-row>
-          <b-col>
+          <b-col v-for="group in sensorGroupSummary" :key="group.name">
             <b-table-simple bordered responsive outlined>
               <b-thead>
                 <b-tr
-                  ><b-td class="text-center" colspan="5"
-                    >資料接收狀況 (前24小時)</b-td
-                  ></b-tr
+                  ><b-td class="text-center" colspan="5">{{
+                    `即時資訊/${group.name}`
+                  }}</b-td></b-tr
                 >
                 <b-tr>
-                  <b-th>群組</b-th>
-                  <b-th>應接收數</b-th>
-                  <b-th>實際接收數</b-th>
-                  <b-th>定值 (最近10分鐘)</b-th>
-                  <b-th>完整率&lt;95%</b-th>
-                </b-tr>
-              </b-thead>
-              <b-tbody>
-                <b-tr v-for="group in sensorGroupSummary" :key="group.name">
-                  <b-td>{{ group.name }}</b-td>
-                  <b-td>{{ group.expectedCount }} </b-td>
-                  <b-td>{{ group.count }} </b-td>
-                  <b-td>{{ group.constant }}</b-td>
-                  <b-td>{{ group.count - group.expected }}</b-td>
-                </b-tr>
-              </b-tbody>
-            </b-table-simple>
-          </b-col>
-          <b-col>
-            <b-table-simple bordered responsive outlined>
-              <b-thead>
-                <b-tr
-                  ><b-td class="text-center" colspan="5"
-                    >通訊中斷狀況 (前10分鐘)</b-td
-                  ></b-tr
-                >
-                <b-tr>
-                  <b-th>型號</b-th>
+                  <b-th></b-th>
                   <b-th>基隆</b-th>
-                  <b-th>屏東</b-th>
                   <b-th>宜蘭</b-th>
+                  <b-th>屏東</b-th>
                   <b-th>其他</b-th>
                 </b-tr>
               </b-thead>
               <b-tbody>
-                <b-tr v-for="group in disconnectSummary" :key="group.name">
-                  <b-td>{{ group.name }}</b-td>
-                  <b-td>{{ group.kl }}</b-td>
-                  <b-td>{{ group.pt }}</b-td>
-                  <b-td>{{ group.yl }}</b-td>
-                  <b-td>{{ group.rest }}</b-td>
+                <b-tr>
+                  <b-td>設置數量</b-td>
+                  <b-td>{{ group.totalCount.kl }} </b-td>
+                  <b-td>{{ group.totalCount.yl }} </b-td>
+                  <b-td>{{ group.totalCount.pt }}</b-td>
+                  <b-td>{{ group.totalCount.rest }}</b-td>
+                </b-tr>
+                <b-tr>
+                  <b-td>接收數量</b-td>
+                  <b-td>{{ group.count.kl }} </b-td>
+                  <b-td>{{ group.count.yl }} </b-td>
+                  <b-td>{{ group.count.pt }}</b-td>
+                  <b-td>{{ group.count.rest }}</b-td>
+                </b-tr>
+                <b-tr>
+                  <b-td>完整率&lt;90%</b-td>
+                  <b-td>{{ group.lessThanExpected.kl }} </b-td>
+                  <b-td>{{ group.lessThanExpected.yl }} </b-td>
+                  <b-td>{{ group.lessThanExpected.pt }}</b-td>
+                  <b-td>{{ group.lessThanExpected.rest }}</b-td>
+                </b-tr>
+                <b-tr>
+                  <b-td>定值(10分鐘)</b-td>
+                  <b-td>{{ group.constant.kl }} </b-td>
+                  <b-td>{{ group.constant.yl }} </b-td>
+                  <b-td>{{ group.constant.pt }}</b-td>
+                  <b-td>{{ group.constant.rest }}</b-td>
+                </b-tr>
+                <b-tr>
+                  <b-td>通訊中斷(前10分鐘)</b-td>
+                  <b-td>{{ group.disconnected.kl }} </b-td>
+                  <b-td>{{ group.disconnected.yl }} </b-td>
+                  <b-td>{{ group.disconnected.pt }}</b-td>
+                  <b-td>{{ group.disconnected.rest }}</b-td>
                 </b-tr>
               </b-tbody>
             </b-table-simple>
@@ -80,7 +81,7 @@
             </b-table-simple>
           </b-col>
           <b-col cols="10"
-            ><b-img src="../assets/images/legend.png" fluid
+            ><b-img src="../assets/images/legend.png" fluid class="float-right"
           /></b-col>
         </b-row>
 
@@ -285,22 +286,21 @@ export default {
         },
       },
       sensorGroupSummary: [],
-      disconnectSummary: [],
       pm25Filters: [
         {
           txt: '不限',
           value: '',
         },
         {
-          txt: 'pm25 < 1',
+          txt: 'PM2.5 < 1',
           value: -1,
         },
         {
-          txt: 'pm25 > 25',
+          txt: 'PM2.5 > 25',
           value: 25,
         },
         {
-          txt: 'pm25 > 50',
+          txt: 'PM2.5 > 50',
           value: 50,
         },
       ],
@@ -372,7 +372,7 @@ export default {
           value: 'disconnect',
         },
         {
-          txt: '收集率<95%',
+          txt: '完整率 < 90%',
           value: 'lt95',
         },
         {
@@ -380,6 +380,7 @@ export default {
           value: 'constant',
         },
       ],
+      epaIconImage: undefined,
     };
   },
   computed: {
@@ -527,6 +528,9 @@ export default {
   },
   watch: {
     'sensorStatusParam.pm25Threshold': function () {
+      if (this.sensorStatusParam.pm25Threshold === null)
+        this.sensorStatusParam.pm25Threshold = '';
+
       this.refreshMapStatus();
     },
     'sensorStatusParam.county': function () {
@@ -538,9 +542,15 @@ export default {
       this.refreshMapStatus();
     },
     'sensorStatusParam.district': function () {
+      if (this.sensorStatusParam.district === null)
+        this.sensorStatusParam.district = '';
+
       this.refreshMapStatus();
     },
     'sensorStatusParam.sensorType': function () {
+      if (this.sensorStatusParam.sensorType === null)
+        this.sensorStatusParam.sensorType = '';
+
       this.refreshMapStatus();
     },
     mapLayer(newMap, oldMap) {
@@ -607,7 +617,6 @@ export default {
     },
     async refresh() {
       this.getTodaySummary();
-      this.getDisconnectSummary();
     },
     async getSensorStatus() {
       const ret = await axios.get('/RealtimeSensor', {
@@ -657,11 +666,6 @@ export default {
       const res = await axios.get('/SensorSummary');
       const ret = res.data;
       this.sensorGroupSummary = ret;
-    },
-    async getDisconnectSummary() {
-      const res = await axios.get('/DisconnectSummary');
-      const ret = res.data;
-      this.disconnectSummary = ret;
     },
     handleErrorStatusChange(newMap, oldMap) {
       const mapToClear = oldMap.filter(map => newMap.indexOf(map) === -1);

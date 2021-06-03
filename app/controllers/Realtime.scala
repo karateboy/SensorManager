@@ -17,7 +17,6 @@ class Realtime @Inject()
   def MonitorTypeStatusList() = Security.Authenticated.async {
     implicit request =>
 
-
       implicit val mtsWrite = Json.writes[MonitorTypeStatus]
 
       val result =
@@ -88,11 +87,7 @@ class Realtime @Inject()
       val f = recordOp.getLatestEpaStatus(TableType.mapCollection(TableType.min))
       for (recordList <- f) yield {
         recordList.foreach(r => {
-          if (monitorOp.map.contains(r._id)) {
-            r.shortCode = monitorOp.map(r._id).shortCode
-            r.code = monitorOp.map(r._id).code
-            r.tags = Some(monitorOp.map(r._id).tags)
-          }
+          monitorOp.populateMonitorRecord(r, true)
         })
         Ok(Json.toJson(recordList))
       }
@@ -109,16 +104,8 @@ class Realtime @Inject()
              ret <- gpsUsageF
              } yield {
           val duration = new Duration(start, DateTime.now)
-          Logger.info(s"sensorStatus take ${duration.getMillis / 1000}ms")
           recordList.foreach(r => {
-            if (monitorOp.map.contains(r._id)) {
-              val monitor = monitorOp.map(r._id)
-              r.shortCode = monitor.shortCode
-              r.code = monitor.code
-              r.tags = Some(monitor.tags)
-              if(!ret.asBoolean().getValue)
-                r.location = monitor.location
-            }
+            monitorOp.populateMonitorRecord(r, ret.asBoolean().getValue)
           })
           Ok(Json.toJson(recordList))
         }
@@ -135,16 +122,8 @@ class Realtime @Inject()
              ret<-gpsUsageF
              } yield {
           val duration = new Duration(start, DateTime.now)
-          Logger.info(s"sensorStatus take ${duration.getMillis / 1000}ms")
           recordList.foreach(r => {
-            if (monitorOp.map.contains(r._id)) {
-              val monitor = monitorOp.map(r._id)
-              r.shortCode = monitor.shortCode
-              r.code = monitor.code
-              r.tags = Some(monitor.tags)
-              if(!ret.asBoolean().getValue)
-                r.location = monitor.location
-            }
+            monitorOp.populateMonitorRecord(r, ret.asBoolean().getValue)
           })
           Ok(Json.toJson(recordList))
         }
@@ -156,21 +135,13 @@ class Realtime @Inject()
         import recordOp.monitorRecordWrite
         val start = DateTime.now
         val gpsUsageF = sysConfig.get(SysConfig.SensorGPS)
-        val f = recordOp.getLessThan95Sensor(TableType.mapCollection(TableType.min))(county, district, sensorType)
+        val f = recordOp.getLessThan90Sensor(TableType.mapCollection(TableType.min))(county, district, sensorType)
         for {recordList <- f
              ret <- gpsUsageF
              } yield {
           val duration = new Duration(start, DateTime.now)
-          Logger.info(s"lessThan95sensor take ${duration.getMillis / 1000}ms")
           recordList.foreach(r => {
-            if (monitorOp.map.contains(r._id)) {
-              val monitor = monitorOp.map(r._id)
-              r.shortCode = monitor.shortCode
-              r.code = monitor.code
-              r.tags = Some(monitor.tags)
-              if(!ret.asBoolean().getValue)
-                r.location = monitor.location
-            }
+            monitorOp.populateMonitorRecord(r, ret.asBoolean().getValue)
           })
           Ok(Json.toJson(recordList))
         }

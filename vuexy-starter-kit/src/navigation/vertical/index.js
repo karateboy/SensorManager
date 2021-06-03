@@ -10,7 +10,7 @@ export default [
         resource: 'Dashboard',
       },
       {
-        title: '即時狀況資訊',
+        title: '即時狀況',
         route: 'realtime-data',
       },
     ],
