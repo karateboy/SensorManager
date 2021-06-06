@@ -13,7 +13,7 @@
               <b-thead>
                 <b-tr
                   ><b-td class="text-center" colspan="5">{{
-                    `即時資訊/${group.name}`
+                    `${group.name}即時資訊`
                   }}</b-td></b-tr
                 >
                 <b-tr>
@@ -191,7 +191,8 @@
               :position="m.position"
               :clickable="true"
               :title="m.title"
-              :icon="m.iconUrl"
+              label="EPA"
+              :share="shape"
               @click="toggleInfoWindow(m, index)"
             />
             <GmapMarker
@@ -252,135 +253,84 @@
   background-color: rgb(229, 244, 239);
 }
 </style>
-<script>
+<script lang="ts">
+import Vue from 'vue';
 import { mapActions, mapState, mapGetters } from 'vuex';
 import axios from 'axios';
+import {
+  sensorTypes,
+  pm25Filters,
+  countyFilters,
+  errorFilters,
+  getDistrict,
+  TxtStrValue,
+  MtRecord,
+} from './types';
 
-export default {
+interface Location {
+  lat: number;
+  lng: number;
+}
+
+export default Vue.extend({
   data() {
-    return {
-      mapLayer: ['sensor', 'EPA'],
-      sensorStatus: [],
-      epaStatus: [],
-      disconnectedList: [],
-      constantList: [],
-      lt95List: [],
-      errorStatus: [],
-      sensorStatusParam: {
-        pm25Threshold: '',
-        county: '基隆市',
-        district: '',
-        sensorType: '',
+    const mapLayerTypes = [
+      {
+        txt: '感測器',
+        value: 'sensor',
       },
+      {
+        txt: '環保署',
+        value: 'EPA',
+      },
+    ];
+    const sensorStatusParam = {
+      pm25Threshold: '',
+      county: '基隆市',
+      district: '',
+      sensorType: '',
+    };
+    const infoOptions = {
+      content: '',
+      // optional: offset infowindow so it visually sits nicely on top of our marker
+      pixelOffset: {
+        width: 0,
+        height: -35,
+      },
+    };
+
+    let sensorStatus = Array<any>();
+    let epaStatus = Array<any>();
+    let disconnectedList = Array<any>();
+    let constantList = Array<any>();
+    let lt95List = Array<any>();
+    let errorStatus = Array<string>();
+    let sensorGroupSummary = Array<any>();
+    let currentMidx: number = -1;
+    return {
+      sensorStatusParam,
+      mapLayer: ['sensor', 'EPA'],
+      sensorStatus,
+      epaStatus,
+      disconnectedList,
+      constantList,
+      lt95List,
+      errorStatus,
       refreshTimer: 0,
       infoWindowPos: null,
       infoWinOpen: false,
-      currentMidx: null,
-
-      infoOptions: {
-        content: '',
-        // optional: offset infowindow so it visually sits nicely on top of our marker
-        pixelOffset: {
-          width: 0,
-          height: -35,
-        },
+      currentMidx,
+      infoOptions,
+      sensorGroupSummary,
+      pm25Filters,
+      countyFilters,
+      sensorTypes,
+      mapLayerTypes,
+      errorFilters,
+      shape: {
+        coords: [10, 10, 10, 15, 15, 15, 15, 10],
+        type: 'poly',
       },
-      sensorGroupSummary: [],
-      pm25Filters: [
-        {
-          txt: '不限',
-          value: '',
-        },
-        {
-          txt: 'PM2.5 < 1',
-          value: -1,
-        },
-        {
-          txt: 'PM2.5 > 25',
-          value: 25,
-        },
-        {
-          txt: 'PM2.5 > 50',
-          value: 50,
-        },
-      ],
-      countyFilters: [
-        {
-          txt: '不限',
-          value: '',
-        },
-        {
-          txt: '基隆',
-          value: '基隆市',
-        },
-        {
-          txt: '屏東',
-          value: '屏東縣',
-        },
-        {
-          txt: '宜蘭',
-          value: '宜蘭縣',
-        },
-      ],
-      sensorTypes: [
-        {
-          txt: '不限',
-          value: '',
-        },
-        {
-          txt: '工業區',
-          value: 'ID',
-        },
-        {
-          txt: '其他汙染',
-          value: 'OT',
-        },
-        {
-          txt: '社區',
-          value: 'CO',
-        },
-        {
-          txt: '交通',
-          value: 'TR',
-        },
-        {
-          txt: '監測比對',
-          value: 'MO',
-        },
-        {
-          txt: '長期比對',
-          value: 'LO',
-        },
-        {
-          txt: '巡檢機',
-          value: 'AO',
-        },
-      ],
-      mapLayerTypes: [
-        {
-          txt: '感測器',
-          value: 'sensor',
-        },
-        {
-          txt: '環保署',
-          value: 'EPA',
-        },
-      ],
-      errorFilters: [
-        {
-          txt: '通訊中斷',
-          value: 'disconnect',
-        },
-        {
-          txt: '完整率 < 90%',
-          value: 'lt95',
-        },
-        {
-          txt: '定值',
-          value: 'constant',
-        },
-      ],
-      epaIconImage: undefined,
     };
   },
   computed: {
@@ -389,77 +339,10 @@ export default {
     ...mapState('user', ['userInfo']),
     ...mapGetters('monitorTypes', ['mtMap']),
     ...mapGetters('monitors', ['mMap']),
-    districtFilters() {
-      if (this.sensorStatusParam.county === '基隆市') {
-        return [
-          { txt: '不限', value: '' },
-          { txt: '安樂區', value: 'AL' },
-          { txt: '七堵區', value: 'QD' },
-          { txt: '仁愛區', value: 'RA' },
-          { txt: '中正區', value: 'ZZ' },
-          { txt: '暖暖區', value: 'NN' },
-          { txt: '中山區', value: 'ZS' },
-          { txt: '信義區', value: 'XY' },
-        ];
-      }
-      if (this.sensorStatusParam.county === '屏東縣') {
-        return [
-          { txt: '不限', value: '' },
-          { txt: '屏東市', value: 'PT' },
-          { txt: '恆春鎮', value: 'HC' },
-          { txt: '琉球鄉', value: 'LQ' },
-          { txt: '內埔鄉', value: 'NP' },
-          { txt: '麟洛鄉', value: 'LL' },
-          { txt: '車城鄉', value: 'CC' },
-          { txt: '九如鄉', value: 'JR' },
-          { txt: '三地門鄉', value: 'SD' },
-          { txt: '里港鄉', value: 'LG' },
-          { txt: '霧台鄉', value: 'WT' },
-          { txt: '鹽埔鄉', value: 'YP' },
-          { txt: '佳冬鄉', value: 'JD' },
-          { txt: '竹田鄉', value: 'JT' },
-          { txt: '長治鄉', value: 'CJ' },
-          { txt: '東港鎮', value: 'DG' },
-          { txt: '枋山鄉', value: 'FS' },
-          { txt: '新園鄉', value: 'SY' },
-          { txt: '枋寮鄉', value: 'FL' },
-          { txt: '瑪家鄉', value: 'MJ' },
-          { txt: '泰武鄉', value: 'TW' },
-          { txt: '潮州鎮', value: 'CZ' },
-          { txt: '來義鄉', value: 'LY' },
-          { txt: '新埤鄉', value: 'SP' },
-          { txt: '南州鄉', value: 'NC' },
-          { txt: '萬巒鄉', value: 'WL' },
-          { txt: '林邊鄉', value: 'LB' },
-          { txt: '崁頂鄉', value: 'KD' },
-          { txt: '獅子鄉', value: 'SZ' },
-          { txt: '萬丹鄉', value: 'WD' },
-          { txt: '高樹鄉', value: 'GS' },
-          { txt: '滿州鄉', value: 'MZ' },
-          { txt: '牡丹鄉', value: 'MD' },
-          { txt: '春日鄉', value: 'CR' },
-        ];
-      }
-      if (this.sensorStatusParam.county === '宜蘭縣') {
-        return [
-          { txt: '不限', value: '' },
-          { txt: '蘇澳鎮', value: 'SA' },
-          { txt: '冬山鄉', value: 'DS' },
-          { txt: '南澳鄉', value: 'NA' },
-          { txt: '五結鄉', value: 'WJ' },
-          { txt: '壯圍鄉', value: 'ZW' },
-          { txt: '宜蘭市', value: 'YL' },
-          { txt: '羅東鎮', value: 'LD' },
-          { txt: '頭城鎮', value: 'TC' },
-          { txt: '礁溪鄉', value: 'JS' },
-          { txt: '員山鄉', value: 'YS' },
-          { txt: '三星鄉', value: 'SS' },
-          { txt: '大同鄉', value: 'DT' },
-        ];
-      }
-      return [{ txt: '不限', value: '' }];
+    districtFilters(): Array<TxtStrValue> {
+      return getDistrict(this.sensorStatusParam.county);
     },
-    mapCenter() {
+    mapCenter(): Location {
       const { county } = this.sensorStatusParam;
       switch (county) {
         case '基隆市':
@@ -472,7 +355,7 @@ export default {
 
       return { lat: 25.127594828422044, lng: 121.7399713796935 };
     },
-    sensorMarkers() {
+    sensorMarkers(): any {
       if (
         this.mapLayer.indexOf('sensor') === -1 ||
         this.errorStatus.length !== 0
@@ -481,21 +364,21 @@ export default {
 
       return this.markers(this.sensorStatus);
     },
-    epaMarkers() {
+    epaMarkers(): Array<any> {
       if (this.mapLayer.indexOf('EPA') === -1) return [];
       return this.markers(this.epaStatus);
     },
-    constantMarkers() {
+    constantMarkers(): Array<any> {
       if (this.errorStatus.indexOf('constant') === -1) return [];
 
       return this.markers(this.constantList);
     },
-    lt95Markers() {
+    lt95Markers(): Array<any> {
       if (this.errorStatus.indexOf('lt95') === -1) return [];
 
       return this.markers(this.lt95List);
     },
-    disconnectedMarkers() {
+    disconnectedMarkers(): Array<any> {
       if (this.errorStatus.indexOf('disconnect') === -1) return [];
 
       const ret = [];
@@ -563,7 +446,8 @@ export default {
   async mounted() {
     const sensorFilter = document.getElementById('sensorFilter');
     const mapFilter = document.getElementById('mapFilter');
-    this.$refs.mapRef.$mapPromise.then(map => {
+    let ref = this.$refs.mapRef as any;
+    ref.$mapPromise.then((map: google.maps.Map) => {
       map.controls[google.maps.ControlPosition.TOP_CENTER].push(sensorFilter);
       map.controls[google.maps.ControlPosition.TOP_LEFT].push(mapFilter);
     });
@@ -588,7 +472,7 @@ export default {
       if (this.errorStatus.indexOf('constant') !== -1) this.getConstantValue();
       if (this.errorStatus.indexOf('lt95') !== -1) this.getLt95List();
     },
-    toggleInfoWindow(marker, idx) {
+    toggleInfoWindow(marker: any, idx: number) {
       this.infoWindowPos = marker.position;
       this.infoOptions.content = marker.infoText;
 
@@ -603,7 +487,7 @@ export default {
         this.currentMidx = idx;
       }
     },
-    getPM25Class(v) {
+    getPM25Class(v: number) {
       if (v < 12) return { FPMI1: true };
       if (v < 24) return { FPMI2: true };
       if (v < 36) return { FPMI3: true };
@@ -624,11 +508,11 @@ export default {
       });
       this.sensorStatus = ret.data;
     },
-    async getEpaStatus() {
+    async getEpaStatus(): Promise<void> {
       const ret = await axios.get('/RealtimeEPA');
       this.epaStatus = ret.data;
     },
-    async getDisconnected() {
+    async getDisconnected(): Promise<void> {
       const params = {
         county: this.sensorStatusParam.county,
         district: this.sensorStatusParam.district,
@@ -639,7 +523,7 @@ export default {
       });
       this.disconnectedList = ret.data;
     },
-    async getConstantValue() {
+    async getConstantValue(): Promise<void> {
       const params = {
         county: this.sensorStatusParam.county,
         district: this.sensorStatusParam.district,
@@ -650,7 +534,7 @@ export default {
       });
       this.constantList = ret.data;
     },
-    async getLt95List() {
+    async getLt95List(): Promise<void> {
       const params = {
         county: this.sensorStatusParam.county,
         district: this.sensorStatusParam.district,
@@ -662,12 +546,15 @@ export default {
 
       this.lt95List = ret.data;
     },
-    async getTodaySummary() {
+    async getTodaySummary(): Promise<void> {
       const res = await axios.get('/SensorSummary');
       const ret = res.data;
       this.sensorGroupSummary = ret;
     },
-    handleErrorStatusChange(newMap, oldMap) {
+    handleErrorStatusChange(
+      newMap: Array<string>,
+      oldMap: Array<string>,
+    ): void {
       const mapToClear = oldMap.filter(map => newMap.indexOf(map) === -1);
       mapToClear.forEach(map => {
         switch (map) {
@@ -696,7 +583,7 @@ export default {
         }
       });
     },
-    handlMapLayerChange(newMap, oldMap) {
+    handlMapLayerChange(newMap: Array<string>, oldMap: Array<string>): void {
       const mapToClear = oldMap.filter(map => newMap.indexOf(map) === -1);
       mapToClear.forEach(map => {
         switch (map) {
@@ -720,9 +607,9 @@ export default {
         }
       });
     },
-    markers(statusArray) {
+    markers(statusArray: Array<any>): Array<any> {
       const ret = [];
-      const epaUrl = (name, v) => {
+      const epaUrl = (name: string, v: number): string => {
         let url = `https://chart.googleapis.com/chart?chst=d_map_spin&chld=1.5|0|`;
 
         if (v < 15.4) url += `009865`;
@@ -738,7 +625,7 @@ export default {
         return url;
       };
 
-      const getIconUrl = v => {
+      const getIconUrl = (v: number) => {
         let url =
           'https://chart.googleapis.com/chart?chst=d_bubble_text_small_withshadow&&chld=bb|';
 
@@ -763,7 +650,9 @@ export default {
 
         let pm25 = 0;
 
-        const pm25Entry = stat.mtDataList.find(v => v.mtName === 'PM25');
+        const pm25Entry = stat.mtDataList.find(
+          (v: MtRecord) => v.mtName === 'PM25',
+        );
 
         if (!pm25Entry) continue;
         pm25 = pm25Entry.value;
@@ -792,5 +681,5 @@ export default {
       return ret;
     },
   },
-};
+});
 </script>

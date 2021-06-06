@@ -88,6 +88,7 @@ GET      /Excel/monitorReport/:reportType/:reportDate                           
 GET      /MonthlyHourReport/:monitorType/:reportDate                              controllers.Report.monthlyHourReport(monitorType, reportDate:Long, outputTypeStr="html")
 
 GET      /DecayReport/:county/:reportDate                                         controllers.Report.decayReport(county, reportDate:Long)
+GET      /OutstandingReport/:county/:reportDate                                   controllers.Report.outstandingReport(county, reportDate:Long)
 
 GET      /SystemConfig/:key                                                       controllers.HomeController.getSystemConfig(key)
 POST     /SystemConfig/:key                                                       controllers.HomeController.setSystemConfig(key)

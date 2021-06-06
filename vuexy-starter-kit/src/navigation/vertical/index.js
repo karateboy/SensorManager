@@ -55,6 +55,10 @@ export default [
         title: '衰減報表',
         route: 'decay-report',
       },
+      {
+        title: '離群分析報表',
+        route: 'outstanding-report',
+      },
     ],
   },
   {

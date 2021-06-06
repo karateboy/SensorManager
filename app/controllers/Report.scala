@@ -371,25 +371,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
     val mt = MonitorType.PM25
 
-    def getMonitorRecordMap(monitorGroup: MonitorGroup, start: DateTime) = {
-      val resultFuture = recordOp.getRecordListFuture(recordOp.HourCollection)(start, start + 1.month, monitorGroup.member)
-      for (recordList <- resultFuture) yield {
-        import scala.collection.mutable.Map
-        val timeMtMonitorMap = Map.empty[DateTime, Map[String, Double]]
-        recordList map {
-          r =>
-            val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
-            val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Double])
-            if (r.mtMap.contains(mt)) {
-              val mtRecord = r.mtMap(mt)
-              monitorMap.update(r.monitor, mtRecord.value)
-            }
-        }
-        (monitorGroup, timeMtMonitorMap, start)
-      }
-    }
-
-    val mgListFuture =
+    val mgListFuture = Future.sequence(
       county match {
         case "基隆市" =>
           val epaGroupFuture = Future {
@@ -403,45 +385,36 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           }
           val sensorGroupFuture = Seq("K0LO01", "K1LO01", "K0KM01", "K1KM01", "K0AL99", "K1AL99") map monitorGroupOp.get
           sensorGroupFuture.+:(epaGroupFuture)
-      }
+      })
 
-    val recordMapListFF = mgListFuture map {
-      mgF =>
-        for (mg <- mgF) yield
-          getMonitorRecordMap(mg, reportDate)
-    }
+    val thisMonthReportFuture = mgListFuture map {
+      mgList => getMonitorGroupListRecordMap(mt, mgList, reportDate)
+    } flatMap (x => x)
 
     def getLast18MonthSensorReport = {
       val monitorGroupListFuture =
-        county match {
-          case "基隆市" =>
-            val epaGroupFuture = Future {
-              MonitorGroup("基隆站", Seq("epa1"))
-            }
-            val sensorGroupFuture = Seq("K0AL99", "K1AL99") map monitorGroupOp.get
-            sensorGroupFuture.+:(epaGroupFuture)
-        }
-
-        val allF = {
-          for (i <- 0 to 17) yield {
-            val ff = {
-              monitorGroupListFuture map {
-                mgF =>
-                  for (mg <- mgF) yield
-                    getMonitorRecordMap(mg, reportDate - i.month)
+        Future.sequence {
+          county match {
+            case "基隆市" =>
+              val epaGroupFuture = Future {
+                MonitorGroup("基隆站", Seq("epa1"))
               }
-            }
-            Future.sequence(ff map { a => a flatMap (x => x) })
+              val sensorGroupFuture = Seq("K0AL99", "K1AL99") map monitorGroupOp.get
+              sensorGroupFuture.+:(epaGroupFuture)
           }
         }
-        Future.sequence(allF)
+
+      val resultFF =
+        for (mgList <- monitorGroupListFuture) yield {
+          Future.sequence {
+            for (i <- 0 to 17) yield
+              getMonitorGroupListRecordMap(mt, mgList, reportDate - i.month)
+          }
+        }
+      resultFF flatMap (x => x)
     }
 
-
-    val allF = Future.sequence(recordMapListFF map {
-      _.flatMap(x => x)
-    })
-    for {thisMonthReport <- allF
+    for {thisMonthReport <- thisMonthReportFuture
          historyReport <- getLast18MonthSensorReport
          } yield {
       val excelFile = excelUtility.getDecayReport(thisMonthReport, historyReport.toList)
@@ -452,4 +425,54 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
         })
     }
   }
+
+  def getMonitorGroupListRecordMap(mt: String, mgList: Seq[MonitorGroup], reportDate: DateTime) = {
+    val listF =
+      for (mg <- mgList) yield
+        getMonitorGroupRecordMap(mt, mg, reportDate)
+    Future.sequence(listF)
+  }
+
+  def getMonitorGroupRecordMap(mt: String, monitorGroup: MonitorGroup, start: DateTime) = {
+    val resultFuture = recordOp.getRecordListFuture(recordOp.HourCollection)(start, start + 1.month, monitorGroup.member)
+    for (recordList <- resultFuture) yield {
+      import scala.collection.mutable.Map
+      val timeMtMonitorMap = Map.empty[DateTime, Map[String, Double]]
+      recordList map {
+        r =>
+          val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
+          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Double])
+          if (r.mtMap.contains(mt)) {
+            val mtRecord = r.mtMap(mt)
+            monitorMap.update(r.monitor, mtRecord.value)
+          }
+      }
+      (monitorGroup, timeMtMonitorMap, start)
+    }
+  }
+
+  def outstandingReport(county: String, date: Long) = Security.Authenticated.async {
+    val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
+    val mt = MonitorType.PM25
+
+    val mgListFuture = Future.sequence(
+      county match {
+        case "基隆市" =>
+          Seq("K9SE01", "K9SE02", "K9SE03", "K9SE04", "K9SE05", "K9SE06", "K9SE07", "K9SE08", "K9SE09", "K9SE10", "K9SE11", "K9SE12") map monitorGroupOp.get
+      })
+
+    val monitorGroupListReportFuture = mgListFuture map {
+      mgList => getMonitorGroupListRecordMap(mt, mgList, reportDate)
+    } flatMap (x => x)
+
+    for (monitorGroupListReport <- monitorGroupListReportFuture) yield {
+      val excelFile = excelUtility.getOutstandingReport(monitorGroupListReport)
+      Ok.sendFile(excelFile, fileName = _ =>
+        s"${county}${reportDate.toString(DateTimeFormat.forPattern("YYYYMM"))}離群分析.xlsx",
+        onClose = () => {
+          Files.deleteIfExists(excelFile.toPath())
+        })
+    }
+  }
+
 }

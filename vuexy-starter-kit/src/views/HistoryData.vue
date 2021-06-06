@@ -146,12 +146,8 @@
     </b-card>
   </div>
 </template>
-<style lang="scss">
-@import '@core/scss/vue/libs/vue-select.scss';
-</style>
 <script lang="ts">
 import Vue from 'vue';
-import vSelect from 'vue-select';
 import DatePicker from 'vue2-datepicker';
 import 'vue2-datepicker/index.css';
 import 'vue2-datepicker/locale/zh-tw';
@@ -163,7 +159,6 @@ import { MonitorGroup } from './types';
 
 export default Vue.extend({
   components: {
-    vSelect,
     DatePicker,
   },
   directives: {

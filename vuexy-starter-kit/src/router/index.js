@@ -147,6 +147,24 @@ const router = new VueRouter({
       },
     },
     {
+      path: '/outstanding-report',
+      name: 'outstanding-report',
+      component: () => import('@/views/OutstandingReport.vue'),
+      meta: {
+        pageTitle: '離群分析報表',
+        breadcrumb: [
+          {
+            text: '報表查詢',
+            active: true,
+          },
+          {
+            text: '離群分析報表',
+            active: true,
+          },
+        ],
+      },
+    },
+    {
       path: '/instrument-management',
       name: 'instrument-management',
       component: () => import('@/views/InstrumentManagement.vue'),

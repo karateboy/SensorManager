@@ -18,6 +18,24 @@ class ExcelUtility @Inject()
 (environment: play.api.Environment, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp) {
   val docRoot: String = environment.rootPath + "/report_template/"
 
+  implicit class PoweredSheet(sheet:Sheet){
+    def getOrCreateRow(rowIndex: Int) = {
+      if (sheet.getRow(rowIndex) != null)
+        sheet.getRow(rowIndex)
+      else
+        sheet.createRow(rowIndex)
+    }
+  }
+
+  implicit class PoweredRow(row:Row){
+    def getOrCreateCell(cellIndex: Int) = {
+      if(row.getCell(cellIndex) != null)
+        row.getCell(cellIndex)
+      else
+        row.createCell(cellIndex)
+    }
+  }
+
   def createStyle(mt: String)(implicit wb: XSSFWorkbook) = {
     val prec = monitorTypeOp.map(mt).prec
     val format_str = "0." + "0" * prec
@@ -128,6 +146,80 @@ class ExcelUtility @Inject()
 
     finishExcel(reportFilePath, pkg, wb)
   }
+  def getGroupAvg(sensorGroupResults: (MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)) = {
+    val (mg, timeRecordMap, dateTime) = sensorGroupResults
+    val avgMap =
+      timeRecordMap filter { p => p._2.size != 0 } map {
+        pair =>
+          pair._1 -> {
+            val count = pair._2.size
+            val avg = pair._2.values.toList.sum / count
+            mutable.Map(mg._id -> avg)
+          }
+      }
+    (MonitorGroup(mg._id, Seq(mg._id)), avgMap, dateTime)
+  }
+
+  def getOutstandingReport(monitorGroupListRecord: Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)])={
+    val (reportFilePath, pkg, wb) = prepareTemplate("outstandingReport.xlsx")
+    val evaluator = wb.getCreationHelper().createFormulaEvaluator()
+    val format = wb.createDataFormat();
+
+    def fillSheet(sheetIndex:Int, sensorGroupResults: Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)]): Unit = {
+      val sheet = wb.getSheetAt(sheetIndex)
+      val start = sensorGroupResults(0)._3
+
+      // Fill time header
+      val timeSeq = getPeriods(start, start + 1.month, 1.hour)
+      for {(time, idx) <- timeSeq.zipWithIndex
+           row = sheet.getOrCreateRow(idx + 2)
+           } {
+        val timeCell = row.getOrCreateCell(0)
+        timeCell.setCellValue(time.toString(DateTimeFormat.forPattern("YYYY/MM/dd HH:mm")))
+      }
+      // Fill average
+      var groupOffset = 0
+      for (((sensorGroup, recordMap, _), groupIdx) <- sensorGroupResults.zipWithIndex) {
+        for ((monitor, idx) <- sensorGroup.member.zipWithIndex) {
+          val cellIdx = idx + 1 + groupOffset
+          if (groupIdx != 0)
+            sheet.getOrCreateRow(0).createCell(cellIdx).setCellValue(monitor)
+
+          val monitorName =
+            if (monitorOp.map.contains(monitor) && monitorOp.map(monitor).shortCode.isDefined)
+              monitorOp.map(monitor).shortCode.get
+            else
+              monitor
+
+          sheet.getOrCreateRow(1).createCell(cellIdx).setCellValue(monitorName)
+
+          for {(time, idx) <- timeSeq.zipWithIndex
+               row = sheet.getOrCreateRow(idx + 2)
+               } {
+            if (recordMap.contains(time)) {
+              val timeMap: mutable.Map[String, Double] = recordMap(time)
+              if (timeMap.contains(monitor))
+                row.getOrCreateCell(cellIdx).setCellValue(timeMap(monitor))
+            }
+          }
+          /*
+          for (r <- 746 to 750) {
+            if (sheet.getRow(r) != null && sheet.getRow(r).getCell(cellIdx) != null)
+              evaluator.evaluateFormulaCell(sheet.getRow(r).getCell(cellIdx))
+          }*/
+        }
+        groupOffset = groupOffset + sensorGroup.member.length
+      }
+    }
+
+    for((monitorGroupRecord, idx) <- monitorGroupListRecord.zipWithIndex){
+      val average = getGroupAvg(monitorGroupRecord)
+      fillSheet(idx*2, Seq(average, monitorGroupRecord))
+    }
+
+    wb.setForceFormulaRecalculation(true)
+    finishExcel(reportFilePath, pkg, wb)
+  }
 
   def getDecayReport(thisMonthRecord: Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)],
                      historyRecordList: Seq[Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)]]) = {
@@ -139,13 +231,6 @@ class ExcelUtility @Inject()
                   sensorGroupResults: Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)],
                   period: Period, skipMonitorGroupRow: Boolean = false) = {
       val start = sensorGroupResults(0)._3
-
-      def getOrCreateRow(rowIndex: Int) = {
-        if (sheet.getRow(rowIndex) != null)
-          sheet.getRow(rowIndex)
-        else
-          sheet.createRow(rowIndex)
-      }
 
       // Fill time header
       val timeSeq = getPeriods(start, start + period, 1.hour)
@@ -161,7 +246,7 @@ class ExcelUtility @Inject()
         for ((monitor, idx) <- sensorGroup.member.zipWithIndex) {
           val cellIdx = idx + 1 + groupOffset
           if (!skipMonitorGroupRow)
-            getOrCreateRow(0).createCell(cellIdx).setCellValue(sensorGroup._id)
+            sheet.getOrCreateRow(0).createCell(cellIdx).setCellValue(sensorGroup._id)
 
           val monitorName =
             if (monitorOp.map.contains(monitor))
@@ -169,16 +254,16 @@ class ExcelUtility @Inject()
             else
               monitor
 
-          getOrCreateRow(1).createCell(cellIdx).setCellValue(monitorName)
+          sheet.getOrCreateRow(1).createCell(cellIdx).setCellValue(monitorName)
 
           for {(time, idx) <- timeSeq.zipWithIndex
-               row = getOrCreateRow(idx + 2)
+               row = sheet.getOrCreateRow(idx + 2)
                } {
             if (recordMap.contains(time)) {
               val timeMap: mutable.Map[String, Double] = recordMap(time)
               if (timeMap.contains(monitor)) {
                 val cell = {
-                  val c = row.getCell(cellIdx)
+                  val c = row.getOrCreateCell(cellIdx)
                   if (c != null)
                     c
                   else
@@ -188,10 +273,6 @@ class ExcelUtility @Inject()
               }
             }
           }
-          for (r <- 746 to 751) {
-            if (sheet.getRow(r) != null && sheet.getRow(r).getCell(cellIdx) != null)
-              evaluator.evaluateFormulaCell(sheet.getRow(r).getCell(cellIdx))
-          }
         }
         groupOffset = groupOffset + sensorGroup.member.length
       }
@@ -199,19 +280,12 @@ class ExcelUtility @Inject()
 
 
     def fillMonthlyReport(sheetIdx: Int, historyRecordList: Seq[Seq[SensorMonthReport]]) = {
-      val sheet = wb.getSheetAt(sheetIdx)
-
-      def getOrCreateRow(rowIndex: Int) = {
-        if (sheet.getRow(rowIndex) != null)
-          sheet.getRow(rowIndex)
-        else
-          sheet.createRow(rowIndex)
-      }
+      implicit val sheet = wb.getSheetAt(sheetIdx)
 
       for ((sensorReport, monthIdx) <- historyRecordList.zipWithIndex) {
         val report200 = sensorReport(0)
         val report210 = sensorReport(1)
-        val row = getOrCreateRow(5 + monthIdx)
+        val row = sheet.getOrCreateRow(5 + monthIdx)
 
         def fillTab(report: SensorMonthReport, colOffset: Int) {
           val year = report.start.getYear - 1911
@@ -224,33 +298,19 @@ class ExcelUtility @Inject()
               cell.setCellValue("-")
           }
 
-          row.getCell(0 + colOffset).setCellValue(s"${year}年${month}月")
-          fillCell(report.max, row.getCell(1 + colOffset))
-          fillCell(report.min, row.getCell(2 + colOffset))
-          fillCell(report.median, row.getCell(3 + colOffset))
-          fillCell(report.biasMax, row.getCell(4 + colOffset))
-          fillCell(report.biasMin, row.getCell(5 + colOffset))
-          fillCell(report.biasMedian, row.getCell(6 + colOffset))
-          fillCell(report.rr, row.getCell(7 + colOffset))
+          row.getOrCreateCell(0 + colOffset).setCellValue(s"${year}年${month}月")
+          fillCell(report.max, row.getOrCreateCell(1 + colOffset))
+          fillCell(report.min, row.getOrCreateCell(2 + colOffset))
+          fillCell(report.median, row.getOrCreateCell(3 + colOffset))
+          fillCell(report.biasMax, row.getOrCreateCell(4 + colOffset))
+          fillCell(report.biasMin, row.getOrCreateCell(5 + colOffset))
+          fillCell(report.biasMedian, row.getOrCreateCell(6 + colOffset))
+          fillCell(report.rr, row.getOrCreateCell(7 + colOffset))
         }
 
         fillTab(report200, 0)
         fillTab(report210, 9)
       }
-    }
-
-    def getGroupAvg(sensorGroupResults: (MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)) = {
-      val (mg, timeRecordMap, dateTime) = sensorGroupResults
-      val avgMap =
-        timeRecordMap filter { p => p._2.size != 0 } map {
-          pair =>
-            pair._1 -> {
-              val count = pair._2.size
-              val avg = pair._2.values.toList.sum / count
-              mutable.Map(mg._id -> avg)
-            }
-        }
-      (MonitorGroup(mg._id, Seq(mg._id)), avgMap, dateTime)
     }
 
     def getMonitorGroupReport(last18month: Seq[Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)]]) = {
@@ -363,7 +423,7 @@ class ExcelUtility @Inject()
     }
 
     fillSheet(wb.getSheetAt(0), thisMonthRecord.take(3), 1.month)
-    fillSheet(wb.getSheetAt(1), thisMonthRecord.take(1) ++ thisMonthRecord.drop(3).take(2), 1.month)
+    fillSheet(wb.getSheetAt(2), thisMonthRecord.take(1) ++ thisMonthRecord.drop(3).take(2), 1.month)
 
     val historyAvgRecords = for (monthRecord <- historyRecordList) yield
       for ((mgRecord, idx) <- monthRecord.zipWithIndex) yield
@@ -372,10 +432,10 @@ class ExcelUtility @Inject()
         else
           getGroupAvg(mgRecord)
 
-    fillSheet(wb.getSheetAt(2), historyAvgRecords(0), 1.month)
+    fillSheet(wb.getSheetAt(3), historyAvgRecords(0), 1.month)
     val acendingHistoryRecords = historyAvgRecords.reverse
     val sensorMonthReportList = getMonitorGroupReport(acendingHistoryRecords)
-    fillMonthlyReport(3, sensorMonthReportList)
+    fillMonthlyReport(4, sensorMonthReportList)
 
     val last12Month = historyAvgRecords.take(12).reverse
     val last12MonthHistoryRecords = last12Month.foldLeft(last12Month(0))((a, b) => {
@@ -393,9 +453,10 @@ class ExcelUtility @Inject()
     }) map {
       _._1
     }
-    fillSheet(wb.getSheetAt(4), saq200, 12.month, true)
-    fillSheet(wb.getSheetAt(5), saq210, 12.month, true)
+    fillSheet(wb.getSheetAt(5), saq200, 12.month, true)
+    fillSheet(wb.getSheetAt(6), saq210, 12.month, true)
 
+    wb.setForceFormulaRecalculation(true)
     finishExcel(reportFilePath, pkg, wb)
   }
 

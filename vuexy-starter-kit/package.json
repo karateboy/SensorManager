@@ -70,6 +70,7 @@
     "vuex": "^3.6.2"
   },
   "devDependencies": {
+    "@types/google.maps": "^3.45.1",
     "@types/js-cookie": "^2.2.6",
     "@types/vue-select": "^3.11.1",
     "@types/vue2-datepicker": "^3.3.0",
