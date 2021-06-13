@@ -69,6 +69,7 @@ export default Vue.extend({
     let constantList = Array<Sensor>();
     let disconnectedList = Array<Sensor>();
     let lt95List = Array<Sensor>();
+    let powerErrorList = Array<string>();
 
     const errorStatus = Array<string>('constant', 'disconnect');
     return {
@@ -114,6 +115,7 @@ export default Vue.extend({
       disconnectedList,
       constantList,
       lt95List,
+      powerErrorList,
       errorFilters,
       errorStatus,
       sensorStatusParam: {
@@ -161,6 +163,20 @@ export default Vue.extend({
           if (!m || !m.location) continue;
 
           let sensor = Object.assign({ status: '斷線' }, m);
+          if (m.sensorDetail) {
+            sensor.locationDesc = m.sensorDetail.locationDesc;
+            sensor.road = m.sensorDetail.roadName;
+          }
+
+          ret.push(sensor);
+        }
+
+      if (this.errorStatus.indexOf('powerError') !== -1)
+        for (const id of this.powerErrorList) {
+          const m = this.mMap.get(id);
+          if (!m || !m.location) continue;
+
+          let sensor = Object.assign({ status: '電力異常' }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;
@@ -243,6 +259,18 @@ export default Vue.extend({
       });
 
       this.lt95List = ret.data;
+    },
+    async getPowerErrorList(): Promise<void> {
+      const params = {
+        county: this.sensorStatusParam.county,
+        district: this.sensorStatusParam.district,
+        sensorType: this.sensorStatusParam.sensorType,
+      };
+      const ret = await axios.get('/PowerUsageErrorSensor', {
+        params,
+      });
+
+      this.powerErrorList = ret.data;
     },
   },
 });

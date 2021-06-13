@@ -5,19 +5,33 @@
         <b-table-simple small>
           <b-tr>
             <b-th>縣市</b-th>
-            <b-th>群組</b-th>
             <b-th>區域劃分</b-th>
             <b-th>類型</b-th>
+            <b-th>群組</b-th>
           </b-tr>
           <b-tbody>
             <b-tr>
-              <b-td
-                ><v-select
+              <b-td>
+                <b-form-select
                   v-model="sensorFilter.county"
-                  label="txt"
-                  :reduce="entry => entry.value"
+                  text-field="txt"
                   :options="countyFilters"
-              /></b-td>
+                />
+              </b-td>
+              <b-td>
+                <b-form-select
+                  v-model="sensorFilter.district"
+                  text-field="txt"
+                  :options="districtFilters"
+                />
+              </b-td>
+              <b-td>
+                <b-form-select
+                  v-model="sensorFilter.sensorType"
+                  text-field="txt"
+                  :options="sensorTypes"
+                />
+              </b-td>
               <b-td>
                 <v-select
                   v-model="sensorFilter.monitorGroup"
@@ -26,20 +40,6 @@
                   :options="filteredMonitorGroupList"
                 />
               </b-td>
-              <b-td
-                ><v-select
-                  v-model="sensorFilter.district"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="districtFilters"
-              /></b-td>
-              <b-td
-                ><v-select
-                  v-model="sensorFilter.sensorType"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="sensorTypes"
-              /></b-td>
             </b-tr>
           </b-tbody>
         </b-table-simple>
@@ -60,21 +60,19 @@
           <b-form-input v-model="row.item.desc" @change="markDirty(row.item)" />
         </template>
         <template #cell(county)="row">
-          <v-select
+          <b-form-select
             v-model="row.item.county"
-            label="txt"
-            :reduce="entry => entry.value"
+            text-field="txt"
             :options="countyFilters"
-            @input="markDirty(row.item)"
+            @change="markDirty(row.item)"
           />
         </template>
         <template #cell(district)="row">
-          <v-select
+          <b-form-select
             v-model="row.item.district"
-            label="txt"
-            :reduce="entry => entry.value"
+            text-field="txt"
             :options="getDistrictList(row.item.county)"
-            @input="markDirty(row.item)"
+            @change="markDirty(row.item)"
           />
         </template>
         <template #cell(enabled)="row">
@@ -84,7 +82,57 @@
             >{{ getEnabledTxt(row.item.enabled) }}</b-form-checkbox
           >
         </template>
-        <template #cell(monitorTypes)="row">
+        <template #[`cell(sensorDetail.sensorType)`]="row">
+          <b-form-select
+            v-model="row.item.sensorDetail.sensorType"
+            text-field="txt"
+            :options="sensorGroups"
+            @change="markDirty(row.item)"
+          />
+        </template>
+        <template #[`cell(sensorDetail.roadName)`]="row">
+          <b-form-input
+            v-model="row.item.sensorDetail.roadName"
+            @change="markDirty(row.item)"
+          />
+        </template>
+        <template #[`cell(sensorDetail.locationDesc)`]="row">
+          <b-form-input
+            v-model="row.item.sensorDetail.locationDesc"
+            @change="markDirty(row.item)"
+          />
+        </template>
+        <template #[`cell(sensorDetail.authority)`]="row">
+          <b-form-input
+            v-model="row.item.sensorDetail.authority"
+            @change="markDirty(row.item)"
+          />
+        </template>
+        <template #[`cell(sensorDetail.epaCode)`]="row">
+          <b-form-input
+            v-model="row.item.sensorDetail.epaCode"
+            @change="markDirty(row.item)"
+          />
+        </template>
+        <template #[`cell(sensorDetail.target)`]="row">
+          <b-form-input
+            v-model="row.item.sensorDetail.target"
+            @change="markDirty(row.item)"
+          />
+        </template>
+        <template #[`cell(sensorDetail.targetDetail)`]="row">
+          <b-form-input
+            v-model="row.item.sensorDetail.targetDetail"
+            @change="markDirty(row.item)"
+          />
+        </template>
+        <template #[`cell(sensorDetail.height)`]="row">
+          <b-form-input
+            v-model.number="row.item.sensorDetail.height"
+            @change="markDirty(row.item)"
+          />
+        </template>
+        <!-- <template #cell(monitorTypes)="row">
           <v-select
             id="monitorType"
             v-model="row.item.monitorTypes"
@@ -94,7 +142,7 @@
             multiple
             @input="markDirty(row.item)"
           />
-        </template>
+        </template> -->
       </b-table>
       <b-pagination
         v-model="currentPage"
@@ -129,6 +177,11 @@
     </b-card>
   </div>
 </template>
+<style scoped>
+.height_field {
+  width: 10px;
+}
+</style>
 <script lang="ts">
 import Vue from 'vue';
 const Ripple = require('vue-ripple-directive');
@@ -180,11 +233,47 @@ export default Vue.extend({
         sortable: true,
       },
       {
-        key: 'monitorTypes',
-        label: '測項',
+        key: 'sensorDetail.sensorType',
+        label: '感測器類型',
+        sortable: true,
+      },
+      {
+        key: 'sensorDetail.roadName',
+        label: '路名',
+        sortable: true,
+      },
+      {
+        key: 'sensorDetail.locationDesc',
+        label: '位置',
+        sortable: true,
+      },
+      {
+        key: 'sensorDetail.authority',
+        label: '所屬單位',
+        sortable: true,
+      },
+      {
+        key: 'sensorDetail.epaCode',
+        label: 'EPA代碼',
+        sortable: true,
+      },
+      {
+        key: 'sensorDetail.target',
+        label: '目標',
+        sortable: true,
+      },
+      {
+        key: 'sensorDetail.targetDetail',
+        label: '目標細分',
+        sortable: true,
+      },
+      {
+        key: 'sensorDetail.height',
+        label: '高度',
         sortable: true,
       },
     ];
+    const sensorGroups = ['SAQ200', 'SAQ210'];
     let monitorGroup: MonitorGroup | undefined | null;
     return {
       sensorFilter: {
@@ -197,6 +286,7 @@ export default Vue.extend({
       sensorTypes,
       countyFilters,
       columns,
+      sensorGroups,
       currentPage: 1,
       perPage: 15,
     };
@@ -235,8 +325,23 @@ export default Vue.extend({
       }
     },
     filteredMonitors(): Array<EditMonitor> {
-      let editMonitor = this.monitors as Array<EditMonitor>;
-      return editMonitor
+      let editMonitors = this.monitors as Array<EditMonitor>;
+
+      editMonitors.filter(v => {
+        if (!v.sensorDetail)
+          v.sensorDetail = {
+            sensorType: '',
+            roadName: '',
+            locationDesc: '',
+            authority: '',
+            epaCode: '',
+            target: '',
+            targetDetail: '',
+            height: 0,
+            distance: [1, 1],
+          };
+      });
+      return editMonitors
         .filter((v: Monitor) => {
           if (this.sensorFilter.county === '') return true;
           else return v.county === this.sensorFilter.county;
@@ -264,6 +369,7 @@ export default Vue.extend({
 
       // reset district filter
       this.sensorFilter.district = '';
+      this.sensorFilter.monitorGroup = null;
     },
     'sensorFilter.district': function () {
       if (this.sensorFilter.district === null) this.sensorFilter.district = '';

@@ -451,6 +451,24 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     }
   }
 
+  def getMonitorGroupRecordList(mt: String, monitorGroup: MonitorGroup, start: DateTime) = {
+    val resultFuture = recordOp.getRecordListFuture(recordOp.HourCollection)(start, start + 1.month, monitorGroup.member)
+    for (recordList <- resultFuture) yield {
+      import scala.collection.mutable.Map
+      val timeMtMonitorMap = Map.empty[DateTime, Map[String, Double]]
+      recordList map {
+        r =>
+          val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
+          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Double])
+          if (r.mtMap.contains(mt)) {
+            val mtRecord = r.mtMap(mt)
+            monitorMap.update(r.monitor, mtRecord.value)
+          }
+      }
+      (monitorGroup, timeMtMonitorMap, start)
+    }
+  }
+
   def outstandingReport(county: String, date: Long) = Security.Authenticated.async {
     val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
     val mt = MonitorType.PM25
@@ -472,6 +490,22 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
         onClose = () => {
           Files.deleteIfExists(excelFile.toPath())
         })
+    }
+  }
+
+  def outstandingReportJson(monitorGroupName: String, date: Long)= Security.Authenticated.async {
+    val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
+    val mt = MonitorType.PM25
+
+    val mgListFuture = monitorGroupOp.get(monitorGroupName)
+
+
+    val monitorGroupReportFuture = mgListFuture map {
+      mg => getMonitorGroupRecordMap(mt, mg, reportDate)
+    } flatMap (x => x)
+
+    for (monitorGroupReport <- monitorGroupReportFuture) yield {
+
     }
   }
 

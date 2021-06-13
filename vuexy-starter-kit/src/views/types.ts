@@ -70,6 +70,10 @@ export const errorFilters = [
     txt: '定值',
     value: 'constant',
   },
+  {
+    txt: '電力異常',
+    value: 'powerError',
+  },
 ];
 
 export interface TxtStrValue {

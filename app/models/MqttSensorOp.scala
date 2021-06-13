@@ -6,10 +6,10 @@ import javax.inject.{Inject, Singleton}
 import scala.concurrent.ExecutionContext.Implicits.global
 
 
-case class Sensor(id: String, topic: String, monitor: String, group: String)
+case class Sensor(id: String, topic: String, monitor: String, group: String, powerUsageError:Option[Boolean] = Some(false))
 
 @Singleton
-class MqttSensorOp @Inject()(mongoDB: MongoDB, instrumentOp: InstrumentOp, instrumentTypeOp: InstrumentTypeOp) {
+class MqttSensorOp @Inject()(mongoDB: MongoDB) {
 
   import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
   import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
@@ -24,21 +24,7 @@ class MqttSensorOp @Inject()(mongoDB: MongoDB, instrumentOp: InstrumentOp, instr
   collection.createIndex(Indexes.descending("group"))
   collection.createIndex(Indexes.descending("topic"))
   collection.createIndex(Indexes.descending("monitor"))
-
-  /*
-  def upgrade = {
-    val count = waitReadyResult(collection.countDocuments().toFuture())
-    if(count == 0){
-      val mqttList = instrumentOp.getInstrumentList().filter(p => p.instType == instrumentTypeOp.MQTT_CLIENT)
-      val sensorList = mqttList map { m =>
-        val config = MqttCollector.validateParam(m.param)
-        val topicPattern = "WECC/SAQ200/([0-9]+)/.*".r
-        val topicPattern(id) = config.topic
-        Sensor(id, config.topic, config.monitor, MqttCollector2.defaultGroup)
-      }
-      collection.insertMany(sensorList, InsertManyOptions().ordered(true)).toFuture()
-    }
-  }*/
+  collection.createIndex(Indexes.descending("powerUsageError"))
 
   def getSensorMap(group: String) = {
     for (sensorList <- getSensorList(group)) yield {
@@ -70,6 +56,24 @@ class MqttSensorOp @Inject()(mongoDB: MongoDB, instrumentOp: InstrumentOp, instr
   def newSensor(sensor: Sensor) = {
     val f = collection.insertOne(sensor).toFuture()
     f onFailure (errorHandler)
+    f
+  }
+
+  def upsertSensor(sensor:Sensor) = {
+    val f = collection.replaceOne(Filters.equal("_id", sensor.id), sensor).toFuture()
+    f onFailure(errorHandler())
+    f
+  }
+
+  def updatePowerUsageError(_id:String, powerUsageError:Boolean) = {
+    val f = collection.updateOne(Filters.equal("_id", _id), Updates.set("powerUsageError", powerUsageError)).toFuture()
+    f onFailure(errorHandler())
+    f
+  }
+
+  def getPowerUsageErrorSensors() = {
+    val f = collection.find(Filters.equal("powerUsageError", true)).toFuture()
+    f onFailure(errorHandler())
     f
   }
 }

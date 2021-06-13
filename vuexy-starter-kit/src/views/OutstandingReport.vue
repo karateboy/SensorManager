@@ -40,10 +40,11 @@
               type="submit"
               variant="primary"
               class="mr-1"
-              @click="query"
+              @click="download"
             >
-              查詢
+              下載
             </b-button>
+
             <b-button
               v-ripple.400="'rgba(186, 191, 199, 0.15)'"
               type="reset"
@@ -54,6 +55,9 @@
           </b-col>
         </b-row>
       </b-form>
+    </b-card>
+    <b-card v-show="display">
+      <div id="chart_container" />
     </b-card>
   </div>
 </template>
@@ -67,6 +71,9 @@ import 'vue2-datepicker/index.css';
 import 'vue2-datepicker/locale/zh-tw';
 import moment from 'moment';
 import axios from 'axios';
+import highcharts from 'highcharts';
+import { mapState, mapActions, mapMutations } from 'vuex';
+import { MonitorGroup } from './types';
 
 const Ripple = require('vue-ripple-directive');
 
@@ -79,6 +86,7 @@ export default Vue.extend({
   },
   data() {
     const date = moment().valueOf();
+    let monitorGroupList = Array<MonitorGroup>();
     return {
       counties: [
         {
@@ -98,15 +106,56 @@ export default Vue.extend({
         date,
         county: '基隆市',
       },
+      display: false,
+      monitorGroupList,
     };
   },
-  computed: {},
+  computed: {
+    filteredMonitorGroupList(): Array<MonitorGroup> {
+      if (this.form.county === '') return this.monitorGroupList;
+      else {
+        return this.monitorGroupList.filter(
+          (value: MonitorGroup, index: number) => {
+            let prefix = '';
+            switch (this.form.county) {
+              case '基隆市':
+                prefix = 'K';
+                break;
+              case '屏東縣':
+                prefix = 'P';
+                break;
+              case '宜蘭縣':
+                prefix = 'Y';
+                break;
+            }
+
+            return value._id.startsWith(prefix);
+          },
+        );
+      }
+    },
+  },
   methods: {
-    async query() {
+    ...mapMutations(['setLoading']),
+    async download() {
       const baseUrl =
         process.env.NODE_ENV === 'development' ? 'http://localhost:9000/' : '';
       const url = `${baseUrl}OutstandingReport/${this.form.county}/${this.form.date}`;
       window.open(url);
+    },
+    async query() {
+      this.setLoading({ loading: true });
+      this.display = true;
+      const url = `/JSON/OutstandingReport/${this.form.county}/${this.form.date}`;
+      const res = await axios.get(url);
+      const ret = res.data;
+
+      this.setLoading({ loading: false });
+      highcharts.chart('chart_container', ret);
+    },
+    async getMonitorGroups() {
+      const ret = await axios.get('/MonitorGroups');
+      this.monitorGroupList = ret.data;
     },
   },
 });

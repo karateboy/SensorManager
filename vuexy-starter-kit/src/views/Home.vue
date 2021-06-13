@@ -97,13 +97,14 @@
               <b-tbody>
                 <b-tr>
                   <b-td>
-                    <v-select
+                    <b-check-group
                       v-model="mapLayer"
-                      label="txt"
-                      multiple
-                      :reduce="entry => entry.value"
+                      stacked
+                      text-field="txt"
+                      value-field="value"
                       :options="mapLayerTypes"
-                    />
+                    >
+                    </b-check-group>
                   </b-td>
                 </b-tr>
               </b-tbody>
@@ -191,8 +192,8 @@
               :position="m.position"
               :clickable="true"
               :title="m.title"
-              label="EPA"
-              :share="shape"
+              :label="{ text: `${m.pm25}`, color: 'white' }"
+              :icon="m.iconUrl"
               @click="toggleInfoWindow(m, index)"
             />
             <GmapMarker
@@ -216,6 +217,15 @@
             <GmapMarker
               v-for="(m, index) in lt95Markers"
               :key="m._id + 'lt95'"
+              :position="m.position"
+              :clickable="true"
+              :title="m.title"
+              :icon="m.iconUrl"
+              @click="toggleInfoWindow(m, index)"
+            />
+            <GmapMarker
+              v-for="(m, index) in lt95Markers"
+              :key="m._id + 'powerError'"
               :position="m.position"
               :clickable="true"
               :title="m.title"
@@ -304,6 +314,7 @@ export default Vue.extend({
     let disconnectedList = Array<any>();
     let constantList = Array<any>();
     let lt95List = Array<any>();
+    let powerErrorList = Array<string>();
     let errorStatus = Array<string>();
     let sensorGroupSummary = Array<any>();
     let currentMidx: number = -1;
@@ -315,6 +326,7 @@ export default Vue.extend({
       disconnectedList,
       constantList,
       lt95List,
+      powerErrorList,
       errorStatus,
       refreshTimer: 0,
       infoWindowPos: null,
@@ -377,6 +389,35 @@ export default Vue.extend({
       if (this.errorStatus.indexOf('lt95') === -1) return [];
 
       return this.markers(this.lt95List);
+    },
+    powerErrorMarkers(): Array<any> {
+      if (this.errorStatus.indexOf('powerError') === -1) return [];
+
+      const ret = [];
+
+      for (const id of this.powerErrorList) {
+        const m = this.mMap.get(id);
+        if (!m || !m.location) continue;
+
+        const lng = m.location[0];
+        const lat = m.location[1];
+
+        const iconUrl = '/battery-bar-1-icon.png';
+
+        const infoText = m.code
+          ? `<strong>${m.shortCode}/${m.code}</strong>`
+          : `<strong>${m.desc}</strong>`;
+        const title = m.code ? `斷線 ${m.code}` : `${m.desc}`;
+
+        ret.push({
+          _id: id,
+          title,
+          position: { lat, lng },
+          infoText,
+          iconUrl,
+        });
+      }
+      return ret;
     },
     disconnectedMarkers(): Array<any> {
       if (this.errorStatus.indexOf('disconnect') === -1) return [];
@@ -471,6 +512,8 @@ export default Vue.extend({
       if (this.errorStatus.indexOf('disconnect') !== -1) this.getDisconnected();
       if (this.errorStatus.indexOf('constant') !== -1) this.getConstantValue();
       if (this.errorStatus.indexOf('lt95') !== -1) this.getLt95List();
+      if (this.errorStatus.indexOf('powerError') !== -1)
+        this.getPowerErrorList();
     },
     toggleInfoWindow(marker: any, idx: number) {
       this.infoWindowPos = marker.position;
@@ -546,6 +589,17 @@ export default Vue.extend({
 
       this.lt95List = ret.data;
     },
+    async getPowerErrorList(): Promise<void> {
+      const params = {
+        county: this.sensorStatusParam.county,
+        district: this.sensorStatusParam.district,
+        sensorType: this.sensorStatusParam.sensorType,
+      };
+      const ret = await axios.get('/PowerUsageErrorSensor', {
+        params,
+      });
+      this.powerErrorList = ret.data;
+    },
     async getTodaySummary(): Promise<void> {
       const res = await axios.get('/SensorSummary');
       const ret = res.data;
@@ -567,6 +621,8 @@ export default Vue.extend({
           case 'lt95':
             this.lt95List = [];
             break;
+          case 'powerError':
+            this.powerErrorList = [];
         }
       });
       const mapToGet = newMap.filter(map => oldMap.indexOf(map) === -1);
@@ -580,6 +636,8 @@ export default Vue.extend({
             break;
           case 'lt95':
             this.getLt95List();
+          case 'powerError':
+            this.getPowerErrorList();
         }
       });
     },
@@ -622,7 +680,7 @@ export default Vue.extend({
 
         url += `|17|b|${v}`;
 
-        return url;
+        return '/static/iconfinder_34211_green_icon_64px.png';
       };
 
       const getIconUrl = (v: number) => {
