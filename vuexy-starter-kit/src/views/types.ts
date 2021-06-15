@@ -74,6 +74,10 @@ export const errorFilters = [
     txt: '電力異常',
     value: 'powerError',
   },
+  {
+    txt: '無電力資訊',
+    value: 'noPowerInfo',
+  },
 ];
 
 export interface TxtStrValue {

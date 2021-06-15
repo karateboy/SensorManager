@@ -107,7 +107,7 @@
 /* eslint-disable global-require */
 import { ValidationProvider, ValidationObserver } from 'vee-validate';
 import VuexyLogo from '@core/layouts/components/Logo.vue';
-import jscookie from 'js-cookie';
+import Cookies from 'js-cookie';
 
 import { required, email } from '@validations';
 import { togglePasswordVisibility } from '@core/mixins/ui/forms';
@@ -162,6 +162,7 @@ export default {
             .then(res => {
               const ret = res.data;
               if (ret.ok) {
+                Cookies.set('login', 'true');
                 const userData = ret.userData;
                 const userInfo = userData.user;
                 this.setUserInfo(userInfo);

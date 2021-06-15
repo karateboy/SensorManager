@@ -13,7 +13,7 @@
               <b-thead>
                 <b-tr
                   ><b-td class="text-center" colspan="5">{{
-                    `${group.name}即時資訊`
+                    `${group.name}即時資訊 ${summaryUpdateTime.format('lll')}`
                   }}</b-td></b-tr
                 >
                 <b-tr>
@@ -69,18 +69,18 @@
     <b-col lg="12" md="12">
       <b-card>
         <b-row>
-          <b-col cols="2">
+          <b-col cols="3">
             <b-table-simple borderless>
               <b-tbody>
                 <b-tr>
                   <b-td class="text-center align-middle"
-                    ><h3>監測地圖</h3></b-td
+                    ><h3>監測地圖 {{ updateTime.format('lll') }}</h3></b-td
                   >
                 </b-tr>
               </b-tbody>
             </b-table-simple>
           </b-col>
-          <b-col cols="10"
+          <b-col cols="5" offset="4"
             ><b-img src="../assets/images/legend.png" fluid class="float-right"
           /></b-col>
         </b-row>
@@ -89,7 +89,7 @@
           <b-img src="../assets/images/legend.png" fluid />
         </div> -->
         <div class="map_container">
-          <div id="mapFilter" class="sensorFilter mt-2 ml-2">
+          <div id="mapFilter" class="sensorFilter mt-2 ml-2 rounded">
             <b-table-simple small>
               <b-tr>
                 <b-th>圖層選擇</b-th>
@@ -110,7 +110,7 @@
               </b-tbody>
             </b-table-simple>
           </div>
-          <div id="sensorFilter" class="sensorFilter mt-2">
+          <div id="sensorFilter" class="sensorFilter mt-2 rounded">
             <b-table-simple small>
               <b-tr>
                 <b-th>縣市</b-th>
@@ -224,7 +224,7 @@
               @click="toggleInfoWindow(m, index)"
             />
             <GmapMarker
-              v-for="(m, index) in lt95Markers"
+              v-for="(m, index) in powerErrorMarkers"
               :key="m._id + 'powerError'"
               :position="m.position"
               :clickable="true"
@@ -267,6 +267,7 @@
 import Vue from 'vue';
 import { mapActions, mapState, mapGetters } from 'vuex';
 import axios from 'axios';
+import moment from 'moment';
 import {
   sensorTypes,
   pm25Filters,
@@ -343,6 +344,8 @@ export default Vue.extend({
         coords: [10, 10, 10, 15, 15, 15, 15, 10],
         type: 'poly',
       },
+      updateTime: moment(),
+      summaryUpdateTime: moment(),
     };
   },
   computed: {
@@ -402,12 +405,12 @@ export default Vue.extend({
         const lng = m.location[0];
         const lat = m.location[1];
 
-        const iconUrl = '/battery-bar-1-icon.png';
+        const iconUrl = '/static/battery-bar-1-icon.png';
 
         const infoText = m.code
           ? `<strong>${m.shortCode}/${m.code}</strong>`
           : `<strong>${m.desc}</strong>`;
-        const title = m.code ? `斷線 ${m.code}` : `${m.desc}`;
+        const title = m.code ? `電力異常 ${m.code}` : `${m.desc}`;
 
         ret.push({
           _id: id,
@@ -549,10 +552,12 @@ export default Vue.extend({
       const ret = await axios.get('/RealtimeSensor', {
         params: this.sensorStatusParam,
       });
+      this.updateTime = moment();
       this.sensorStatus = ret.data;
     },
     async getEpaStatus(): Promise<void> {
       const ret = await axios.get('/RealtimeEPA');
+      this.updateTime = moment();
       this.epaStatus = ret.data;
     },
     async getDisconnected(): Promise<void> {
@@ -564,6 +569,7 @@ export default Vue.extend({
       const ret = await axios.get('/RealtimeDisconnectedSensor', {
         params,
       });
+      this.updateTime = moment();
       this.disconnectedList = ret.data;
     },
     async getConstantValue(): Promise<void> {
@@ -575,6 +581,7 @@ export default Vue.extend({
       const ret = await axios.get('/RealtimeConstantValueSensor', {
         params,
       });
+      this.updateTime = moment();
       this.constantList = ret.data;
     },
     async getLt95List(): Promise<void> {
@@ -586,7 +593,7 @@ export default Vue.extend({
       const ret = await axios.get('/Lt95Sensor', {
         params,
       });
-
+      this.updateTime = moment();
       this.lt95List = ret.data;
     },
     async getPowerErrorList(): Promise<void> {
@@ -598,11 +605,13 @@ export default Vue.extend({
       const ret = await axios.get('/PowerUsageErrorSensor', {
         params,
       });
+      this.updateTime = moment();
       this.powerErrorList = ret.data;
     },
     async getTodaySummary(): Promise<void> {
       const res = await axios.get('/SensorSummary');
       const ret = res.data;
+      this.summaryUpdateTime = moment();
       this.sensorGroupSummary = ret;
     },
     handleErrorStatusChange(
@@ -667,7 +676,7 @@ export default Vue.extend({
     },
     markers(statusArray: Array<any>): Array<any> {
       const ret = [];
-      const epaUrl = (name: string, v: number): string => {
+      const epaUrl = (name: string, v: number, status: string): string => {
         let url = `https://chart.googleapis.com/chart?chst=d_map_spin&chld=1.5|0|`;
 
         if (v < 15.4) url += `009865`;
@@ -716,7 +725,7 @@ export default Vue.extend({
         pm25 = pm25Entry.value;
 
         const iconUrl = stat.tags.includes('EPA')
-          ? epaUrl(this.mMap.get(stat._id).desc, pm25)
+          ? epaUrl(this.mMap.get(stat._id).desc, pm25, pm25Entry.status)
           : getIconUrl(pm25);
 
         const infoText = stat.code

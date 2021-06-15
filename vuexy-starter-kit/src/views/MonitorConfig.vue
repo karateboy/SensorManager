@@ -2,12 +2,13 @@
   <div>
     <b-card title="測點管理" class="text-center">
       <div id="sensorFilter" class="mt-2">
-        <b-table-simple small>
+        <b-table-simple small fixed>
           <b-tr>
             <b-th>縣市</b-th>
             <b-th>區域劃分</b-th>
             <b-th>類型</b-th>
             <b-th>群組</b-th>
+            <b-th></b-th>
           </b-tr>
           <b-tbody>
             <b-tr>
@@ -40,12 +41,22 @@
                   :options="filteredMonitorGroupList"
                 />
               </b-td>
+              <b-td>
+                <b-button
+                  variant="gradient-success"
+                  class="mr-2"
+                  @click="exportExcel"
+                  >匯出</b-button
+                >
+                <b-button variant="gradient-success">匯入</b-button>
+              </b-td>
             </b-tr>
           </b-tbody>
         </b-table-simple>
       </div>
       <div>總共 {{ filteredMonitors.length }} 個測點</div>
       <b-table
+        fixed
         small
         responsive
         :fields="columns"
@@ -195,6 +206,8 @@ import {
   MonitorGroup,
 } from './types';
 import { MonitorState, Monitor } from '../store/monitors/types';
+const excel = require('../libs/excel');
+const _ = require('lodash');
 
 interface EditMonitor extends Monitor {
   dirty: undefined | boolean;
@@ -209,17 +222,17 @@ export default Vue.extend({
     const columns = [
       {
         key: 'enabled',
-        label: '',
+        label: '啟用狀態',
         class: 'text-center',
         sortable: true,
       },
       {
         key: '_id',
-        label: '代碼',
+        label: '設備碼',
       },
       {
         key: 'code',
-        label: '設備碼',
+        label: '代碼',
         sortable: true,
       },
       {
@@ -358,8 +371,7 @@ export default Vue.extend({
         })
         .filter(v => {
           if (this.sensorFilter.sensorType === '') return true;
-          else
-            return v.sensorDetail?.sensorType === this.sensorFilter.sensorType;
+          else return v.tags.indexOf(this.sensorFilter.sensorType) !== -1;
         });
     },
   },
@@ -416,6 +428,24 @@ export default Vue.extend({
     },
     getDistrictList(county: string) {
       return getDistrict(county);
+    },
+    exportExcel() {
+      const title = this.columns.map(e => e.label);
+      const key = this.columns.map(e => e.key);
+      for (let entry of this.filteredMonitors) {
+        let e = entry as any;
+        for (let k of key) {
+          e[k] = _.get(entry, k);
+        }
+      }
+      const params = {
+        title,
+        key,
+        data: this.filteredMonitors,
+        autoWidth: true,
+        filename: '感測器',
+      };
+      excel.export_array_to_excel(params);
     },
   },
 });

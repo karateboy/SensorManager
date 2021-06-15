@@ -45,6 +45,18 @@ class HomeController @Inject()(environment: play.api.Environment,
         })
   }
 
+  def getUserInfo() = Security.Authenticated {
+    implicit request=>
+      implicit val write = Json.writes[User]
+      val userInfoOpt = Security.getUserinfo(request)
+      val userInfo = userInfoOpt.get
+      val userOpt = userOp.getUserByEmail(userInfo.id)
+      if(userOpt.isEmpty)
+        Unauthorized("not loginned")
+      else
+        Ok(Json.toJson(userOpt.get))
+  }
+
   def deleteUser(email: String) = Security.Authenticated {
     implicit request =>
       val userInfoOpt = Security.getUserinfo(request)

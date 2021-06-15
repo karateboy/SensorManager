@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 export default {
   namespaced: true,
   state: {
@@ -11,6 +13,19 @@ export default {
     },
   },
   getters: {},
+  actions: {
+    async getUserInfo({ commit }) {
+      try {
+        const res = await axios.get('/User');
+        if (res.status === 200) {
+          commit('setUserInfo', res.data);
+          return res.data;
+        }
+      } catch (err) {
+        throw new Error(err);
+      }
+    },
+  },
   mutations: {
     setUserInfo(state, val) {
       state.userInfo._id = val._id;
@@ -20,5 +35,4 @@ export default {
       state.userInfo.monitorTypeOfInterest = val.monitorTypeOfInterest;
     },
   },
-  actions: {},
 };

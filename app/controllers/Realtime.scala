@@ -12,7 +12,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class Realtime @Inject()
 (monitorTypeOp: MonitorTypeOp, dataCollectManagerOp: DataCollectManagerOp,
  monitorStatusOp: MonitorStatusOp, recordOp: RecordOp, monitorOp: MonitorOp, sysConfig: SysConfig,
- mqttSensorOp: MqttSensorOp) extends Controller {
+ powerErrorReportOp: PowerErrorReportOp) extends Controller {
   val overTimeLimit = 6
 
   def MonitorTypeStatusList() = Security.Authenticated.async {
@@ -70,7 +70,6 @@ class Realtime @Inject()
     val f = recordOp.getLast10MinDisconnectSummary(recordOp.MinCollection)
     val start = DateTime.now
     for (ret <- f) yield {
-      Logger.debug(s"disconnect Summary took ${(DateTime.now.getMillis - start.getMillis) / 1000}ms")
       Ok(Json.toJson(ret))
     }
   }
@@ -131,10 +130,16 @@ class Realtime @Inject()
     }
 
   def getPowerUsageErrorSensor(county: String, district: String, sensorType: String) = Security.Authenticated.async {
-    for(sensorList <- mqttSensorOp.getPowerUsageErrorSensors()) yield {
-      val monitors: Seq[Monitor] =
-        for(sensor <- sensorList if monitorOp.map.contains(sensor.id)) yield
-          monitorOp.map(sensor.id)
+    val today = DateTime.now().withMillisOfDay(0).toDate
+    for (reports <- powerErrorReportOp.get(today)) yield {
+      val monitors: Seq[Monitor] = {
+        if (reports.isEmpty)
+          Seq.empty[Monitor]
+        else {
+          for (sensorID <- reports(0).powerErrorSensors if monitorOp.map.contains(sensorID)) yield
+            monitorOp.map(sensorID)
+        }
+      }
 
       val result: Seq[String] = monitors.filter(m =>
         m.tags.contains(MonitorTag.SENSOR)
@@ -153,12 +158,51 @@ class Realtime @Inject()
           true
         else
           m.tags.contains(sensorType)
-      })map {
+      }) map {
         _._id
       }
+
       Ok(Json.toJson(result))
     }
   }
+
+    def getNoErrorCodeSensors(county: String, district: String, sensorType: String) = Security.Authenticated.async {
+      val today = DateTime.now().withMillisOfDay(0).toDate
+      for(reports <- powerErrorReportOp.get(today)) yield {
+        val monitors: Seq[Monitor] = {
+          if(reports.isEmpty)
+            Seq.empty[Monitor]
+          else{
+            for(sensorID <- reports(0).noErrorCodeSensors if monitorOp.map.contains(sensorID)) yield
+              monitorOp.map(sensorID)
+          }
+        }
+
+        val result: Seq[String] = monitors.filter(m =>
+          m.tags.contains(MonitorTag.SENSOR)
+        ).filter(m => {
+          if (county == "")
+            true
+          else
+            m.county == Some(county)
+        }).filter(m => {
+          if (district == "")
+            true
+          else
+            m.district == Some(district)
+        }).filter(m => {
+          if (sensorType == "")
+            true
+          else
+            m.tags.contains(sensorType)
+        })map {
+          _._id
+        }
+
+        Ok(Json.toJson(result))
+      }
+  }
+
   def lessThan95sensor(county: String, district: String, sensorType: String) =
     Security.Authenticated.async {
       implicit request =>

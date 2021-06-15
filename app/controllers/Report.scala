@@ -492,7 +492,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
         })
     }
   }
-
+/*
   def outstandingReportJson(monitorGroupName: String, date: Long)= Security.Authenticated.async {
     val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
     val mt = MonitorType.PM25
@@ -508,5 +508,5 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
 
     }
   }
-
+*/
 }

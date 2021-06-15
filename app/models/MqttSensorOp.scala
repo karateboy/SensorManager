@@ -66,7 +66,7 @@ class MqttSensorOp @Inject()(mongoDB: MongoDB) {
   }
 
   def updatePowerUsageError(_id:String, powerUsageError:Boolean) = {
-    val f = collection.updateOne(Filters.equal("_id", _id), Updates.set("powerUsageError", powerUsageError)).toFuture()
+    val f = collection.updateOne(Filters.equal("id", _id), Updates.set("powerUsageError", powerUsageError)).toFuture()
     f onFailure(errorHandler())
     f
   }

@@ -79,7 +79,7 @@ import javax.inject._
 
 class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, system: ActorSystem,
                                recordOp: RecordOp, monitorOp: MonitorOp, dataCollectManager: DataCollectManager,
-                               mqttSensorOp: MqttSensorOp)
+                               mqttSensorOp: MqttSensorOp, powerErrorReportOp: PowerErrorReportOp)
                               (@Assisted id: String,
                                @Assisted protocolParam: ProtocolParam,
                                @Assisted config: MqttConfig2) extends Actor with MqttCallback {
@@ -260,6 +260,10 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
         }
 
         var powerUsageError = false
+        val today = DateTime.now().withMillisOfDay(0).toDate
+        if(message.attributes.isEmpty)
+          powerErrorReportOp.addNoErrorCodeSensor(today, message.id)
+
         //Check power usage
         for {attributeDefined <- message.attributes
              attr <- attributeDefined if attr.key == "errorcode"} {
@@ -271,6 +275,9 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
             } else {
               powerUsageError = ret.contains("4")
             }
+            if(powerUsageError)
+              powerErrorReportOp.addPowerErrorSensor(today, message.id)
+
             mqttSensorOp.updatePowerUsageError(message.id, powerUsageError)
           } catch {
             case ex: Throwable =>

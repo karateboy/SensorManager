@@ -20,7 +20,7 @@ import App from './App.vue';
 import { ValidationProvider } from 'vee-validate';
 const VueGoogleMap = require('gmap-vue');
 import vSelect from 'vue-select';
-
+import Cookies from 'js-cookie';
 // Global Components
 import './global-components';
 
@@ -121,8 +121,10 @@ require('vue-loading-overlay/dist/vue-loading.css');
 Vue.config.productionTip = false;
 
 router.beforeEach((to, from, next) => {
+  const login = Cookies.get('login');
+
   // FIXME
-  if (store.state.login || to.name === 'login') {
+  if (login || to.name === 'login') {
     next();
   } else {
     next({ name: 'login' });

@@ -16,7 +16,8 @@ POST     /login                                                                 
 GET      /login                                                                   controllers.Login.isLogin
 
 POST     /User                                                                    controllers.HomeController.newUser
-GET      /User                                                                    controllers.HomeController.getAllUsers
+GET      /User                                                                    controllers.HomeController.getUserInfo
+GET      /Users                                                                   controllers.HomeController.getAllUsers
 PUT      /User/:id                                                                controllers.HomeController.updateUser(id)
 DELETE   /User/:id                                                                controllers.HomeController.deleteUser(id)	
 
@@ -36,6 +37,7 @@ GET      /RealtimeDisconnectedSensor                                            
 GET      /RealtimeConstantValueSensor                                             controllers.Realtime.sensorConstant(county, district, sensorType)
 GET      /Lt95Sensor                                                              controllers.Realtime.lessThan95sensor(county, district, sensorType)
 GET      /PowerUsageErrorSensor                                                   controllers.Realtime.getPowerUsageErrorSensor(county, district, sensorType)
+GET      /NoPowerInfoSensor                                                       controllers.Realtime.getNoErrorCodeSensors(county, district, sensorType)
 GET      /SensorSummary                                                           controllers.Realtime.sensorSummary
 GET      /DisconnectSummary                                                       controllers.Realtime.disconnectSummary
 

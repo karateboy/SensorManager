@@ -161,7 +161,7 @@ export default Vue.extend({
         });
     },
     async getUserList() {
-      const res = await axios.get('/User');
+      const res = await axios.get('/Users');
       this.userList = res.data;
     },
     async getGroupList() {

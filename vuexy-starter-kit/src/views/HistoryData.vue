@@ -55,7 +55,7 @@
           </b-col>
           <b-col cols="12">
             <b-form-group
-              label="資料來源"
+              label="時間單位"
               label-for="dataType"
               label-cols-md="3"
             >

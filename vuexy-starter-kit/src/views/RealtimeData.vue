@@ -1,12 +1,13 @@
 <template>
-  <b-card title="異常感測器列表">
+  <b-card :title="`異常感測器列表 - 資料更新時間(${updateTime.format('lll')})`">
     <div id="sensorFilter" class="sensorFilter mt-2">
-      <b-table-simple small>
+      <b-table-simple small fixed>
         <b-tr>
           <b-th>縣市</b-th>
           <b-th>區域劃分</b-th>
           <b-th>類型</b-th>
           <b-th>異常狀態</b-th>
+          <b-th></b-th>
         </b-tr>
         <b-tbody>
           <b-tr>
@@ -39,6 +40,14 @@
                 :options="errorFilters"
                 multiple
             /></b-td>
+            <b-td class="text-center"
+              ><b-button
+                variant="gradient-success"
+                size="sm"
+                @click="exportExcel"
+                >匯出</b-button
+              ></b-td
+            >
           </b-tr>
         </b-tbody>
       </b-table-simple>
@@ -58,6 +67,10 @@ import {
   TxtStrValue,
 } from './types';
 import axios from 'axios';
+import moment from 'moment';
+const excel = require('../libs/excel');
+const _ = require('lodash');
+
 interface Sensor {
   _id: string;
   road: string;
@@ -70,6 +83,7 @@ export default Vue.extend({
     let disconnectedList = Array<Sensor>();
     let lt95List = Array<Sensor>();
     let powerErrorList = Array<string>();
+    let noPowerInfoList = Array<string>();
 
     const errorStatus = Array<string>('constant', 'disconnect');
     return {
@@ -100,8 +114,13 @@ export default Vue.extend({
           sortable: true,
         },
         {
-          key: 'location',
-          label: '經緯度',
+          key: 'location[0]',
+          label: '經度',
+          sortable: true,
+        },
+        {
+          key: 'location[1]',
+          label: '緯度',
           sortable: true,
         },
         {
@@ -116,16 +135,18 @@ export default Vue.extend({
       constantList,
       lt95List,
       powerErrorList,
+      noPowerInfoList,
       errorFilters,
       errorStatus,
       sensorStatusParam: {
         pm25Threshold: '',
-        county: '',
+        county: '基隆市',
         district: '',
         sensorType: '',
       },
       countyFilters,
       sensorTypes,
+      updateTime: moment(),
     };
   },
   computed: {
@@ -171,7 +192,7 @@ export default Vue.extend({
           ret.push(sensor);
         }
 
-      if (this.errorStatus.indexOf('powerError') !== -1)
+      if (this.errorStatus.indexOf('powerError') !== -1) {
         for (const id of this.powerErrorList) {
           const m = this.mMap.get(id);
           if (!m || !m.location) continue;
@@ -184,6 +205,22 @@ export default Vue.extend({
 
           ret.push(sensor);
         }
+      }
+
+      if (this.errorStatus.indexOf('noPowerInfo') !== -1) {
+        for (const id of this.noPowerInfoList) {
+          const m = this.mMap.get(id);
+          if (!m) continue;
+
+          let sensor = Object.assign({ status: '無電力資訊' }, m);
+          if (m.sensorDetail) {
+            sensor.locationDesc = m.sensorDetail.locationDesc;
+            sensor.road = m.sensorDetail.roadName;
+          }
+
+          ret.push(sensor);
+        }
+      }
 
       return ret;
     },
@@ -208,6 +245,9 @@ export default Vue.extend({
 
       this.getErrorSensors();
     },
+    errorStatus() {
+      this.getErrorSensors();
+    },
   },
   async mounted() {
     await this.fetchMonitors();
@@ -221,9 +261,21 @@ export default Vue.extend({
     ...mapMutations(['setLoading']),
     async getErrorSensors() {
       this.setLoading({ loading: true });
-      await this.getDisconnected();
-      await this.getConstantValue();
-      await this.getLt95List();
+
+      if (this.errorStatus.indexOf('disconnect') !== -1)
+        await this.getDisconnected();
+
+      if (this.errorStatus.indexOf('constant') !== -1)
+        await this.getConstantValue();
+
+      if (this.errorStatus.indexOf('lt95') !== -1) await this.getLt95List();
+
+      if (this.errorStatus.indexOf('powerError') !== -1)
+        await this.getPowerErrorList();
+
+      if (this.errorStatus.indexOf('noPowerInfo') !== -1)
+        await this.getNoPowerInfoList();
+
       this.setLoading({ loading: false });
     },
     async getDisconnected() {
@@ -235,6 +287,7 @@ export default Vue.extend({
       const ret = await axios.get('/RealtimeDisconnectedSensor', {
         params,
       });
+      this.updateTime = moment();
       this.disconnectedList = ret.data;
     },
     async getConstantValue() {
@@ -246,6 +299,7 @@ export default Vue.extend({
       const ret = await axios.get('/RealtimeConstantValueSensor', {
         params,
       });
+      this.updateTime = moment();
       this.constantList = ret.data;
     },
     async getLt95List() {
@@ -257,7 +311,7 @@ export default Vue.extend({
       const ret = await axios.get('/Lt95Sensor', {
         params,
       });
-
+      this.updateTime = moment();
       this.lt95List = ret.data;
     },
     async getPowerErrorList(): Promise<void> {
@@ -270,7 +324,40 @@ export default Vue.extend({
         params,
       });
 
+      this.updateTime = moment();
       this.powerErrorList = ret.data;
+    },
+    async getNoPowerInfoList(): Promise<void> {
+      const params = {
+        county: this.sensorStatusParam.county,
+        district: this.sensorStatusParam.district,
+        sensorType: this.sensorStatusParam.sensorType,
+      };
+      const ret = await axios.get('/NoPowerInfoSensor', {
+        params,
+      });
+
+      this.updateTime = moment();
+      console.log(ret.data);
+      this.noPowerInfoList = ret.data;
+    },
+    exportExcel() {
+      const title = this.fields.map(e => e.label);
+      const key = this.fields.map(e => e.key);
+      for (let entry of this.errorSensorList) {
+        let e = entry as any;
+        for (let k of key) {
+          e[k] = _.get(entry, k);
+        }
+      }
+      const params = {
+        title,
+        key,
+        data: this.errorSensorList,
+        autoWidth: true,
+        filename: '感測器異常列表',
+      };
+      excel.export_array_to_excel(params);
     },
   },
 });

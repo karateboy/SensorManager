@@ -70,21 +70,6 @@
           </b-col>
           <b-col cols="12">
             <b-form-group
-              label="狀態"
-              label-for="statusFilter"
-              label-cols-md="3"
-            >
-              <v-select
-                id="statusFilter"
-                v-model="form.statusFilter"
-                label="txt"
-                :reduce="dt => dt.id"
-                :options="statusFilters"
-              />
-            </b-form-group>
-          </b-col>
-          <b-col cols="12">
-            <b-form-group
               label="圖表類型"
               label-for="chartType"
               label-cols-md="3"
@@ -189,25 +174,9 @@ export default Vue.extend({
       },
     ];
     return {
-      statusFilters: [
-        { id: 'all', txt: '全部' },
-        { id: 'normal', txt: '正常量測值' },
-        { id: 'calbration', txt: '校正' },
-        { id: 'maintance', txt: '維修' },
-        { id: 'invalid', txt: '無效數據' },
-        { id: 'valid', txt: '有效數據' },
-      ],
       reportUnits: [
-        { txt: '秒', id: 'Sec' },
         { txt: '分', id: 'Min' },
-        { txt: '六分', id: 'SixMin' },
-        { txt: '十分', id: 'TenMin' },
-        { txt: '十五分', id: 'FifteenMin' },
         { txt: '小時', id: 'Hour' },
-        { txt: '天', id: 'Day' },
-        { txt: '月', id: 'Month' },
-        { txt: '季', id: 'Quarter' },
-        { txt: '年', id: 'Year' },
       ],
       reportUnit: 'Hour',
       display: false,

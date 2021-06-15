@@ -232,7 +232,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
                 Some(MtRecord(mt, mtValue, MonitorStatus.NormalStat))
               } catch {
                 case _ : Throwable=>
-                  None
+                  Some(MtRecord(mt, 0, MonitorStatus.InvalidDataStat))
               }
             }
 

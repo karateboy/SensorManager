@@ -128,7 +128,7 @@ class SensorMetaImporter @Inject()
               cell.getNumericCellValue.toString
           }
           val authority = row.getCell(10).getStringCellValue
-          val epaCode = row.getCell(11).getNumericCellValue.toString
+          val epaCode = row.getCell(11).getNumericCellValue.toLong.toString
           val target = row.getCell(12).getStringCellValue
           val targetDetail = row.getCell(13).getStringCellValue
           val height = row.getCell(14).getNumericCellValue

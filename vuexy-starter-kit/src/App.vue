@@ -24,8 +24,9 @@ import { mapState } from 'vuex';
 import { useWindowSize, useCssVar } from '@vueuse/core';
 const Loading = require('vue-loading-overlay');
 import 'vue-loading-overlay/dist/vue-loading.css';
-
+import Cookies from 'js-cookie';
 import store from '@/store';
+import { mapActions, mapMutations } from 'vuex';
 
 const LayoutVertical = () => import('@/layouts/vertical/LayoutVertical.vue');
 const LayoutHorizontal = () =>
@@ -74,6 +75,7 @@ export default Vue.extend({
   // Currently, router.currentRoute is not reactive and doesn't trigger any change
   computed: {
     ...mapState(['isLoading', 'loadingMessage']),
+    ...mapState('user', ['userInfo']),
     layout() {
       if (this.$route.meta.layout === 'full') return 'layout-full';
       return `layout-${this.contentLayoutType}`;
@@ -121,6 +123,26 @@ export default Vue.extend({
     // Set RTL
     const { isRTL } = $themeConfig.layout;
     document.documentElement.setAttribute('dir', isRTL ? 'rtl' : 'ltr');
+  },
+  async mounted() {
+    const login = Cookies.get('login');
+    if (login) {
+      this.setLogin(true);
+      const userInfo = await this.getUserInfo();
+      if (userInfo.isAdmin) {
+        this.$ability.update([
+          {
+            action: 'manage',
+            subject: 'all',
+          },
+        ]);
+      }
+    }
+  },
+  methods: {
+    ...mapMutations(['setLogin']),
+    ...mapMutations('user', ['setUserInfo']),
+    ...mapActions('user', ['getUserInfo']),
   },
 });
 </script>
