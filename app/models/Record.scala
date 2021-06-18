@@ -66,6 +66,20 @@ case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _i
       mtDataList map { data => data.mtName -> data }
     pairs.toMap
   }
+  def getMtOrdered(mt:String)= {
+    new Ordered[RecordList] {
+      override def compare(that: RecordList): Int = {
+        val a = mtMap(mt).value
+        val b = that.mtMap(mt).value
+        if(a < b)
+          -1
+        else if(a == b)
+          0
+        else
+          1
+      }
+    }
+  }
 }
 
 import javax.inject._
@@ -311,6 +325,20 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         mt -> list
       }
     Map(pairs: _*)
+  }
+
+  def getMonitorRecordListFuture(colName: String)
+                         (startTime: DateTime, endTime: DateTime, monitor: String): Future[Seq[RecordList]] = {
+    import org.mongodb.scala.model.Filters._
+    import org.mongodb.scala.model.Sorts._
+
+    val col = getCollection(colName)
+
+    val f = col.find(and(equal("monitor", monitor), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
+      .sort(ascending("time")).toFuture()
+
+    f onFailure (errorHandler)
+    f
   }
 
   def getRecordListFuture(colName: String)

@@ -37,6 +37,10 @@ export default [
         action: 'read',
         resource: 'Data',
       },
+      {
+        title: '電力異常查詢',
+        route: 'power-error-report',
+      },
     ],
   },
   {

@@ -15,6 +15,19 @@
             </b-form-group>
           </b-col>
         </b-row>
+        <b-form-group
+          label="測點群組"
+          label-for="monitorGroup"
+          label-cols-md="3"
+        >
+          <v-select
+            id="monitorGroup"
+            v-model="form.monitorGroupID"
+            label="_id"
+            :reduce="mg => mg._id"
+            :options="filteredMonitorGroupList"
+          />
+        </b-form-group>
         <b-row>
           <b-col cols="12">
             <b-form-group
@@ -35,6 +48,16 @@
         <b-row>
           <!-- submit and reset -->
           <b-col offset-md="3">
+            <b-button
+              v-ripple.400="'rgba(255, 255, 255, 0.15)'"
+              type="submit"
+              variant="primary"
+              class="mr-1"
+              @click="query"
+            >
+              查詢
+            </b-button>
+
             <b-button
               v-ripple.400="'rgba(255, 255, 255, 0.15)'"
               type="submit"
@@ -73,7 +96,7 @@ import moment from 'moment';
 import axios from 'axios';
 import highcharts from 'highcharts';
 import { mapState, mapActions, mapMutations } from 'vuex';
-import { MonitorGroup } from './types';
+import { MonitorGroup, Quartile, QuartileReport } from './types';
 
 const Ripple = require('vue-ripple-directive');
 
@@ -105,6 +128,7 @@ export default Vue.extend({
       form: {
         date,
         county: '基隆市',
+        monitorGroupID: '',
       },
       display: false,
       monitorGroupList,
@@ -135,6 +159,9 @@ export default Vue.extend({
       }
     },
   },
+  async mounted() {
+    await this.getMonitorGroups();
+  },
   methods: {
     ...mapMutations(['setLoading']),
     async download() {
@@ -146,12 +173,94 @@ export default Vue.extend({
     async query() {
       this.setLoading({ loading: true });
       this.display = true;
-      const url = `/JSON/OutstandingReport/${this.form.county}/${this.form.date}`;
+      const url = `/OutstandingReport/JSON/${this.form.monitorGroupID}/${this.form.date}`;
       const res = await axios.get(url);
-      const ret = res.data;
+      const ret: Array<QuartileReport> = res.data;
 
+      const categories = ret.map(qr => {
+        return qr.name.slice(-4);
+      });
+      const data = ret.map(qr => {
+        const q = qr.quartile;
+        return [
+          q.min,
+          q.q1,
+          q.q2,
+          q.q3,
+          q.max,
+        ] as highcharts.XrangePointOptionsObject;
+      });
+
+      let sum = 0;
+      ret.forEach(qr => {
+        sum += qr.quartile.q2;
+      });
+      const avg = sum / ret.length;
       this.setLoading({ loading: false });
-      highcharts.chart('chart_container', ret);
+
+      const series: Array<highcharts.SeriesBoxplotOptions> = [
+        {
+          type: 'boxplot',
+          name: '感測器',
+          data,
+          fillColor: {
+            linearGradient: { x1: 0, x2: 0, y1: 0, y2: 1 },
+            stops: [
+              [0, '#003399'], // start
+              [0.5, '#ffffff'], // middle
+              [1, '#3366AA'], // end
+            ],
+          },
+          tooltip: {
+            headerFormat: '<em>感測器 {point.key}</em><br/>',
+            pointFormat:
+              '<span style="color:{point.color}">●</span> <b> {series.name}</b><br/>最大值: {point.high}<br/>第三四分位: {point.q3}<br/>中位數: {point.median}<br/>第一四分位: {point.q1}<br/>最小值: {point.low}<br/>',
+          },
+        },
+      ];
+
+      let chartOption: highcharts.Options = {
+        chart: {
+          type: 'boxplot',
+        },
+        title: {
+          text: `${this.form.monitorGroupID} 離群分析報表`,
+        },
+        legend: {
+          enabled: false,
+        },
+        xAxis: {
+          categories,
+          title: {
+            text: '代碼',
+          },
+        },
+        yAxis: {
+          title: {
+            text: 'PM2.5測值',
+          },
+          plotLines: [
+            {
+              value: avg,
+              color: 'red',
+              width: 1,
+              label: {
+                text: '中位數平均',
+                align: 'right',
+                style: {
+                  color: 'red',
+                },
+              },
+            },
+          ],
+        },
+        credits: {
+          enabled: false,
+          href: 'http://www.wecc.com.tw/',
+        },
+        series,
+      };
+      highcharts.chart('chart_container', chartOption);
     },
     async getMonitorGroups() {
       const ret = await axios.get('/MonitorGroups');

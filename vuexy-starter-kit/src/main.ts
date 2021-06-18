@@ -9,6 +9,7 @@ import VueCompositionAPI from '@vue/composition-api';
 import axios from 'axios';
 import moment from 'moment';
 import Highcharts from 'highcharts';
+import highchartMore from 'highcharts/highcharts-more';
 import ex from 'highcharts/modules/exporting';
 import csv from 'highcharts/modules/export-data';
 import offlineExport from 'highcharts/modules/offline-exporting';
@@ -36,6 +37,7 @@ axios.defaults.withCredentials = true;
 // Setup moment
 moment.locale('zh_tw');
 
+highchartMore(Highcharts);
 ex(Highcharts);
 csv(Highcharts);
 offlineExport(Highcharts);

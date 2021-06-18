@@ -277,6 +277,8 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
             }
             if(powerUsageError)
               powerErrorReportOp.addPowerErrorSensor(today, message.id)
+            else
+              powerErrorReportOp.removePowerErrorSensor(today, message.id)
 
             mqttSensorOp.updatePowerUsageError(message.id, powerUsageError)
           } catch {

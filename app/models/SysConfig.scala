@@ -17,9 +17,8 @@ object SysConfig {
   val valueKey = "value"
   val MonitorTypeVer = "Version"
   val EpaLastDataTime = "EpaLastDateTime"
-  val SensorMetaFilename = "SensorMetaFilename"
+  val SensorMeta = "sensorMeta"
   val SensorGPS = "SensorGPS"
-
 }
 @Singleton
 class SysConfig @Inject()(mongoDB: MongoDB){
@@ -30,7 +29,7 @@ class SysConfig @Inject()(mongoDB: MongoDB){
   val defaultConfig:Map[String, Document] = Map(
     MonitorTypeVer -> Document(valueKey -> 1),
     EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate),
-    SensorMetaFilename -> Document(valueKey -> Seq.empty[String]),
+    SensorMeta -> Document(valueKey -> Seq.empty[String]),
     SensorGPS-> Document(valueKey->false)
   )
 
@@ -89,7 +88,7 @@ class SysConfig @Inject()(mongoDB: MongoDB){
 
   def setEpaLastDataTime(time:Date) = set(EpaLastDataTime, time)
 
-  def getImportedSensorMetaFilename = for(v<-get(SensorMetaFilename)) yield {
+  def getImportedSensorMetaFilename = for(v<-get(SensorMeta)) yield {
     val array = v.asArray().getValues
     val result = array map {
       v => v.asString().getValue
@@ -97,5 +96,5 @@ class SysConfig @Inject()(mongoDB: MongoDB){
     result.toList
   }
 
-  def setImportedSensorMetaFilename(filenames: Seq[String]) = set(SensorMetaFilename, filenames)
+  def setImportedSensorMetaFilename(filenames: Seq[String]) = set(SensorMeta, filenames)
 }

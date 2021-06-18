@@ -57,8 +57,26 @@ class PowerErrorReportOp @Inject()(mongoDB: MongoDB) {
     f
   }
 
+  def removeNoErrorCodeSensor(date: Date, sensorID: String) = {
+    val updates = Updates.combine(Updates.pull("noErrorCodeSensors", sensorID),
+      Updates.setOnInsert("powerErrorSensors", Seq.empty[String]))
+    val f = collection.updateOne(Filters.equal("_id", date), updates,
+      UpdateOptions().upsert(true)).toFuture()
+    f.onFailure(errorHandler())
+    f
+  }
+
   def addPowerErrorSensor(date: Date, sensorID: String) = {
     val updates = Updates.combine(Updates.addToSet("powerErrorSensors", sensorID),
+      Updates.setOnInsert("noErrorCodeSensors", Seq.empty[String]))
+    val f = collection.updateOne(Filters.equal("_id", date), updates,
+      UpdateOptions().upsert(true)).toFuture()
+    f.onFailure(errorHandler())
+    f
+  }
+
+  def removePowerErrorSensor(date: Date, sensorID: String) = {
+    val updates = Updates.combine(Updates.pull("powerErrorSensors", sensorID),
       Updates.setOnInsert("noErrorCodeSensors", Seq.empty[String]))
     val f = collection.updateOne(Filters.equal("_id", date), updates,
       UpdateOptions().upsert(true)).toFuture()

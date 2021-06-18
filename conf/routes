@@ -4,7 +4,7 @@
 
 # Home page
 GET      /                                                                     controllers.Assets.at(path="/public/dist", file="index.html")
-
+GET      /dist/                                                                 controllers.Assets.at(path="/public/dist", file="index.html")
 # Map static resources from the /public folder to the /assets URL path
 GET      /static/*file                                                         controllers.Assets.versioned(path="/public/static", file: Asset)
 GET      /html/*file                                                           controllers.Assets.at(path="/public/html", file)
@@ -44,6 +44,7 @@ GET      /DisconnectSummary                                                     
 GET      /CalibrationReport/:start/:end                                           controllers.Query.calibrationReport(start:Long, end:Long)
 
 GET      /AlarmReport/:level/:start/:end                                          controllers.Query.alarmReport(level:Int, start:Long, end:Long)
+GET      /PowerErrorReport/:date                                                  controllers.Query.powerErrorReport(date:Long)
 
 POST     /SaveMonitorTypeConfig                                                   controllers.HomeController.saveMonitorTypeConfig
 
@@ -92,6 +93,7 @@ GET      /MonthlyHourReport/:monitorType/:reportDate                            
 
 GET      /DecayReport/:county/:reportDate                                         controllers.Report.decayReport(county, reportDate:Long)
 GET      /OutstandingReport/:county/:reportDate                                   controllers.Report.outstandingReport(county, reportDate:Long)
+GET      /OutstandingReport/JSON/:monitorGroup/:reportDate                        controllers.Report.outstandingReportJson(monitorGroup, reportDate:Long)
 
 GET      /SystemConfig/:key                                                       controllers.HomeController.getSystemConfig(key)
 POST     /SystemConfig/:key                                                       controllers.HomeController.setSystemConfig(key)

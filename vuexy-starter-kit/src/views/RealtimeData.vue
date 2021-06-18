@@ -338,7 +338,6 @@ export default Vue.extend({
       });
 
       this.updateTime = moment();
-      console.log(ret.data);
       this.noPowerInfoList = ret.data;
     },
     exportExcel() {

@@ -426,31 +426,6 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     }
   }
 
-  def getMonitorGroupListRecordMap(mt: String, mgList: Seq[MonitorGroup], reportDate: DateTime) = {
-    val listF =
-      for (mg <- mgList) yield
-        getMonitorGroupRecordMap(mt, mg, reportDate)
-    Future.sequence(listF)
-  }
-
-  def getMonitorGroupRecordMap(mt: String, monitorGroup: MonitorGroup, start: DateTime) = {
-    val resultFuture = recordOp.getRecordListFuture(recordOp.HourCollection)(start, start + 1.month, monitorGroup.member)
-    for (recordList <- resultFuture) yield {
-      import scala.collection.mutable.Map
-      val timeMtMonitorMap = Map.empty[DateTime, Map[String, Double]]
-      recordList map {
-        r =>
-          val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
-          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Double])
-          if (r.mtMap.contains(mt)) {
-            val mtRecord = r.mtMap(mt)
-            monitorMap.update(r.monitor, mtRecord.value)
-          }
-      }
-      (monitorGroup, timeMtMonitorMap, start)
-    }
-  }
-
   def getMonitorGroupRecordList(mt: String, monitorGroup: MonitorGroup, start: DateTime) = {
     val resultFuture = recordOp.getRecordListFuture(recordOp.HourCollection)(start, start + 1.month, monitorGroup.member)
     for (recordList <- resultFuture) yield {
@@ -492,21 +467,67 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
         })
     }
   }
-/*
-  def outstandingReportJson(monitorGroupName: String, date: Long)= Security.Authenticated.async {
+
+  def getMonitorGroupListRecordMap(mt: String, mgList: Seq[MonitorGroup], reportDate: DateTime) = {
+    val listF =
+      for (mg <- mgList) yield
+        getMonitorGroupRecordMap(mt, mg, reportDate)
+    Future.sequence(listF)
+  }
+
+  def getMonitorGroupRecordMap(mt: String, monitorGroup: MonitorGroup, start: DateTime) = {
+    val resultFuture = recordOp.getRecordListFuture(recordOp.HourCollection)(start, start + 1.month, monitorGroup.member)
+    for (recordList <- resultFuture) yield {
+      import scala.collection.mutable.Map
+      val timeMtMonitorMap = Map.empty[DateTime, Map[String, Double]]
+      recordList map {
+        r =>
+          val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
+          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Double])
+          if (r.mtMap.contains(mt)) {
+            val mtRecord = r.mtMap(mt)
+            monitorMap.update(r.monitor, mtRecord.value)
+          }
+      }
+      (monitorGroup, timeMtMonitorMap, start)
+    }
+  }
+
+  def outstandingReportJson(monitorGroupName: String, date: Long) = Security.Authenticated.async {
     val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
     val mt = MonitorType.PM25
 
-    val mgListFuture = monitorGroupOp.get(monitorGroupName)
+    val monitorGroupReportFF =
+      for (monitorGroup <- monitorGroupOp.get(monitorGroupName)) yield {
+        getMonitorGroupRecordListFuture(monitorGroup, reportDate) map {
+          ret => (monitorGroup, ret)
+        }
+      }
 
-
-    val monitorGroupReportFuture = mgListFuture map {
-      mg => getMonitorGroupRecordMap(mt, mg, reportDate)
-    } flatMap (x => x)
-
-    for (monitorGroupReport <- monitorGroupReportFuture) yield {
-
+    val monitorGroupReportF = monitorGroupReportFF flatMap (x => x)
+    for ((monitorGroup, monitorGroupReport) <- monitorGroupReportF) yield {
+      val result: Seq[Option[QuartileReport]] =
+        for ((monitorRecords, monitor) <- monitorGroupReport.zip(monitorGroup.member)) yield {
+          val sorted = monitorRecords.map(rl => rl.mtMap.get(mt).map(_.value)).flatten.sorted
+          val size = sorted.size
+          if (size >= 4)
+            Some(QuartileReport(monitor, (Quartile(sorted(0), sorted(size / 4), sorted(size / 2), sorted(size * 3 / 4), sorted.last))))
+          else
+            None
+        }
+      val ret = result.flatten
+      implicit val w1 = Json.writes[Quartile]
+      implicit val write = Json.writes[QuartileReport]
+      Ok(Json.toJson(ret))
     }
   }
-*/
+
+  def getMonitorGroupRecordListFuture(monitorGroup: MonitorGroup, reportDate: DateTime) = {
+    val listF =
+      for (monitor <- monitorGroup.member) yield {
+        recordOp.getMonitorRecordListFuture(recordOp.HourCollection)(reportDate, reportDate + 1.month, monitor)
+      }
+    Future.sequence(listF)
+  }
+
 }

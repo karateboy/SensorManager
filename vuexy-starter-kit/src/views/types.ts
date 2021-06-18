@@ -183,3 +183,16 @@ export interface MonitorGroup {
   _id: string;
   member: Array<string>;
 }
+
+export interface Quartile {
+  min: number;
+  q1: number;
+  q2: number;
+  q3: number;
+  max: number;
+}
+
+export interface QuartileReport {
+  name: string;
+  quartile: Quartile;
+}

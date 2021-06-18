@@ -158,8 +158,8 @@ export default Vue.extend({
       for (const row of report.hourRows) {
         row.time =
           this.form.reportType === 'daily'
-            ? moment(row.time).format('HH:mm')
-            : moment(row.time).format('MM/DD');
+            ? moment(row.date).format('HH:mm')
+            : moment(row.date).format('MM/DD');
       }
       this.rows = report.hourRows;
       this.statRows = report.statRows;
