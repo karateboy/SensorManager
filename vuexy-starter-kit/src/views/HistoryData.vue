@@ -146,6 +146,14 @@
     </b-card>
   </div>
 </template>
+<style lang="scss">
+$namespace: 'xmx'; // change the 'mx' to 'xmx'. then <date-picker prefix-class="xmx" />
+
+$default-color: #555;
+$primary-color: #1284e7;
+
+@import '~vue2-datepicker/scss/index.scss';
+</style>
 <script lang="ts">
 import Vue from 'vue';
 import DatePicker from 'vue2-datepicker';

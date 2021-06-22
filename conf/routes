@@ -93,7 +93,7 @@ GET      /MonthlyHourReport/:monitorType/:reportDate                            
 
 GET      /DecayReport/:county/:reportDate                                         controllers.Report.decayReport(county, reportDate:Long)
 GET      /OutstandingReport/:county/:reportDate                                   controllers.Report.outstandingReport(county, reportDate:Long)
-GET      /OutstandingReport/JSON/:monitorGroup/:reportDate                        controllers.Report.outstandingReportJson(monitorGroup, reportDate:Long)
+GET      /OutstandingReport/JSON/:monitorGroup/:reportDate                        controllers.Report.outstandingReportJson2(monitorGroup, reportDate:Long)
 
 GET      /SystemConfig/:key                                                       controllers.HomeController.getSystemConfig(key)
 POST     /SystemConfig/:key                                                       controllers.HomeController.setSystemConfig(key)

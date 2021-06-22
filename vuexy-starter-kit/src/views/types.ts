@@ -195,4 +195,5 @@ export interface Quartile {
 export interface QuartileReport {
   name: string;
   quartile: Quartile;
+  away?: boolean;
 }

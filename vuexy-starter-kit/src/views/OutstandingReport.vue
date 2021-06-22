@@ -177,8 +177,20 @@ export default Vue.extend({
       const res = await axios.get(url);
       const ret: Array<QuartileReport> = res.data;
 
+      const avgQr = ret[0];
+      const avg = avgQr.quartile.q2;
+
+      for (let i = 1; i < ret.length; i++) {
+        const qr = ret[i];
+        const mean = qr.quartile.q2;
+        if (mean <= avgQr.quartile.q3 && mean >= avgQr.quartile.q1)
+          ret[i].away = false;
+        else ret[i].away = true;
+      }
+
       const categories = ret.map(qr => {
-        return qr.name.slice(-4);
+        if (qr.away == true) return `${qr.name.slice(-4)}(離群)`;
+        else return `${qr.name.slice(-4)}`;
       });
       const data = ret.map(qr => {
         const q = qr.quartile;
@@ -191,11 +203,6 @@ export default Vue.extend({
         ] as highcharts.XrangePointOptionsObject;
       });
 
-      let sum = 0;
-      ret.forEach(qr => {
-        sum += qr.quartile.q2;
-      });
-      const avg = sum / ret.length;
       this.setLoading({ loading: false });
 
       const series: Array<highcharts.SeriesBoxplotOptions> = [
@@ -251,6 +258,7 @@ export default Vue.extend({
                   color: 'red',
                 },
               },
+              zIndex: 100,
             },
           ],
         },

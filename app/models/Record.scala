@@ -34,7 +34,8 @@ case class GroupSummary(name: String, totalCount: CountByCounty,
                         count: CountByCounty,
                         lessThanExpected: CountByCounty,
                         constant: CountByCounty,
-                        disconnected: CountByCounty)
+                        disconnected: CountByCounty,
+                        powerError: CountByCounty)
 
 case class DisconnectSummary(name: String, kl: Int, pt: Int, yl: Int, rest: Int)
 
@@ -85,7 +86,7 @@ case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _i
 import javax.inject._
 
 @Singleton
-class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp, sensorOp: MqttSensorOp) {
+class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp, powerErrorReportOp: PowerErrorReportOp) {
 
   import org.mongodb.scala.model._
   import play.api.libs.json._
@@ -634,6 +635,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   def getLastestSensorSummary(colName: String) = {
 
     val now = DateTime.now
+    val today = DateTime.now().withMillisOfDay(0).toDate
     val todayFilter = Aggregates.filter(Filters.and(Filters.gte("time", now.minusDays(1).toDate),
       Filters.lt("time", now.toDate)))
 
@@ -642,9 +644,11 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val f1 = col.aggregate(Seq(todayFilter, groupByMonitorCount)).toFuture()
     val f2 = getLast10MinDisconnected(colName)
     val f3 = getLast10MinConstantSensor(colName)
+    val f4 = powerErrorReportOp.get(today)
     for {docList <- f1
          disconnectedMonitors <- f2
          constantMonitors <- f3
+         powerErrorReport <- f4
          } yield {
       var receivedCountMap = Map.empty[String, Seq[(String, Int)]]
       docList foreach { doc =>
@@ -720,7 +724,20 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
             getCountyByCountyByMonitorIDs(monitorIDs.toSet)
           }
 
-          GroupSummary(group, groupMonitorCount, receivedCount, lessThanExpectedCount, constant, disconnected)
+
+          val powerError = {
+            val powerErrorMonitorID: Seq[String] = {
+              if (powerErrorReport.isEmpty)
+                Seq.empty[String]
+              else {
+                for (sensorID <- powerErrorReport(0).powerErrorSensors if monitorOp.map.contains(sensorID)) yield
+                  monitorOp.map(sensorID)._id
+              }
+            }
+            getCountyByCountyByMonitorIDs(powerErrorMonitorID.toSet)
+          }
+
+          GroupSummary(group, groupMonitorCount, receivedCount, lessThanExpectedCount, constant, disconnected, powerError)
         }
       groupSummaryList
     }

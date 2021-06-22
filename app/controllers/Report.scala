@@ -1,5 +1,6 @@
 package controllers
 
+import com.github.nscala_time.time.Imports
 import com.github.nscala_time.time.Imports._
 import models.ModelHelper._
 import models._
@@ -8,6 +9,7 @@ import play.api.mvc._
 
 import java.nio.file.Files
 import javax.inject._
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.postfixOps
@@ -521,6 +523,56 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
       Ok(Json.toJson(ret))
     }
   }
+
+  def outstandingReportJson2(monitorGroupName: String, date: Long) = Security.Authenticated.async {
+    val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
+    val mt = MonitorType.PM25
+
+    val monitorGroupReportFuture = monitorGroupOp.get(monitorGroupName).map(mg => getMonitorGroupRecordMap(mt, mg, reportDate)) flatMap (x => x)
+    val timeSeq = getPeriods(reportDate, reportDate + 1.month, 1.hour)
+
+
+      for ((mg, recordMap, _) <- monitorGroupReportFuture) yield {
+        var sensorRecordMap: Map[String, Seq[Option[Double]]] = Map.empty[String, Seq[Option[Double]]]
+        val groupAvgOpt: Seq[Option[Double]] = {
+          for (time <- timeSeq) yield {
+            for(m <- mg.member){
+              val memberSeq = sensorRecordMap.getOrElse(m, Seq.empty[Option[Double]])
+              val v = recordMap(time).get(m)
+              val updated: Seq[Option[Double]] = memberSeq:+(v)
+              sensorRecordMap = sensorRecordMap + (m ->updated)
+            }
+
+            val ret = mg.member.map(recordMap(time).get).flatten
+            if (ret.isEmpty)
+              None
+            else
+              Some(ret.sum / ret.size)
+          }
+        }
+        var monitorRecordList:Seq[(String, Seq[Double])] = Seq.empty[(String, Seq[Double])]
+        monitorRecordList = monitorRecordList.:+((monitorGroupName, groupAvgOpt.flatten.sorted))
+        for(m <- mg.member){
+          monitorRecordList = monitorRecordList.:+((m, sensorRecordMap(m).flatten.sorted))
+        }
+        val result: Seq[Option[QuartileReport]] =
+          for((monitor, sorted) <- monitorRecordList) yield {
+            val size = sorted.size
+            if (size >= 4) {
+              val q3 = sorted(size * 3 / 4)
+              val q1 = sorted(size / 4)
+              val delta = (q3 - q1)/2
+              Some(QuartileReport(monitor, (Quartile(q1 - 1.5*delta, sorted(size / 4), sorted(size / 2), sorted(size * 3 / 4), q3 + 1.5*delta))))
+            } else
+              None
+          }
+        val ret = result.flatten
+        implicit val w1 = Json.writes[Quartile]
+        implicit val write = Json.writes[QuartileReport]
+        Ok(Json.toJson(ret))
+      }
+  }
+
 
   def getMonitorGroupRecordListFuture(monitorGroup: MonitorGroup, reportDate: DateTime) = {
     val listF =

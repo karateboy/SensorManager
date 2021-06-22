@@ -5,6 +5,29 @@ import {
   ToastPlugin,
   ModalPlugin,
 } from 'bootstrap-vue';
+import { library } from '@fortawesome/fontawesome-svg-core';
+import {
+  faLayerGroup,
+  faCompass,
+  faAngleDown,
+  faAngleRight,
+  faSearch,
+  faSearchPlus,
+  faDownload,
+  faSquare,
+  faCheckSquare,
+  faFileExcel,
+  faHome,
+  faAddressCard,
+  faUserCog,
+  faTasks,
+  faWindowClose,
+  faBell,
+  faBars,
+  faUndo,
+} from '@fortawesome/free-solid-svg-icons';
+import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
+
 import VueCompositionAPI from '@vue/composition-api';
 import axios from 'axios';
 import moment from 'moment';
@@ -97,8 +120,30 @@ Highcharts.setOptions({
   },
 });
 
-Vue.component('VSelect', vSelect);
+library.add(
+  faLayerGroup,
+  faCompass,
+  faAngleDown,
+  faAngleRight,
+  faSearch,
+  faSearchPlus,
+  faDownload,
+  faSquare,
+  faCheckSquare,
+  faFileExcel,
+  faHome,
+  faAddressCard,
+  faUserCog,
+  faTasks,
+  faWindowClose,
+  faBell,
+  faBars,
+  faUndo,
+);
 
+// eslint-disable-next-line vue/component-definition-name-casing
+Vue.component('font-awesome-icon', FontAwesomeIcon);
+Vue.component('VSelect', vSelect);
 Vue.component('ValidationProvider', ValidationProvider);
 
 // BSV Plugin Registration

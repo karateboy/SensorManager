@@ -50,9 +50,12 @@
                   variant="gradient-success"
                   class="mr-2"
                   @click="exportExcel"
-                  >匯出</b-button
                 >
-                <b-button variant="gradient-success">匯入</b-button>
+                  <b-img src="../assets/excel_export.svg" width="20" fluid />
+                </b-button>
+                <b-button variant="gradient-success">
+                  <b-img src="../assets/excel_import.svg" width="20" fluid
+                /></b-button>
               </b-td>
             </b-tr>
           </b-tbody>
@@ -159,7 +162,7 @@
             v-model.number="row.item.monitorGroup"
             :disabled="!sensorFilter.monitorGroup"
             @change="markDirty(row.item)"
-            >{{ row.item.monitorGroup._id }}</b-form-checkbox
+            >{{ showMonitorGroupID(row.item.monitorGroup) }}</b-form-checkbox
           >
         </template>
         <!-- <template #cell(monitorTypes)="row">
@@ -463,6 +466,10 @@ export default Vue.extend({
       const ret = await axios.get('/MonitorGroups');
       this.monitorGroupList = ret.data;
     },
+    showMonitorGroupID(mg: MonitorGroup) {
+      if (mg) return mg._id;
+      else return '';
+    },
     save() {
       const all = [];
       for (const m of this.filteredMonitors) {
@@ -497,12 +504,21 @@ export default Vue.extend({
           e[k] = _.get(entry, k);
         }
       }
+      let exportList = this.filteredMonitors.filter(m => {
+        if (m.monitorGroup !== undefined) return m.monitorGroup;
+        else return true;
+      });
+
+      let filename = this.sensorFilter.monitorGroup
+        ? `${this.sensorFilter.monitorGroup._id}感測器`
+        : '感測器';
+
       const params = {
         title,
         key,
-        data: this.filteredMonitors,
+        data: exportList,
         autoWidth: true,
-        filename: '感測器',
+        filename,
       };
       excel.export_array_to_excel(params);
     },

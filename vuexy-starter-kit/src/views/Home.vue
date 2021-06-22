@@ -29,21 +29,16 @@
               </b-thead>
               <b-tbody>
                 <b-tr>
-                  <b-td>設置數量</b-td>
-                  <b-td>{{ group.totalCount.kl }} </b-td>
-                  <b-td>{{ group.totalCount.yl }} </b-td>
-                  <b-td>{{ group.totalCount.pt }}</b-td>
-                  <b-td>{{ group.totalCount.rest }}</b-td>
+                  <b-td>接收/設置數量</b-td>
+                  <b-td>{{ `${group.count.kl}/${group.totalCount.kl}` }} </b-td>
+                  <b-td>{{ `${group.count.yl}/${group.totalCount.yl}` }} </b-td>
+                  <b-td>{{ `${group.count.pt}/${group.totalCount.pt}` }}</b-td>
+                  <b-td>{{
+                    `${group.count.rest}/${group.totalCount.rest}`
+                  }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>接收數量</b-td>
-                  <b-td>{{ group.count.kl }} </b-td>
-                  <b-td>{{ group.count.yl }} </b-td>
-                  <b-td>{{ group.count.pt }}</b-td>
-                  <b-td>{{ group.count.rest }}</b-td>
-                </b-tr>
-                <b-tr>
-                  <b-td>完整率&lt;90%</b-td>
+                  <b-td>完整率&lt;90% (前24小時)</b-td>
                   <b-td>{{ group.lessThanExpected.kl }} </b-td>
                   <b-td>{{ group.lessThanExpected.yl }} </b-td>
                   <b-td>{{ group.lessThanExpected.pt }}</b-td>
@@ -62,6 +57,13 @@
                   <b-td>{{ group.disconnected.yl }} </b-td>
                   <b-td>{{ group.disconnected.pt }}</b-td>
                   <b-td>{{ group.disconnected.rest }}</b-td>
+                </b-tr>
+                <b-tr>
+                  <b-td>電力異常(即時)</b-td>
+                  <b-td>{{ group.powerError.kl }} </b-td>
+                  <b-td>{{ group.powerError.yl }} </b-td>
+                  <b-td>{{ group.powerError.pt }}</b-td>
+                  <b-td>{{ group.powerError.rest }}</b-td>
                 </b-tr>
               </b-tbody>
             </b-table-simple>
@@ -92,26 +94,15 @@
           <b-img src="../assets/images/legend.png" fluid />
         </div> -->
         <div class="map_container">
-          <div id="mapFilter" class="sensorFilter mt-2 ml-2 rounded">
-            <b-table-simple small>
-              <b-tr>
-                <b-th>圖層選擇</b-th>
-              </b-tr>
-              <b-tbody>
-                <b-tr>
-                  <b-td>
-                    <b-check-group
-                      v-model="mapLayer"
-                      stacked
-                      text-field="txt"
-                      value-field="value"
-                      :options="mapLayerTypes"
-                    >
-                    </b-check-group>
-                  </b-td>
-                </b-tr>
-              </b-tbody>
-            </b-table-simple>
+          <div id="mapFilter" class="mt-2 ml-2">
+            <b-check-group
+              v-model="mapLayer"
+              stacked
+              text-field="txt"
+              value-field="value"
+              :options="mapLayerTypes"
+            >
+            </b-check-group>
           </div>
           <div id="sensorFilter" class="sensorFilter mt-2 rounded">
             <b-table-simple small>
@@ -182,57 +173,66 @@
           >
             <GmapMarker
               v-for="(m, index) in sensorMarkers"
-              :key="m._id"
+              :key="`sensor${index}`"
               :position="m.position"
               :clickable="true"
               :title="m.title"
+              :label="m.label"
               :icon="m.iconUrl"
+              :z-index="getZindex(0, index)"
               @click="toggleInfoWindow(m, index)"
             />
             <GmapMarker
               v-for="(m, index) in epaMarkers"
-              :key="m._id"
+              :key="`epa${index}`"
               :position="m.position"
               :clickable="true"
               :title="m.title"
-              :label="{ text: `${m.pm25}`, color: 'white' }"
+              :label="m.label"
               :icon="m.iconUrl"
+              :z-index="getZindex(2000, index)"
               @click="toggleInfoWindow(m, index)"
             />
             <GmapMarker
               v-for="(m, index) in constantMarkers"
-              :key="m._id"
+              :key="`constant${index}`"
               :position="m.position"
               :clickable="true"
               :title="m.title"
+              :label="m.label"
               :icon="m.iconUrl"
+              :z-index="getZindex(0, index)"
               @click="toggleInfoWindow(m, index)"
             />
             <GmapMarker
               v-for="(m, index) in disconnectedMarkers"
-              :key="m._id"
+              :key="`disconnect${index}`"
               :position="m.position"
               :clickable="true"
               :title="m.title"
               :icon="m.iconUrl"
+              :z-index="getZindex(0, index)"
               @click="toggleInfoWindow(m, index)"
             />
             <GmapMarker
               v-for="(m, index) in lt95Markers"
-              :key="m._id + 'lt95'"
+              :key="`lt${index}`"
               :position="m.position"
               :clickable="true"
               :title="m.title"
+              :label="m.label.text"
               :icon="m.iconUrl"
+              :z-index="getZindex(0, index)"
               @click="toggleInfoWindow(m, index)"
             />
             <GmapMarker
               v-for="(m, index) in powerErrorMarkers"
-              :key="m._id + 'powerError'"
+              :key="`power${index}`"
               :position="m.position"
               :clickable="true"
               :title="m.title"
               :icon="m.iconUrl"
+              :z-index="getZindex(0, index)"
               @click="toggleInfoWindow(m, index)"
             />
             <gmap-info-window
@@ -280,6 +280,7 @@ import {
   TxtStrValue,
   MtRecord,
 } from './types';
+import { Monitor } from '@/store/monitors/types';
 
 interface Location {
   lat: number;
@@ -379,7 +380,6 @@ export default Vue.extend({
         this.errorStatus.length !== 0
       )
         return [];
-
       return this.markers(this.sensorStatus);
     },
     epaMarkers(): Array<any> {
@@ -437,8 +437,7 @@ export default Vue.extend({
         const lng = m.location[0];
         const lat = m.location[1];
 
-        const iconUrl =
-          'https://chart.googleapis.com/chart?chst=d_map_pin_icon&chld=caution|FF0000';
+        const iconUrl = '/static/disconnect.svg';
 
         const infoText = m.code
           ? `<strong>${m.shortCode}/${m.code}</strong>`
@@ -677,36 +676,33 @@ export default Vue.extend({
         }
       });
     },
+    getZindex(start: number, index: number) {
+      return start + index;
+    },
     markers(statusArray: Array<any>): Array<any> {
       const ret = [];
       const epaUrl = (name: string, v: number, status: string): string => {
-        let url = `https://chart.googleapis.com/chart?chst=d_map_spin&chld=1.5|0|`;
+        let url = '';
+        if (v < 15.4) url = `/static/epa1.svg`;
+        else if (v < 35.4) url = `/static/epa2.svg`;
+        else if (v < 54.4) url = `/static/epa3.svg`;
+        else if (v < 150.4) url = `/static/epa44.svg`;
+        else if (v < 250.4) url = `/static/epa5.svg`;
+        else url = `/static/epa6.svg`;
 
-        if (v < 15.4) url += `009865`;
-        else if (v < 35.4) url += `FFFB26`;
-        else if (v < 54.4) url += `FF9835`;
-        else if (v < 150.4) url += `CA0034`;
-        else if (v < 250.4) url += `670099`;
-        else if (v < 350.4) url += `7E0123`;
-        else url += `7E0123`;
-
-        url += `|17|b|${v}`;
-
-        return '/static/iconfinder_34211_green_icon_64px.png';
+        return url;
       };
 
       const getIconUrl = (v: number) => {
-        let url =
-          'https://chart.googleapis.com/chart?chst=d_bubble_text_small_withshadow&&chld=bb|';
-
-        let valueStr = v.toFixed(this.mtMap.get('PM25').prec);
-        if (v < 15.4) url += `${valueStr}|009865|000000`;
-        else if (v < 35.4) url += `${valueStr}|FFFB26|000000`;
-        else if (v < 54.4) url += `${valueStr}|FF9835|000000`;
-        else if (v < 150.4) url += `${valueStr}|CA0034|000000`;
-        else if (v < 250.4) url += `${valueStr}|670099|000000`;
-        else if (v < 350.4) url += `${valueStr}|7E0123|000000`;
-        else url += `${valueStr}|7E0123|FFFFFF`;
+        let url = '';
+        if (v < 15.4) {
+          if (v < 10) url = `/static/sensor${1}.svg`;
+          else url = `/static/sensor${1}2.svg`;
+        } else if (v < 35.4) url = `/static/sensor${2}.svg`;
+        else if (v < 54.4) url = `/static/sensor${3}.svg`;
+        else if (v < 150.4) url = `/static/sensor${4}.svg`;
+        else if (v < 250.4) url = `/static/sensor${5}.svg`;
+        else url = `/static/sensor${6}.svg`;
 
         return url;
       };
@@ -726,10 +722,27 @@ export default Vue.extend({
 
         if (!pm25Entry) continue;
         pm25 = pm25Entry.value;
+        let txtPm25 = pm25.toFixed(this.mtMap.get('PM25').prec);
 
         const iconUrl = stat.tags.includes('EPA')
           ? epaUrl(this.mMap.get(stat._id).desc, pm25, pm25Entry.status)
           : getIconUrl(pm25);
+
+        const getLabelColor = (v: number) => {
+          if (stat.tags.includes('EPA')) return 'black';
+          else {
+            if (v < 15.4) return `white`;
+            else if (v < 35.4) return 'black';
+            else if (v < 54.4) return `white`;
+            else if (v < 150.4) return `white`;
+            else if (v < 250.4) return `white`;
+            else return `white`;
+          }
+        };
+        const label = {
+          text: txtPm25,
+          color: getLabelColor(pm25),
+        };
 
         const infoText = stat.code
           ? `<strong>${stat.shortCode}/${stat.code}</strong>`
@@ -741,14 +754,19 @@ export default Vue.extend({
         ret.push({
           _id,
           title,
-          position: { lat, lng },
           pm25,
+          position: { lat, lng },
+          label: Object.assign({}, label),
           infoText,
           iconUrl,
         });
       }
 
-      return ret;
+      return ret.sort((a, b) => {
+        if (a.pm25 < b.pm25) return -1;
+        else if (a.pm25 == b.pm25) return 0;
+        else return 1;
+      });
     },
   },
 });
