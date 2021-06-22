@@ -22,7 +22,7 @@ export default {
   actions: {
     async fetchMonitorTypes({ commit }) {
       try {
-        const res = await axios.get('/MonitorType');
+        const res = await axios.get('/MonitorTypes/active');
         const payload = res && res.data;
         commit('updateMonitorTypes', payload);
       } catch (err) {

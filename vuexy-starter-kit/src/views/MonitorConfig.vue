@@ -4,6 +4,7 @@
       <div id="sensorFilter" class="mt-2">
         <b-table-simple small fixed>
           <b-tr>
+            <b-th>設備碼</b-th>
             <b-th>縣市</b-th>
             <b-th>區域劃分</b-th>
             <b-th>類型</b-th>
@@ -12,6 +13,9 @@
           </b-tr>
           <b-tbody>
             <b-tr>
+              <b-td>
+                <b-form-input v-model="sensorFilter.code"></b-form-input>
+              </b-td>
               <b-td>
                 <b-form-select
                   v-model="sensorFilter.county"
@@ -67,6 +71,13 @@
         :per-page="perPage"
         :current-page="currentPage"
       >
+        <template #table-colgroup="scope">
+          <col
+            v-for="field in scope.fields"
+            :key="field.key"
+            :style="{ width: field.wider ? '180px' : '120px' }"
+          />
+        </template>
         <template #cell(desc)="row">
           <b-form-input v-model="row.item.desc" @change="markDirty(row.item)" />
         </template>
@@ -143,6 +154,14 @@
             @change="markDirty(row.item)"
           />
         </template>
+        <template #cell(monitorGroup)="row">
+          <b-form-checkbox
+            v-model.number="row.item.monitorGroup"
+            :disabled="!sensorFilter.monitorGroup"
+            @change="markDirty(row.item)"
+            >{{ row.item.monitorGroup._id }}</b-form-checkbox
+          >
+        </template>
         <!-- <template #cell(monitorTypes)="row">
           <v-select
             id="monitorType"
@@ -192,6 +211,9 @@
 .height_field {
   width: 10px;
 }
+.editable_field {
+  width: 120px;
+}
 </style>
 <script lang="ts">
 import Vue from 'vue';
@@ -211,6 +233,7 @@ const _ = require('lodash');
 
 interface EditMonitor extends Monitor {
   dirty: undefined | boolean;
+  monitorGroup: undefined | boolean;
 }
 
 export default Vue.extend({
@@ -227,8 +250,14 @@ export default Vue.extend({
         sortable: true,
       },
       {
+        key: 'monitorGroup',
+        label: '群組',
+        sortable: true,
+      },
+      {
         key: '_id',
         label: '設備碼',
+        wider: true,
       },
       {
         key: 'code',
@@ -246,9 +275,27 @@ export default Vue.extend({
         sortable: true,
       },
       {
+        key: 'location[0]',
+        label: '經度',
+        sortable: true,
+      },
+      {
+        key: 'location[1]',
+        label: '緯度',
+        sortable: true,
+      },
+      {
+        key: 'district',
+        label: '區域',
+        sortable: true,
+      },
+      {
         key: 'sensorDetail.sensorType',
         label: '感測器類型',
         sortable: true,
+        thStyle: {
+          editable_field: true,
+        },
       },
       {
         key: 'sensorDetail.roadName',
@@ -290,6 +337,7 @@ export default Vue.extend({
     let monitorGroup: MonitorGroup | undefined | null;
     return {
       sensorFilter: {
+        code: '',
         county: '',
         monitorGroup,
         district: '',
@@ -340,6 +388,13 @@ export default Vue.extend({
     filteredMonitors(): Array<EditMonitor> {
       let editMonitors = this.monitors as Array<EditMonitor>;
 
+      if (this.sensorFilter.monitorGroup instanceof Object) {
+        const mg = this.sensorFilter.monitorGroup as MonitorGroup;
+        editMonitors.forEach(m => {
+          m.monitorGroup = mg.member.indexOf(m._id) !== -1;
+        });
+      }
+
       editMonitors.filter(v => {
         if (!v.sensorDetail)
           v.sensorDetail = {
@@ -355,15 +410,19 @@ export default Vue.extend({
           };
       });
       return editMonitors
+        .filter(v => {
+          return v._id.includes(this.sensorFilter.code);
+        })
         .filter((v: Monitor) => {
           if (this.sensorFilter.county === '') return true;
           else return v.county === this.sensorFilter.county;
         })
         .filter(v => {
-          if (this.sensorFilter.monitorGroup instanceof Object) {
+          /* if (this.sensorFilter.monitorGroup instanceof Object) {
             let mg = this.sensorFilter.monitorGroup as MonitorGroup;
             return mg.member.indexOf(v._id) !== -1;
-          } else return true;
+          } else return true; */
+          return true;
         })
         .filter(v => {
           if (this.sensorFilter.district === '') return true;

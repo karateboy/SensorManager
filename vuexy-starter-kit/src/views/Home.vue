@@ -1,7 +1,10 @@
 <template>
   <b-row class="match-height">
     <b-col lg="12" md="12">
-      <b-card ref="loadingContainer">
+      <b-card
+        ref="loadingContainer"
+        :title="`更新時間: ${summaryUpdateTime.format('lll')}`"
+      >
         <b-row>
           <b-col><div id="chart_container1" /></b-col>
           <b-col><div id="chart_container2" /></b-col>
@@ -13,7 +16,7 @@
               <b-thead>
                 <b-tr
                   ><b-td class="text-center" colspan="5">{{
-                    `${group.name}即時資訊 ${summaryUpdateTime.format('lll')}`
+                    `${group.name}即時資訊`
                   }}</b-td></b-tr
                 >
                 <b-tr>

@@ -112,7 +112,7 @@ class SensorMetaImporter @Inject()
         finish = true
       else {
         try {
-          val monitorID = row.getCell(0).getStringCellValue
+          val monitorID = row.getCell(0).getStringCellValue.trim
           val shortCode = monitorID.reverse.take(4).reverse
           val code = row.getCell(2).getStringCellValue
           val enabled = row.getCell(3).getNumericCellValue != 0

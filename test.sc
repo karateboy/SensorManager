@@ -10,4 +10,5 @@ val pattern1 = "WECC/SAQ200/([0-9]+)/.*".r
 val pattern1(a) =  topic
 val d = "蘇澳鎮(SA)"
 val district1 = d.dropWhile(_ != '(').drop(1).takeWhile(_ != ')')
-
+val test = Some(Seq("asdf"))
+test.contains(Seq("asdf"))

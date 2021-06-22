@@ -102,6 +102,7 @@ POST    /ImportData/:fileType                                                   
 GET     /UploadProgress/:actorName                                                controllers.HomeController.getUploadProgress(actorName)
 #JSON
 GET      /MonitorType                                                             controllers.HomeController.monitorTypeList
+GET      /MonitorTypes/active                                                     controllers.HomeController.activeMonitorTypeList
 POST     /MonitorType/:id                                                         controllers.HomeController.upsertMonitorType(id)
 PUT      /MonitorType/:id                                                         controllers.HomeController.upsertMonitorType(id)
 GET      /SignalTypes                                                             controllers.HomeController.signalTypeList

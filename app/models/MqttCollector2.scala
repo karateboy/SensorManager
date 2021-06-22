@@ -28,7 +28,7 @@ object MqttCollector2 extends DriverOps {
   val timeout = 15 // mintues
 
   override def getMonitorTypes(param: String): List[String] = {
-    List("LAT", "LAT", "PM25")
+    List("PM25")
   }
 
   override def verifyParam(json: String): String = {
@@ -217,8 +217,13 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
     val mtMap = Map[String, String](
       "pm2_5" -> MonitorType.PM25,
       "pm10" -> MonitorType.PM10,
-      "humidity" -> "HUMID"
-    )
+      "humidity" -> MonitorType.HUMID,
+      "o3" -> MonitorType.O3,
+      "temperature"-> MonitorType.TEMP,
+      "voc"-> MonitorType.VOC,
+      "no2"-> MonitorType.NO2,
+      "h2s"-> MonitorType.H2S,
+      "nh3"-> MonitorType.NH3)
     val ret = Json.parse(payload).validate[Message]
     ret.fold(err => {
       Logger.error(payload)
@@ -241,8 +246,45 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
 
           }
 
-        val mtDataList: Seq[MtRecord] = mtData.flatten
+        var mtDataList: Seq[MtRecord] = mtData.flatten
         val time = DateTime.parse(message.time, DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
+
+        var powerUsageError = false
+        val today = DateTime.now().withMillisOfDay(0).toDate
+        if(message.attributes.isEmpty)
+          powerErrorReportOp.addNoErrorCodeSensor(today, message.id)
+
+        //Check power usage
+        for {attributeDefined <- message.attributes
+             attr <- attributeDefined if attr.key == "errorcode"} {
+          try {
+            val now = DateTime.now()
+            val ret = attr.value.validate[String].get
+            val useBattery = ret.contains("1")
+            if(ret.contains("1")||ret.contains("4")){
+              mtDataList =
+                if(useBattery)
+                  mtDataList.:+(MtRecord(MonitorType.BATTERY, 1, MonitorStatus.NormalStat))
+                else
+                  mtDataList.:+(MtRecord(MonitorType.BATTERY, 0, MonitorStatus.NormalStat))
+            }
+
+            if (now.getHourOfDay >= 20 || now.getHourOfDay < 7) { // nighttime
+              powerUsageError = useBattery
+            } else {
+              powerUsageError = !useBattery
+            }
+            if(powerUsageError)
+              powerErrorReportOp.addPowerErrorSensor(today, message.id)
+            else
+              powerErrorReportOp.removePowerErrorSensor(today, message.id)
+
+            mqttSensorOp.updatePowerUsageError(message.id, powerUsageError)
+          } catch {
+            case ex: Throwable =>
+              Logger.error("unable to handle errorcode", ex)
+          }
+        }
 
         def newRecord(monitor: String) = {
           val recordList = {
@@ -259,38 +301,15 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
           }
         }
 
-        var powerUsageError = false
-        val today = DateTime.now().withMillisOfDay(0).toDate
-        if(message.attributes.isEmpty)
-          powerErrorReportOp.addNoErrorCodeSensor(today, message.id)
+        val monitorTypeList = mtDataList map ( _.mtName)
+        for(mt <- monitorTypeList)
+          monitorTypeOp.ensureMeasuring(mt, id)
 
-        //Check power usage
-        for {attributeDefined <- message.attributes
-             attr <- attributeDefined if attr.key == "errorcode"} {
-          try {
-            val now = DateTime.now()
-            val ret = attr.value.validate[String].get
-            if (now.getHourOfDay >= 20 || now.getHourOfDay < 7) { // nighttime
-              powerUsageError = ret.contains("1")
-            } else {
-              powerUsageError = ret.contains("4")
-            }
-            if(powerUsageError)
-              powerErrorReportOp.addPowerErrorSensor(today, message.id)
-            else
-              powerErrorReportOp.removePowerErrorSensor(today, message.id)
-
-            mqttSensorOp.updatePowerUsageError(message.id, powerUsageError)
-          } catch {
-            case ex: Throwable =>
-              Logger.error("unable to handle errorcode", ex)
-          }
-        }
         if (sensorMap.contains(message.id)) {
           val sensor = sensorMap(message.id)
           newRecord(sensor.monitor)
         } else {
-          monitorOp.ensureMonitor(message.id, message.id, Seq("PM25", "PM10", "HUMID"), Seq(MonitorTag.SENSOR))
+          monitorOp.ensureMonitor(message.id, message.id, monitorTypeList, Seq(MonitorTag.SENSOR))
           val sensor = Sensor(id = message.id, topic = topic, monitor = message.id, group = config.group, powerUsageError = Some(powerUsageError))
           mqttSensorOp.newSensor(sensor).andThen({
             case Success(x) =>
