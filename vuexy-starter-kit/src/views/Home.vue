@@ -408,7 +408,7 @@ export default Vue.extend({
         const lng = m.location[0];
         const lat = m.location[1];
 
-        const iconUrl = '/static/battery-bar-1-icon.png';
+        const iconUrl = '/static/power.svg';
 
         const infoText = m.code
           ? `<strong>${m.shortCode}/${m.code}</strong>`

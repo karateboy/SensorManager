@@ -42,12 +42,15 @@
             /></b-td>
             <b-td class="text-center"
               ><b-button
-                variant="gradient-success"
+                variant="outline-success"
                 size="sm"
                 @click="exportExcel"
-                >匯出</b-button
-              ></b-td
-            >
+                ><b-img
+                  src="../assets/excel_export.svg"
+                  width="24"
+                  fluid
+                  @click="exportExcel" /></b-button
+            ></b-td>
           </b-tr>
         </b-tbody>
       </b-table-simple>

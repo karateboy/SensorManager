@@ -47,15 +47,17 @@
               </b-td>
               <b-td>
                 <b-button
-                  variant="gradient-success"
+                  variant="outline-primary"
                   class="mr-2"
                   @click="exportExcel"
                 >
-                  <b-img src="../assets/excel_export.svg" width="20" fluid />
+                  <b-img
+                    src="../assets/excel_export.svg"
+                    width="24"
+                    fluid
+                    @click="exportExcel"
+                  />
                 </b-button>
-                <b-button variant="gradient-success">
-                  <b-img src="../assets/excel_import.svg" width="20" fluid
-                /></b-button>
               </b-td>
             </b-tr>
           </b-tbody>

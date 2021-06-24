@@ -95,7 +95,7 @@ import 'vue2-datepicker/locale/zh-tw';
 import moment from 'moment';
 import axios from 'axios';
 import highcharts from 'highcharts';
-import { mapState, mapActions, mapMutations } from 'vuex';
+import { mapMutations } from 'vuex';
 import { MonitorGroup, Quartile, QuartileReport } from './types';
 
 const Ripple = require('vue-ripple-directive');
