@@ -43,6 +43,61 @@
       </b-form>
     </b-card>
     <b-card v-show="display">
+      <div id="sensorFilter" class="sensorFilter mt-2">
+        <b-table-simple small fixed>
+          <b-tr>
+            <b-th>縣市</b-th>
+            <b-th>區域劃分</b-th>
+            <b-th>類型</b-th>
+            <b-th>異常狀態</b-th>
+            <b-th></b-th>
+          </b-tr>
+          <b-tbody>
+            <b-tr>
+              <b-td
+                ><v-select
+                  v-model="sensorStatusParam.county"
+                  label="txt"
+                  :reduce="entry => entry.value"
+                  :options="countyFilters"
+              /></b-td>
+              <b-td
+                ><v-select
+                  v-model="sensorStatusParam.district"
+                  label="txt"
+                  :reduce="entry => entry.value"
+                  :options="districtFilters"
+              /></b-td>
+              <b-td
+                ><v-select
+                  v-model="sensorStatusParam.sensorType"
+                  label="txt"
+                  :reduce="entry => entry.value"
+                  :options="sensorTypes"
+              /></b-td>
+              <b-td
+                ><v-select
+                  v-model="errorStatus"
+                  label="txt"
+                  :reduce="entry => entry.value"
+                  :options="errorFilters"
+                  multiple
+              /></b-td>
+              <b-td class="text-center"
+                ><b-button
+                  variant="outline-success"
+                  size="sm"
+                  @click="exportExcel"
+                  ><b-img
+                    src="../assets/excel_export.svg"
+                    width="24"
+                    fluid
+                    @click="exportExcel" /></b-button
+              ></b-td>
+            </b-tr>
+          </b-tbody>
+        </b-table-simple>
+      </div>
       <b-table striped hover :fields="fields" :items="errorSensorList" />
     </b-card>
   </div>
@@ -57,12 +112,34 @@ import moment from 'moment';
 import axios from 'axios';
 import { mapActions, mapState, mapGetters, mapMutations } from 'vuex';
 
+import {
+  sensorTypes,
+  countyFilters,
+  errorFilters,
+  getDistrict,
+  TxtStrValue,
+} from './types';
+
+const excel = require('../libs/excel');
+const _ = require('lodash');
+
 interface Sensor {
   _id: string;
   road: string;
   status: string;
 }
 
+interface EffectRate {
+  _id: string;
+  rate: number;
+}
+
+interface ErrorReport {
+  noErrorCode: Array<string>;
+  powerError: Array<string>;
+  constant: Array<string>;
+  inEffect: Array<EffectRate>;
+}
 export default Vue.extend({
   components: {
     DatePicker,
@@ -72,10 +149,16 @@ export default Vue.extend({
   },
   data() {
     const date = moment().valueOf();
-    let powerErrorList = Array<string>();
+    let errorReport: ErrorReport = {
+      noErrorCode: [],
+      powerError: [],
+      constant: [],
+      inEffect: [],
+    };
+    const errorStatus = Array<string>('constant', 'disconnect');
     return {
       display: false,
-      powerErrorList,
+      errorReport,
       fields: [
         {
           key: '_id',
@@ -118,6 +201,18 @@ export default Vue.extend({
           sortable: true,
         },
       ],
+      items: [],
+      timer: 0,
+      errorFilters,
+      errorStatus,
+      sensorStatusParam: {
+        pm25Threshold: '',
+        county: '基隆市',
+        district: '',
+        sensorType: '',
+      },
+      countyFilters,
+      sensorTypes,
       form: {
         date,
       },
@@ -129,7 +224,7 @@ export default Vue.extend({
     errorSensorList(): Array<Sensor> {
       let ret = Array<Sensor>();
 
-      for (const id of this.powerErrorList) {
+      for (const id of this.errorReport.powerError) {
         const m = this.mMap.get(id);
         if (!m || !m.location) continue;
 
@@ -143,6 +238,9 @@ export default Vue.extend({
       }
 
       return ret;
+    },
+    districtFilters(): Array<TxtStrValue> {
+      return getDistrict(this.sensorStatusParam.county);
     },
   },
   async mounted() {
@@ -163,9 +261,31 @@ export default Vue.extend({
         district: '',
         sensorType: '',
       };
-      const ret = await axios.get(`/PowerErrorReport/${this.form.date}`);
+      const ret = await axios.get(`/ErrorReport/${this.form.date}`);
 
-      this.powerErrorList = ret.data;
+      let report = ret.data as ErrorReport;
+      this.errorReport.noErrorCode = report.noErrorCode;
+      this.errorReport.powerError = report.powerError;
+      this.errorReport.constant = report.constant;
+      this.errorReport.inEffect = report.inEffect;
+    },
+    exportExcel() {
+      const title = this.fields.map(e => e.label);
+      const key = this.fields.map(e => e.key);
+      for (let entry of this.errorSensorList) {
+        let e = entry as any;
+        for (let k of key) {
+          e[k] = _.get(entry, k);
+        }
+      }
+      const params = {
+        title,
+        key,
+        data: this.errorSensorList,
+        autoWidth: true,
+        filename: '感測器異常列表',
+      };
+      excel.export_array_to_excel(params);
     },
   },
 });

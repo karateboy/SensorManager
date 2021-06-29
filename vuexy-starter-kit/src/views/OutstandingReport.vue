@@ -24,6 +24,7 @@
             id="monitorGroup"
             v-model="form.monitorGroupID"
             label="_id"
+            multiple
             :reduce="mg => mg._id"
             :options="filteredMonitorGroupList"
           />
@@ -42,6 +43,13 @@
                 value-type="timestamp"
                 :show-second="false"
               />
+            </b-form-group>
+          </b-col>
+          <b-col cols="12">
+            <b-form-group label="Outlier" label-for="outlier" label-cols-md="3">
+              <b-form-checkbox id="outlier" v-model="showOutlier"
+                >顯示</b-form-checkbox
+              >
             </b-form-group>
           </b-col>
         </b-row>
@@ -96,7 +104,7 @@ import moment from 'moment';
 import axios from 'axios';
 import highcharts from 'highcharts';
 import { mapMutations } from 'vuex';
-import { MonitorGroup, Quartile, QuartileReport } from './types';
+import { MonitorGroup, QuartileReport } from './types';
 
 const Ripple = require('vue-ripple-directive');
 
@@ -128,10 +136,11 @@ export default Vue.extend({
       form: {
         date,
         county: '基隆市',
-        monitorGroupID: '',
+        monitorGroupID: [],
       },
       display: false,
       monitorGroupList,
+      showOutlier: false,
     };
   },
   computed: {
@@ -173,7 +182,9 @@ export default Vue.extend({
     async query() {
       this.setLoading({ loading: true });
       this.display = true;
-      const url = `/OutstandingReport/JSON/${this.form.monitorGroupID}/${this.form.date}`;
+      const url = `/OutstandingReport/JSON/${this.form.monitorGroupID.join(
+        ':',
+      )}/${this.form.date}`;
       const res = await axios.get(url);
       const ret: Array<QuartileReport> = res.data;
 
@@ -194,22 +205,57 @@ export default Vue.extend({
       });
       const data = ret.map(qr => {
         const q = qr.quartile;
-        return [
-          q.min,
-          q.q1,
-          q.q2,
-          q.q3,
-          q.max,
-        ] as highcharts.XrangePointOptionsObject;
+        let name = `${qr.name.slice(-4)}`;
+        if (qr.away == true) name = `${qr.name.slice(-4)}(離群)`;
+        let color = qr.away ? 'red' : 'black';
+        return {
+          low: q.min,
+          q1: q.q1,
+          median: q.q2,
+          q3: q.q3,
+          high: q.max,
+          name,
+          color,
+        } as highcharts.PointOptionsObject;
       });
+
+      const outlier = ret
+        .map((qr, x) => {
+          let name = `${qr.name.slice(-4)}`;
+          return qr.outlier.map(y => {
+            return {
+              name,
+              x,
+              y,
+            } as highcharts.PointOptionsObject;
+          });
+        })
+        .flat();
+
+      const outlierSeries = {
+        name: 'Farout',
+        type: 'scatter',
+        data: outlier,
+        marker: {
+          fillColor: 'black',
+          lineWidth: 2,
+        },
+        tooltip: {
+          pointFormat: '{point.name}: {point.y}',
+          valueDecimals: 2,
+        },
+      } as highcharts.SeriesScatterOptions;
 
       this.setLoading({ loading: false });
 
-      const series: Array<highcharts.SeriesBoxplotOptions> = [
+      const series: Array<
+        highcharts.SeriesBoxplotOptions | highcharts.SeriesScatterOptions
+      > = [
         {
           type: 'boxplot',
           name: '感測器',
           data,
+          colorByPoint: true,
           fillColor: {
             linearGradient: { x1: 0, x2: 0, y1: 0, y2: 1 },
             stops: [
@@ -222,9 +268,11 @@ export default Vue.extend({
             headerFormat: '<em>感測器 {point.key}</em><br/>',
             pointFormat:
               '<span style="color:{point.color}">●</span> <b> {series.name}</b><br/>最大值: {point.high}<br/>第三四分位: {point.q3}<br/>中位數: {point.median}<br/>第一四分位: {point.q1}<br/>最小值: {point.low}<br/>',
+            valueDecimals: 2,
           },
         },
       ];
+      if (this.showOutlier) series.unshift(outlierSeries);
 
       let chartOption: highcharts.Options = {
         chart: {

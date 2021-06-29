@@ -13,7 +13,7 @@ import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-case class QuartileReport(name:String, quartile:Quartile)
+case class QuartileReport(name:String, quartile:Quartile, outlier: Seq[Double])
 case class Quartile(min:Double, q1:Double, q2:Double, q3:Double, max:Double)
 case class Stat(
                  avg: Option[Double],
@@ -54,7 +54,7 @@ case class UpdateRecordParam(time: Long, mt: String, status: String)
 class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp,
                       instrumentStatusOp: InstrumentStatusOp, instrumentOp: InstrumentOp,
                       alarmOp: AlarmOp, calibrationOp: CalibrationOp,
-                      manualAuditLogOp: ManualAuditLogOp, excelUtility: ExcelUtility, powerErrorReportOp: PowerErrorReportOp) extends Controller {
+                      manualAuditLogOp: ManualAuditLogOp, excelUtility: ExcelUtility, powerErrorReportOp: ErrorReportOp) extends Controller {
 
   implicit val cdWrite = Json.writes[CellData]
   implicit val rdWrite = Json.writes[RowData]
@@ -569,14 +569,14 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
     Ok(Json.toJson(jsonReport))
   }
 
-  def powerErrorReport(date:Long) = Security.Authenticated.async {
+  def getErrorReport(date:Long) = Security.Authenticated.async {
     val thatDate = new DateTime(date).withMillisOfDay(0).toDate
     for (reports <- powerErrorReportOp.get(thatDate)) yield {
       val monitors: Seq[Monitor] = {
         if (reports.isEmpty)
           Seq.empty[Monitor]
         else {
-          for (sensorID <- reports(0).powerErrorSensors if monitorOp.map.contains(sensorID)) yield
+          for (sensorID <- reports(0).powerError if monitorOp.map.contains(sensorID)) yield
             monitorOp.map(sensorID)
         }
       }

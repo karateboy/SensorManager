@@ -86,7 +86,7 @@ case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _i
 import javax.inject._
 
 @Singleton
-class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp, powerErrorReportOp: PowerErrorReportOp) {
+class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp, powerErrorReportOp: ErrorReportOp) {
 
   import org.mongodb.scala.model._
   import play.api.libs.json._
@@ -730,7 +730,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
               if (powerErrorReport.isEmpty)
                 Seq.empty[String]
               else {
-                for (sensorID <- powerErrorReport(0).powerErrorSensors if monitorOp.map.contains(sensorID)) yield
+                for (sensorID <- powerErrorReport(0).powerError if monitorOp.map.contains(sensorID)) yield
                   monitorOp.map(sensorID)._id
               }
             }

@@ -93,18 +93,18 @@ const router = new VueRouter({
       },
     },
     {
-      path: '/power-error-report',
-      name: 'power-error-report',
-      component: () => import('@/views/PowerErrorReport.vue'),
+      path: '/error-report',
+      name: 'error-report',
+      component: () => import('@/views/ErrorReport.vue'),
       meta: {
-        pageTitle: '電力異常查詢',
+        pageTitle: '異常狀況查詢',
         breadcrumb: [
           {
             text: '數據查詢',
             active: true,
           },
           {
-            text: '電力異常查詢',
+            text: '異常狀況查詢',
             active: true,
           },
         ],

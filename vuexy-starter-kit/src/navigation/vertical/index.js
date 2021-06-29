@@ -38,8 +38,8 @@ export default [
         resource: 'Data',
       },
       {
-        title: '電力異常查詢',
-        route: 'power-error-report',
+        title: '異常狀況查詢',
+        route: 'error-report',
       },
     ],
   },

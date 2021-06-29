@@ -12,7 +12,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class Realtime @Inject()
 (monitorTypeOp: MonitorTypeOp, dataCollectManagerOp: DataCollectManagerOp,
  monitorStatusOp: MonitorStatusOp, recordOp: RecordOp, monitorOp: MonitorOp, sysConfig: SysConfig,
- powerErrorReportOp: PowerErrorReportOp) extends Controller {
+ powerErrorReportOp: ErrorReportOp) extends Controller {
   val overTimeLimit = 6
 
   def MonitorTypeStatusList() = Security.Authenticated.async {
@@ -136,7 +136,7 @@ class Realtime @Inject()
         if (reports.isEmpty)
           Seq.empty[Monitor]
         else {
-          for (sensorID <- reports(0).powerErrorSensors if monitorOp.map.contains(sensorID)) yield
+          for (sensorID <- reports(0).powerError if monitorOp.map.contains(sensorID)) yield
             monitorOp.map(sensorID)
         }
       }
@@ -173,7 +173,7 @@ class Realtime @Inject()
           if(reports.isEmpty)
             Seq.empty[Monitor]
           else{
-            for(sensorID <- reports(0).noErrorCodeSensors if monitorOp.map.contains(sensorID)) yield
+            for(sensorID <- reports(0).noErrorCode if monitorOp.map.contains(sensorID)) yield
               monitorOp.map(sensorID)
           }
         }

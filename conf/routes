@@ -44,7 +44,7 @@ GET      /DisconnectSummary                                                     
 GET      /CalibrationReport/:start/:end                                           controllers.Query.calibrationReport(start:Long, end:Long)
 
 GET      /AlarmReport/:level/:start/:end                                          controllers.Query.alarmReport(level:Int, start:Long, end:Long)
-GET      /PowerErrorReport/:date                                                  controllers.Query.powerErrorReport(date:Long)
+GET      /ErrorReport/:date                                                       controllers.Query.getErrorReport(date:Long)
 
 POST     /SaveMonitorTypeConfig                                                   controllers.HomeController.saveMonitorTypeConfig
 

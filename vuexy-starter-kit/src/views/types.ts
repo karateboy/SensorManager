@@ -195,5 +195,6 @@ export interface Quartile {
 export interface QuartileReport {
   name: string;
   quartile: Quartile;
+  outlier: number[];
   away?: boolean;
 }
