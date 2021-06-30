@@ -18,12 +18,7 @@
             : null,
       }"
       :toggleable="false"
-      class="
-        header-navbar
-        navbar-shadow
-        align-items-center
-        navbar-brand-center navbar-fixed
-      "
+      class="header-navbar navbar-shadow align-items-center navbar-brand-center navbar-fixed"
       :class="{ 'fixed-top': $store.getters['app/currentBreakPoint'] !== 'xl' }"
     >
       <slot name="navbar" :toggleVerticalMenuActive="toggleVerticalMenuActive">
@@ -38,12 +33,7 @@
     <div class="horizontal-menu-wrapper">
       <div
         v-if="!isNavMenuHidden"
-        class="
-          header-navbar
-          navbar-expand-sm navbar navbar-horizontal navbar-light navbar-shadow
-          menu-border
-          d-none d-xl-block
-        "
+        class="header-navbar navbar-expand-sm navbar navbar-horizontal navbar-light navbar-shadow menu-border d-none d-xl-block"
         :class="[navbarMenuTypeClass]"
       >
         <horizontal-nav-menu />
@@ -143,8 +133,13 @@ export default {
   },
   mixins: [mixinLayoutHorizontal],
   setup() {
-    const { skin, navbarType, footerType, routerTransition, isNavMenuHidden } =
-      useAppConfig();
+    const {
+      skin,
+      navbarType,
+      footerType,
+      routerTransition,
+      isNavMenuHidden,
+    } = useAppConfig();
 
     // Vertical Menu
     const {
@@ -161,8 +156,11 @@ export default {
       window.removeEventListener('resize', resizeHandler);
     });
 
-    const { navbarMenuTypeClass, layoutClasses, footerTypeClass } =
-      useLayoutHorizontal(navbarType, footerType, isVerticalMenuActive);
+    const {
+      navbarMenuTypeClass,
+      layoutClasses,
+      footerTypeClass,
+    } = useLayoutHorizontal(navbarType, footerType, isVerticalMenuActive);
 
     // Scroll Listener
     const { scrolledTo } = useScrollListener();

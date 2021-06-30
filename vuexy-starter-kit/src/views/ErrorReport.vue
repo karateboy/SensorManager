@@ -127,6 +127,7 @@ interface Sensor {
   _id: string;
   road: string;
   status: string;
+  effectRate?: number;
 }
 
 interface EffectRate {
@@ -155,7 +156,7 @@ export default Vue.extend({
       constant: [],
       inEffect: [],
     };
-    const errorStatus = Array<string>('constant', 'disconnect');
+    const errorStatus = Array<string>('constant');
     return {
       display: false,
       errorReport,
@@ -224,17 +225,28 @@ export default Vue.extend({
     errorSensorList(): Array<Sensor> {
       let ret = Array<Sensor>();
 
-      for (const id of this.errorReport.powerError) {
-        const m = this.mMap.get(id);
-        if (!m || !m.location) continue;
-
-        let sensor = Object.assign({ status: '電力異常' }, m);
-        if (m.sensorDetail) {
-          sensor.locationDesc = m.sensorDetail.locationDesc;
-          sensor.road = m.sensorDetail.roadName;
+      if (this.errorStatus.indexOf('powerError') !== -1) {
+        for (const id of this.errorReport.powerError) {
+          let sensor = this.populateSensor(id, '電力異常');
+          if (sensor !== null) ret.push(sensor as Sensor);
         }
+      }
 
-        ret.push(sensor);
+      if (this.errorStatus.indexOf('constant') !== -1) {
+        for (const id of this.errorReport.constant) {
+          let sensor = this.populateSensor(id, '定值');
+          if (sensor !== null) ret.push(sensor as Sensor);
+        }
+      }
+
+      if (this.errorStatus.indexOf('lt95') !== -1) {
+        for (const effectRate of this.errorReport.inEffect) {
+          let sensor = this.populateSensor(effectRate._id, '完整率<90%');
+          if (sensor !== null) {
+            sensor.effectRate = effectRate.rate;
+            ret.push(sensor as Sensor);
+          }
+        }
       }
 
       return ret;
@@ -256,18 +268,26 @@ export default Vue.extend({
       this.setLoading({ loading: false });
     },
     async getPowerErrorList(): Promise<void> {
-      const params = {
-        county: '',
-        district: '',
-        sensorType: '',
-      };
       const ret = await axios.get(`/ErrorReport/${this.form.date}`);
 
-      let report = ret.data as ErrorReport;
-      this.errorReport.noErrorCode = report.noErrorCode;
-      this.errorReport.powerError = report.powerError;
-      this.errorReport.constant = report.constant;
-      this.errorReport.inEffect = report.inEffect;
+      let reports = ret.data as Array<ErrorReport>;
+      if (reports.length === 1) {
+        this.errorReport.noErrorCode = reports[0].noErrorCode;
+        this.errorReport.powerError = reports[0].powerError;
+        this.errorReport.constant = reports[0].constant;
+        this.errorReport.inEffect = reports[0].inEffect;
+      }
+    },
+    populateSensor(id: string, status: string): Sensor | null {
+      const m = this.mMap.get(id);
+      if (!m || !m.location) return null;
+
+      let sensor = Object.assign({ status }, m);
+      if (m.sensorDetail) {
+        sensor.locationDesc = m.sensorDetail.locationDesc;
+        sensor.road = m.sensorDetail.roadName;
+      }
+      return sensor;
     },
     exportExcel() {
       const title = this.fields.map(e => e.label);

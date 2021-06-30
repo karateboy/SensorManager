@@ -10,7 +10,8 @@ import scala.concurrent.Future
 
 case class EffectRate(_id: String, rate: Double)
 
-case class ErrorReport(_id: Date, noErrorCode: Seq[String], powerError: Seq[String], constant: Seq[String], inEffect: Seq[EffectRate])
+case class ErrorReport(_id: Date, noErrorCode: Seq[String], powerError: Seq[String],
+                       constant: Seq[String], inEffect: Seq[EffectRate])
 
 object ErrorReport {
   implicit val writeRates = Json.writes[EffectRate]
@@ -55,20 +56,15 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB) {
   }
 
   def insertEmptyIfExist(date: Date) = {
-    val filter = Filters.and(Filters.equal("_id", date), Filters.exists("_id"))
     val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectRate])
-    val f = collection.replaceOne(filter, emptyDoc, ReplaceOptions().upsert(true)).toFuture()
-    f onFailure (errorHandler())
-    f
+    collection.insertOne(emptyDoc).toFuture()
   }
 
-  def initBefore(f:(Date, String)=>Future[UpdateResult])(date:Date, sensorID:String)={
-    val ff = {
-      insertEmptyIfExist(date).transform(s => {
-        f(date, sensorID)
-      }, ex => ex)
-    }
-    ff.flatMap(x=>x)
+  def initBefore(f:(Date, String)=>Future[UpdateResult])(date:Date, sensorID:String): Unit ={
+    insertEmptyIfExist(date).andThen({
+        case _ =>
+          f(date, sensorID)
+      })
   }
 
   def addNoErrorCodeSensor = initBefore(addNoErrorCodeSensor1) _

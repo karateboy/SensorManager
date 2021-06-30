@@ -54,7 +54,7 @@ case class UpdateRecordParam(time: Long, mt: String, status: String)
 class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp,
                       instrumentStatusOp: InstrumentStatusOp, instrumentOp: InstrumentOp,
                       alarmOp: AlarmOp, calibrationOp: CalibrationOp,
-                      manualAuditLogOp: ManualAuditLogOp, excelUtility: ExcelUtility, powerErrorReportOp: ErrorReportOp) extends Controller {
+                      manualAuditLogOp: ManualAuditLogOp, excelUtility: ExcelUtility, errorReportOp: ErrorReportOp) extends Controller {
 
   implicit val cdWrite = Json.writes[CellData]
   implicit val rdWrite = Json.writes[RowData]
@@ -571,21 +571,9 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
 
   def getErrorReport(date:Long) = Security.Authenticated.async {
     val thatDate = new DateTime(date).withMillisOfDay(0).toDate
-    for (reports <- powerErrorReportOp.get(thatDate)) yield {
-      val monitors: Seq[Monitor] = {
-        if (reports.isEmpty)
-          Seq.empty[Monitor]
-        else {
-          for (sensorID <- reports(0).powerError if monitorOp.map.contains(sensorID)) yield
-            monitorOp.map(sensorID)
-        }
-      }
-
-      val result: Seq[String] = monitors map {
-        _._id
-      }
-
-      Ok(Json.toJson(result))
+    for (reports <- errorReportOp.get(thatDate)) yield {
+      import ErrorReport._
+      Ok(Json.toJson(reports))
     }
   }
   def instrumentStatusReport(id: String, startNum: Long, endNum: Long) = Security.Authenticated {
