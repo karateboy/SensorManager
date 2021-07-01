@@ -188,15 +188,32 @@ export default Vue.extend({
       const res = await axios.get(url);
       const ret: Array<QuartileReport> = res.data;
 
+      if (ret.length == 0) {
+        this.setLoading({ loading: false });
+        await this.$bvModal
+          .msgBoxOk('無感測器資料, 請確認是否已經匯入', {
+            title: '確認',
+            size: 'sm',
+            buttonSize: 'sm',
+            okVariant: 'success',
+            headerClass: 'p-2 border-bottom-0',
+            footerClass: 'p-2 border-top-0',
+            centered: true,
+          })
+          .catch(err => {
+            // An error occurred
+          });
+        return;
+      }
+
       const avgQr = ret[0];
-      const avg = avgQr.quartile.q2;
+      const avgMean = avgQr.quartile.q2;
 
       for (let i = 1; i < ret.length; i++) {
         const qr = ret[i];
-        const mean = qr.quartile.q2;
-        if (mean <= avgQr.quartile.q3 && mean >= avgQr.quartile.q1)
-          ret[i].away = false;
-        else ret[i].away = true;
+        if (avgMean > qr.quartile.q3 || avgMean < qr.quartile.q1)
+          ret[i].away = true;
+        else ret[i].away = false;
       }
 
       const categories = ret.map(qr => {
@@ -267,7 +284,7 @@ export default Vue.extend({
           tooltip: {
             headerFormat: '<em>感測器 {point.key}</em><br/>',
             pointFormat:
-              '<span style="color:{point.color}">●</span> <b> {series.name}</b><br/>最大值: {point.high}<br/>第三四分位: {point.q3}<br/>中位數: {point.median}<br/>第一四分位: {point.q1}<br/>最小值: {point.low}<br/>',
+              '<span style="color:{point.color}">●</span> <b> {series.name}</b><br/>上限: {point.high}<br/>第三四分位: {point.q3}<br/>中位數: {point.median}<br/>第一四分位: {point.q1}<br/>下限: {point.low}<br/>',
             valueDecimals: 2,
           },
         },
@@ -296,7 +313,7 @@ export default Vue.extend({
           },
           plotLines: [
             {
-              value: avg,
+              value: avgMean,
               color: 'red',
               width: 1,
               label: {

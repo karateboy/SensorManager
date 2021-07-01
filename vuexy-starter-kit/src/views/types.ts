@@ -4,14 +4,14 @@ export interface MonitorGroup {
 }
 
 export interface SensorDetail {
-  sensorType: string,
-  roadName: string,
-  locationDesc: string,
-  authority: string,
-  epaCode: string,
-  target: string,
-  targetDetail: string,
-  height: number,
+  sensorType: string;
+  roadName: string;
+  locationDesc: string;
+  authority: string;
+  epaCode: string;
+  target: string;
+  targetDetail: string;
+  height: number;
   distance: Array<number>;
 }
 
@@ -28,7 +28,6 @@ export interface Monitor {
   district?: string;
   sensorDetail?: SensorDetail;
 }
-
 
 export const sensorTypes = [
   {

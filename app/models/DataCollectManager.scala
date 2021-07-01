@@ -682,7 +682,7 @@ class DataCollectManager @Inject()
         if (errorReports.isEmpty || !errorReports(0).dailyChecked) {
           val ltFuture = recordOp.getLessThan90Sensor(recordOp.MinCollection)("", "", "", yesterday)
           for (ret: Seq[MonitorRecord] <- ltFuture) {
-            val effectRateList: Seq[EffectRate] = ret map { m => EffectRate(m._id, m.count.getOrElse(0) / (24 * 60)) }
+            val effectRateList: Seq[EffectiveRate] = ret map { m => EffectiveRate(m._id, m.count.getOrElse(0) / (24 * 60)) }
             errorReportOp.addLessThan90Sensor(yesterday, effectRateList)
           }
         }

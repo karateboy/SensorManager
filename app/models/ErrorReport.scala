@@ -9,14 +9,14 @@ import java.util.Date
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-case class EffectRate(_id: String, rate: Double)
+case class EffectiveRate(_id: String, rate: Double)
 
 case class ErrorReport(_id: Date, noErrorCode: Seq[String], powerError: Seq[String],
-                       constant: Seq[String], inEffect: Seq[EffectRate], dailyChecked: Boolean = false)
+                       constant: Seq[String], ineffective: Seq[EffectiveRate], dailyChecked: Boolean = false)
 
 object ErrorReport {
-  implicit val writeRates = Json.writes[EffectRate]
-  implicit val readRates = Json.reads[EffectRate]
+  implicit val writeRates = Json.writes[EffectiveRate]
+  implicit val readRates = Json.reads[EffectiveRate]
   implicit val reads = Json.reads[ErrorReport]
   implicit val writes = Json.writes[ErrorReport]
 }
@@ -35,7 +35,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB) {
 
   val colName = "errorReports"
 
-  val codecRegistry = fromRegistries(fromProviders(classOf[ErrorReport], classOf[EffectRate]), DEFAULT_CODEC_REGISTRY)
+  val codecRegistry = fromRegistries(fromProviders(classOf[ErrorReport], classOf[EffectiveRate]), DEFAULT_CODEC_REGISTRY)
   val collection = mongoDB.database.getCollection[ErrorReport](colName).withCodecRegistry(codecRegistry)
   collection.createIndex(Indexes.ascending("powerError")).toFuture()
   collection.createIndex(Indexes.ascending("noErrorCode")).toFuture()
@@ -57,7 +57,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB) {
   }
 
   def insertEmptyIfExist(date: Date) = {
-    val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectRate])
+    val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectiveRate])
     collection.insertOne(emptyDoc).toFuture()
   }
 
@@ -114,10 +114,10 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB) {
   }
 
   def addLessThan90Sensor = initBefore(addLessThan90Sensor1) _
-  def addLessThan90Sensor1(date:Date, effectRateList: Seq[EffectRate])={
+  def addLessThan90Sensor1(date:Date, effectRateList: Seq[EffectiveRate])={
     Logger.info(s"lt90 #=${effectRateList.size}")
     val updates = Updates.combine(
-      Updates.addEachToSet("inEffect", effectRateList:_*),
+      Updates.addEachToSet("ineffective", effectRateList:_*),
       Updates.set("dailyChecked", true))
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
     f.onFailure(errorHandler())

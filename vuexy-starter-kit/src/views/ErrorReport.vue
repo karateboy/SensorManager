@@ -116,7 +116,7 @@ import {
   Monitor,
   sensorTypes,
   countyFilters,
-  errorFilters,
+  errorFilters as defaultErrorFilter,
   getDistrict,
   TxtStrValue,
 } from './types';
@@ -129,7 +129,7 @@ interface Sensor extends Monitor {
   effectRate?: number;
 }
 
-interface EffectRate {
+interface EffectiveRate {
   _id: string;
   rate: number;
 }
@@ -138,7 +138,7 @@ interface ErrorReport {
   noErrorCode: Array<string>;
   powerError: Array<string>;
   constant: Array<string>;
-  inEffect: Array<EffectRate>;
+  ineffective: Array<EffectiveRate>;
 }
 export default Vue.extend({
   components: {
@@ -153,13 +153,76 @@ export default Vue.extend({
       noErrorCode: [],
       powerError: [],
       constant: [],
-      inEffect: [],
+      ineffective: [],
     };
     const errorStatus = Array<string>('constant');
+    const errorFilters = defaultErrorFilter.filter(p => {
+      return p.value !== 'disconnect';
+    });
     return {
       display: false,
       errorReport,
-      fields: [
+      items: [],
+      timer: 0,
+      errorFilters,
+      errorStatus,
+      sensorStatusParam: {
+        pm25Threshold: '',
+        county: '基隆市',
+        district: '',
+        sensorType: '',
+      },
+      countyFilters,
+      sensorTypes,
+      form: {
+        date,
+      },
+    };
+  },
+  computed: {
+    ...mapState('monitors', ['monitors']),
+    ...mapGetters('monitors', ['mMap']),
+    errorSensorList(): Array<Sensor> {
+      let ret = Array<Sensor>();
+
+      if (this.errorStatus.indexOf('powerError') !== -1) {
+        for (const id of this.errorReport.powerError) {
+          let sensor = this.populateSensor(id, '電力異常');
+          if (sensor !== null) ret.push(sensor as Sensor);
+        }
+      }
+
+      if (this.errorStatus.indexOf('constant') !== -1) {
+        for (const id of this.errorReport.constant) {
+          let sensor = this.populateSensor(id, '定值');
+          if (sensor !== null) ret.push(sensor as Sensor);
+        }
+      }
+
+      if (this.errorStatus.indexOf('lt95') !== -1) {
+        for (const effectRate of this.errorReport.ineffective) {
+          let sensor = this.populateSensor(effectRate._id, '完整率<90%');
+          if (sensor !== null) {
+            sensor.effectRate = effectRate.rate;
+            ret.push(sensor as Sensor);
+          }
+        }
+      }
+
+      if (this.errorStatus.indexOf('noPowerInfo') !== -1) {
+        for (const id of this.errorReport.noErrorCode) {
+          let sensor = this.populateSensor(id, '無電力資訊');
+          if (sensor !== null) ret.push(sensor as Sensor);
+        }
+      }
+
+      return ret;
+    },
+    districtFilters(): Array<TxtStrValue> {
+      return getDistrict(this.sensorStatusParam.county);
+    },
+    fields() {
+      let ret = [
         {
           key: '_id',
           label: '設備序號',
@@ -200,65 +263,17 @@ export default Vue.extend({
           label: '狀態',
           sortable: true,
         },
-      ],
-      items: [],
-      timer: 0,
-      errorFilters,
-      errorStatus,
-      sensorStatusParam: {
-        pm25Threshold: '',
-        county: '基隆市',
-        district: '',
-        sensorType: '',
-      },
-      countyFilters,
-      sensorTypes,
-      form: {
-        date,
-      },
-    };
-  },
-  computed: {
-    ...mapState('monitors', ['monitors']),
-    ...mapGetters('monitors', ['mMap']),
-    errorSensorList(): Array<Sensor> {
-      let ret = Array<Sensor>();
-
-      if (this.errorStatus.indexOf('powerError') !== -1) {
-        for (const id of this.errorReport.powerError) {
-          let sensor = this.populateSensor(id, '電力異常');
-          if (sensor !== null) ret.push(sensor as Sensor);
-        }
-      }
-
-      if (this.errorStatus.indexOf('constant') !== -1) {
-        for (const id of this.errorReport.constant) {
-          let sensor = this.populateSensor(id, '定值');
-          if (sensor !== null) ret.push(sensor as Sensor);
-        }
-      }
+      ];
 
       if (this.errorStatus.indexOf('lt95') !== -1) {
-        for (const effectRate of this.errorReport.inEffect) {
-          let sensor = this.populateSensor(effectRate._id, '完整率<90%');
-          if (sensor !== null) {
-            sensor.effectRate = effectRate.rate;
-            ret.push(sensor as Sensor);
-          }
-        }
-      }
-
-      if (this.errorStatus.indexOf('noPowerInfo') !== -1) {
-        for (const id of this.errorReport.noErrorCode) {
-          let sensor = this.populateSensor(id, '無電力資訊');
-          if (sensor !== null) ret.push(sensor as Sensor);
-        }
+        ret.push({
+          key: 'effectRate',
+          label: '完整率',
+          sortable: true,
+        });
       }
 
       return ret;
-    },
-    districtFilters(): Array<TxtStrValue> {
-      return getDistrict(this.sensorStatusParam.county);
     },
   },
   async mounted() {
@@ -281,7 +296,7 @@ export default Vue.extend({
         this.errorReport.noErrorCode = reports[0].noErrorCode;
         this.errorReport.powerError = reports[0].powerError;
         this.errorReport.constant = reports[0].constant;
-        this.errorReport.inEffect = reports[0].inEffect;
+        this.errorReport.ineffective = reports[0].ineffective;
       }
     },
     populateSensor(id: string, status: string): Sensor | null {
