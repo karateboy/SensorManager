@@ -67,14 +67,15 @@ case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _i
       mtDataList map { data => data.mtName -> data }
     pairs.toMap
   }
-  def getMtOrdered(mt:String)= {
+
+  def getMtOrdered(mt: String) = {
     new Ordered[RecordList] {
       override def compare(that: RecordList): Int = {
         val a = mtMap(mt).value
         val b = that.mtMap(mt).value
-        if(a < b)
+        if (a < b)
           -1
-        else if(a == b)
+        else if (a == b)
           0
         else
           1
@@ -329,7 +330,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   }
 
   def getMonitorRecordListFuture(colName: String)
-                         (startTime: DateTime, endTime: DateTime, monitor: String): Future[Seq[RecordList]] = {
+                                (startTime: DateTime, endTime: DateTime, monitor: String): Future[Seq[RecordList]] = {
     import org.mongodb.scala.model.Filters._
     import org.mongodb.scala.model.Sorts._
 
@@ -517,36 +518,39 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   }
 
   def getLessThan90Sensor(colName: String)
-                         (county: String, district: String, sensorType: String) = {
+                         (county: String, district: String, sensorType: String, start: DateTime = DateTime.now()) = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
-    val targetMonitors = monitorOp.map.values.filter(m =>
-      m.tags.contains(MonitorTag.SENSOR)
-    ).filter(m => {
-      if (county == "")
-        true
-      else
-        m.county == Some(county)
-    }).filter(m => {
-      if (district == "")
-        true
-      else
-        m.district == Some(district)
-    }).filter(m => {
-      if (sensorType == "")
-        true
-      else
-        m.tags.contains(sensorType)
-    }) map {
-      _._id
-    } toList
+    val targetMonitors =
+      monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
+        .filter(m => m.enabled.getOrElse(true))
+        .filter(m => {
+          if (county == "")
+            true
+          else
+            m.county == Some(county)
+        }).filter(m => {
+        if (district == "")
+          true
+        else
+          m.district == Some(district)
+      }).filter(m => {
+        if (sensorType == "")
+          true
+        else
+          m.tags.contains(sensorType)
+      }) map {
+        _._id
+      } toList
 
     val monitorFilter =
       Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
-    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusDays(1).toDate)))
+    val timeFrameFilter = Aggregates.filter(Filters.and(
+      Filters.gt("time", start.minusDays(1).toDate),
+      Filters.lt("time", start.toDate)))
 
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
       Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"),
@@ -843,6 +847,31 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     }, ex => ex)
   }
 
+  def getDisconnected(colName: String)(start: DateTime, end: DateTime): Future[Set[String]] = {
+    val timeFrameFilter =
+      Aggregates.filter(Filters.and(
+        Filters.gte("time", start.toDate),
+        Filters.lt("time", end.toDate)
+      ))
+
+    val targetMonitors = monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
+      .filter(m => m.enabled.getOrElse(true)).map {
+      _._id
+    } toList
+
+    val monitorFilter =
+      Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
+
+    val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"))
+    val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
+    val col = mongoDB.database.getCollection(colName)
+    val f = col.aggregate(Seq(timeFrameFilter, monitorFilter, latestFilter)).toFuture()
+    f.transform(ret => {
+      val targetSet: Set[String] = targetMonitors.toSet
+      val connected = ret.map(doc => doc.getString("_id"))
+      targetSet -- connected
+    }, ex => ex)
+  }
 
   def getLast10MinPowerError(colName: String): Future[Set[String]] = {
     import org.mongodb.scala.model.Projections._

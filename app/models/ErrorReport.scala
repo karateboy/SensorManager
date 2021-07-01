@@ -2,6 +2,7 @@ package models
 
 import org.mongodb.scala.model.{ReplaceOptions, UpdateOptions, Updates}
 import org.mongodb.scala.result.UpdateResult
+import play.api.Logger
 import play.api.libs.json.Json
 
 import java.util.Date
@@ -11,7 +12,7 @@ import scala.concurrent.Future
 case class EffectRate(_id: String, rate: Double)
 
 case class ErrorReport(_id: Date, noErrorCode: Seq[String], powerError: Seq[String],
-                       constant: Seq[String], inEffect: Seq[EffectRate])
+                       constant: Seq[String], inEffect: Seq[EffectRate], dailyChecked: Boolean = false)
 
 object ErrorReport {
   implicit val writeRates = Json.writes[EffectRate]
@@ -60,7 +61,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB) {
     collection.insertOne(emptyDoc).toFuture()
   }
 
-  def initBefore(f:(Date, String)=>Future[UpdateResult])(date:Date, sensorID:String): Unit ={
+  def initBefore[T](f:(Date, T)=>Future[UpdateResult])(date:Date, sensorID:T): Unit ={
     insertEmptyIfExist(date).andThen({
         case _ =>
           f(date, sensorID)
@@ -99,6 +100,25 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB) {
   def removePowerErrorSensor = initBefore(removePowerErrorSensor1) _
   def removePowerErrorSensor1(date: Date, sensorID: String) = {
     val updates = Updates.pull("powerError", sensorID)
+    val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
+    f.onFailure(errorHandler())
+    f
+  }
+
+  def addConstantSensor = initBefore(addConstantSensor1) _
+  def addConstantSensor1(date:Date, sensorID:String) = {
+    val updates = Updates.addToSet("constant", sensorID)
+    val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
+    f.onFailure(errorHandler())
+    f
+  }
+
+  def addLessThan90Sensor = initBefore(addLessThan90Sensor1) _
+  def addLessThan90Sensor1(date:Date, effectRateList: Seq[EffectRate])={
+    Logger.info(s"lt90 #=${effectRateList.size}")
+    val updates = Updates.combine(
+      Updates.addEachToSet("inEffect", effectRateList:_*),
+      Updates.set("dailyChecked", true))
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
     f.onFailure(errorHandler())
     f

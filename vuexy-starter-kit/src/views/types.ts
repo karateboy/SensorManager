@@ -3,6 +3,33 @@ export interface MonitorGroup {
   member: string[];
 }
 
+export interface SensorDetail {
+  sensorType: string,
+  roadName: string,
+  locationDesc: string,
+  authority: string,
+  epaCode: string,
+  target: string,
+  targetDetail: string,
+  height: number,
+  distance: Array<number>;
+}
+
+export interface Monitor {
+  _id: string;
+  desc: string;
+  monitorTypes: Array<string>;
+  tags: Array<string>;
+  location?: Array<number>;
+  shortCode?: Array<string>;
+  code?: string;
+  enabled?: boolean;
+  county?: string;
+  district?: string;
+  sensorDetail?: SensorDetail;
+}
+
+
 export const sensorTypes = [
   {
     txt: '不限',

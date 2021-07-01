@@ -113,6 +113,7 @@ import axios from 'axios';
 import { mapActions, mapState, mapGetters, mapMutations } from 'vuex';
 
 import {
+  Monitor,
   sensorTypes,
   countyFilters,
   errorFilters,
@@ -123,9 +124,7 @@ import {
 const excel = require('../libs/excel');
 const _ = require('lodash');
 
-interface Sensor {
-  _id: string;
-  road: string;
+interface Sensor extends Monitor {
   status: string;
   effectRate?: number;
 }
@@ -177,12 +176,12 @@ export default Vue.extend({
           sortable: true,
         },
         {
-          key: 'road',
+          key: 'sensorDetail.roadName',
           label: '路名',
           sortable: true,
         },
         {
-          key: 'locationDesc',
+          key: 'sensorDetail.locationDesc',
           label: '位置',
           sortable: true,
         },
@@ -249,6 +248,13 @@ export default Vue.extend({
         }
       }
 
+      if (this.errorStatus.indexOf('noPowerInfo') !== -1) {
+        for (const id of this.errorReport.noErrorCode) {
+          let sensor = this.populateSensor(id, '無電力資訊');
+          if (sensor !== null) ret.push(sensor as Sensor);
+        }
+      }
+
       return ret;
     },
     districtFilters(): Array<TxtStrValue> {
@@ -279,14 +285,32 @@ export default Vue.extend({
       }
     },
     populateSensor(id: string, status: string): Sensor | null {
-      const m = this.mMap.get(id);
+      const m = this.mMap.get(id) as Monitor;
       if (!m || !m.location) return null;
 
-      let sensor = Object.assign({ status }, m);
-      if (m.sensorDetail) {
-        sensor.locationDesc = m.sensorDetail.locationDesc;
-        sensor.road = m.sensorDetail.roadName;
-      }
+      if (m.county == null) return null;
+
+      if (
+        this.sensorStatusParam.county !== '' &&
+        m.county !== this.sensorStatusParam.county
+      )
+        return null;
+
+      if (
+        this.sensorStatusParam.district !== '' &&
+        m.district !== this.sensorStatusParam.district
+      )
+        return null;
+
+      if (
+        this.sensorStatusParam.sensorType !== '' &&
+        m.tags.indexOf(this.sensorStatusParam.sensorType) == -1
+      )
+        return null;
+
+      let sensor = Object.assign({}, m) as Sensor;
+
+      sensor.status = status;
       return sensor;
     },
     exportExcel() {

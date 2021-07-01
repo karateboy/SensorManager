@@ -2,6 +2,7 @@ package models
 
 import akka.actor._
 import com.github.nscala_time.time.Imports._
+import models.DataCollectManager.CheckSensorStstus
 import models.ModelHelper._
 import play.api._
 import play.api.libs.concurrent.InjectedActorSupport
@@ -9,6 +10,7 @@ import play.api.libs.concurrent.InjectedActorSupport
 import javax.inject._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.concurrent.duration.SECONDS
 import scala.language.postfixOps
 import scala.util.Success
@@ -66,9 +68,17 @@ case class IsTargetConnected(instId: String)
 
 case object IsConnected
 
+
+object DataCollectManager {
+  case object CheckSensorStstus
+}
+
 @Singleton
 class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: ActorRef, instrumentOp: InstrumentOp, recordOp: RecordOp,
-                                     alarmOp: AlarmOp, monitorTypeOp: MonitorTypeOp)() {
+                                     alarmOp: AlarmOp)() {
+
+  import DataCollectManager._
+
   val effectivRatio = 0.75
 
   def startCollect(inst: Instrument) {
@@ -158,7 +168,7 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
     }
 
     val mtDataList = calculateHourAvgMap(mtMap, alwaysValid)
-    val recordList = RecordList(current.minusHours(1), monitor=monitor, mtDataList.toSeq)
+    val recordList = RecordList(current.minusHours(1), monitor = monitor, mtDataList.toSeq)
     val f = recordOp.upsertRecord(recordList)(recordOp.HourCollection)
     if (forward)
       f map { _ => ForwardManager.forwardHourData }
@@ -218,7 +228,9 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
 class DataCollectManager @Inject()
 (config: Configuration, system: ActorSystem, recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp,
  dataCollectManagerOp: DataCollectManagerOp,
- instrumentTypeOp: InstrumentTypeOp, alarmOp: AlarmOp, instrumentOp: InstrumentOp) extends Actor with InjectedActorSupport {
+ instrumentTypeOp: InstrumentTypeOp,
+ alarmOp: AlarmOp, instrumentOp: InstrumentOp,
+ errorReportOp: ErrorReportOp) extends Actor with InjectedActorSupport {
   val effectivRatio = 0.75
   val storeSecondData = config.getBoolean("storeSecondData").getOrElse(false)
   Logger.info(s"store second data = $storeSecondData")
@@ -229,6 +241,14 @@ class DataCollectManager @Inject()
     val next30 = DateTime.now().withSecondOfMinute(30).plusMinutes(1)
     val postSeconds = new org.joda.time.Duration(DateTime.now, next30).getStandardSeconds
     system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(1, MINUTES), self, CalculateData)
+  }
+
+  val timer2 = {
+    import scala.concurrent.duration._
+    //Try to trigger at 30 sec
+    val next30 = DateTime.now().withSecondOfMinute(30).plusMinutes(1)
+    val postSeconds = new org.joda.time.Duration(DateTime.now, next30).getStandardSeconds
+    system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(1, MINUTES), self, CheckSensorStstus)
   }
 
   var calibratorOpt: Option[ActorRef] = None
@@ -475,7 +495,7 @@ class DataCollectManager @Inject()
 
           val docs = secRecordMap map { r =>
             val mtDataList = r._2 map { t => MtRecord(t._1, t._2._1, t._2._2) }
-            r._1 -> RecordList(time = r._1, mtDataList=mtDataList, monitor = Monitor.SELF_ID)
+            r._1 -> RecordList(time = r._1, mtDataList = mtDataList, monitor = Monitor.SELF_ID)
           }
 
           val sortedDocs = docs.toSeq.sortBy { x => x._1 } map (_._2)
@@ -647,6 +667,26 @@ class DataCollectManager @Inject()
       else {
         Logger.warn(s"DO is not online! Ignore EvtOperationOverThreshold.")
       }
+    case CheckSensorStstus =>
+      val today = DateTime.now().withMillisOfDay(0);
+      val f: Future[Seq[MonitorRecord]] = recordOp.getLast10MinConstantSensor(recordOp.MinCollection)
+      for (ret <- f) {
+        for (m <- ret) {
+          errorReportOp.addConstantSensor(today, m._id);
+        }
+      }
+      val yesterday = DateTime.now().withMillisOfDay(0) - 1.day
+      val errorReportF = errorReportOp.get(yesterday);
+      errorReportF onFailure (errorHandler())
+      for (errorReports <- errorReportF) {
+        if (errorReports.isEmpty || !errorReports(0).dailyChecked) {
+          val ltFuture = recordOp.getLessThan90Sensor(recordOp.MinCollection)("", "", "", yesterday)
+          for (ret: Seq[MonitorRecord] <- ltFuture) {
+            val effectRateList: Seq[EffectRate] = ret map { m => EffectRate(m._id, m.count.getOrElse(0) / (24 * 60)) }
+            errorReportOp.addLessThan90Sensor(yesterday, effectRateList)
+          }
+        }
+      }
 
     case GetLatestData =>
       //Filter out older than 6 second
@@ -683,6 +723,7 @@ class DataCollectManager @Inject()
 
   override def postStop(): Unit = {
     timer.cancel()
+    timer2.cancel()
     onceTimer map {
       _.cancel()
     }
