@@ -248,7 +248,7 @@ class DataCollectManager @Inject()
     //Try to trigger at 30 sec
     val next30 = DateTime.now().withSecondOfMinute(30).plusMinutes(1)
     val postSeconds = new org.joda.time.Duration(DateTime.now, next30).getStandardSeconds
-    system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(1, MINUTES), self, CheckSensorStstus)
+    system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(10, MINUTES), self, CheckSensorStstus)
   }
 
   var calibratorOpt: Option[ActorRef] = None
@@ -675,14 +675,14 @@ class DataCollectManager @Inject()
           errorReportOp.addConstantSensor(today, m._id);
         }
       }
-      val yesterday = DateTime.now().withMillisOfDay(0) - 1.day
+      val yesterday = DateTime.now().withMillisOfDay(0)
       val errorReportF = errorReportOp.get(yesterday);
       errorReportF onFailure (errorHandler())
       for (errorReports <- errorReportF) {
         if (errorReports.isEmpty || !errorReports(0).dailyChecked) {
           val ltFuture = recordOp.getLessThan90Sensor(recordOp.MinCollection)("", "", "", yesterday)
           for (ret: Seq[MonitorRecord] <- ltFuture) {
-            val effectRateList: Seq[EffectiveRate] = ret map { m => EffectiveRate(m._id, m.count.getOrElse(0) / (24 * 60)) }
+            val effectRateList: Seq[EffectiveRate] = ret map { m => EffectiveRate(m._id, m.count.getOrElse(0).toDouble / (24 * 60)) }
             errorReportOp.addLessThan90Sensor(yesterday, effectRateList)
           }
         }

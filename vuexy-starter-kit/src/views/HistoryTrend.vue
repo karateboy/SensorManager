@@ -285,14 +285,15 @@ export default Vue.extend({
         this.form.range[0]
       }/${this.form.range[1]}`;
       const res = await axios.get(url);
-      const ret = res.data;
+      const ret = res.data as highcharts.Options;
 
       this.setLoading({ loading: false });
       if (this.form.chartType !== 'boxplot') {
+        const panning: Highcharts.ChartPanningOptions = {};
         ret.chart = {
           type: this.form.chartType,
           zoomType: 'x',
-          panning: true,
+          panning,
           panKey: 'shift',
           alignTicks: false,
         };
@@ -320,12 +321,18 @@ export default Vue.extend({
 
         ret.tooltip = { valueDecimals: 2 };
         ret.legend = { enabled: true };
+        if (this.form.monitorTypes.indexOf('BATTERY') !== -1) {
+          ret.legend.title = {
+            text: '1=電池、4=市電',
+          };
+        }
         ret.credits = {
           enabled: false,
           href: 'http://www.wecc.com.tw/',
         };
-        ret.xAxis.type = 'datetime';
-        ret.xAxis.dateTimeLabelFormats = {
+        let xAxis = ret.xAxis as highcharts.XAxisOptions;
+        xAxis.type = 'datetime';
+        xAxis.dateTimeLabelFormats = {
           day: '%b%e日',
           week: '%b%e日',
           month: '%y年%b',

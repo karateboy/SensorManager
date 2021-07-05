@@ -273,14 +273,6 @@ export default Vue.extend({
           name: '感測器',
           data,
           colorByPoint: true,
-          fillColor: {
-            linearGradient: { x1: 0, x2: 0, y1: 0, y2: 1 },
-            stops: [
-              [0, '#003399'], // start
-              [0.5, '#ffffff'], // middle
-              [1, '#3366AA'], // end
-            ],
-          },
           tooltip: {
             headerFormat: '<em>感測器 {point.key}</em><br/>',
             pointFormat:

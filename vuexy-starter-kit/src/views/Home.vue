@@ -6,11 +6,6 @@
         :title="`更新時間: ${summaryUpdateTime.format('lll')}`"
       >
         <b-row>
-          <b-col><div id="chart_container1" /></b-col>
-          <b-col><div id="chart_container2" /></b-col>
-          <b-col><div id="chart_container3" /></b-col>
-        </b-row>
-        <b-row>
           <b-col v-for="group in sensorGroupSummary" :key="group.name">
             <b-table-simple bordered responsive outlined>
               <b-thead>
@@ -68,6 +63,7 @@
               </b-tbody>
             </b-table-simple>
           </b-col>
+          <b-col cols="12"><span class="float-right">(單位：台)</span></b-col>
         </b-row>
       </b-card>
     </b-col>
@@ -95,14 +91,15 @@
         </div> -->
         <div class="map_container">
           <div id="mapFilter" class="mt-2 ml-2">
-            <b-check-group
+            <b-checkbox
+              v-for="item in mapLayerTypes"
+              :key="item.value"
               v-model="mapLayer"
-              stacked
-              text-field="txt"
-              value-field="value"
-              :options="mapLayerTypes"
+              :value="item.value"
+              ><h3>
+                <span class="mapFilterLabel">{{ item.txt }}</span>
+              </h3></b-checkbox
             >
-            </b-check-group>
           </div>
           <div id="sensorFilter" class="sensorFilter mt-2 rounded">
             <b-table-simple small>
@@ -250,6 +247,10 @@
 <style scoped>
 .sensorFilter {
   background-color: white;
+}
+
+.mapFilterLabel {
+  color: #000000;
 }
 
 .legend {

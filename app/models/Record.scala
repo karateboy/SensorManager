@@ -518,7 +518,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   }
 
   def getLessThan90Sensor(colName: String)
-                         (county: String, district: String, sensorType: String, start: DateTime = DateTime.now()) = {
+                         (county: String, district: String, sensorType: String,
+                          start: DateTime = DateTime.now()) = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
@@ -548,8 +549,9 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
+    val end = start.minusDays(1)
     val timeFrameFilter = Aggregates.filter(Filters.and(
-      Filters.gt("time", start.minusDays(1).toDate),
+      Filters.gt("time", end.toDate),
       Filters.lt("time", start.toDate)))
 
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
@@ -769,7 +771,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Accumulators.sum("count", 1),
       Accumulators.max("pm25Max", "$pm25"),
       Accumulators.min("pm25Min", "$pm25"))
-    val constantFilter = Aggregates.filter(Filters.and(Filters.gte("count", 3),
+    val constantFilter = Aggregates.filter(Filters.and(Filters.gte("count", 8),
       Filters.expr(Document("$eq" -> Seq("$pm25Max", "$pm25Min")))
     ))
     val projectStage = Aggregates.project(fields(

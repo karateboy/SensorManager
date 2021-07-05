@@ -266,7 +266,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
                 if(useBattery)
                   mtDataList.:+(MtRecord(MonitorType.BATTERY, 1, MonitorStatus.NormalStat))
                 else
-                  mtDataList.:+(MtRecord(MonitorType.BATTERY, 0, MonitorStatus.NormalStat))
+                  mtDataList.:+(MtRecord(MonitorType.BATTERY, 4, MonitorStatus.NormalStat))
             }
 
             if (now.getHourOfDay >= 20 || now.getHourOfDay < 7) { // nighttime
