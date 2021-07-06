@@ -140,6 +140,14 @@ interface ErrorReport {
   constant: Array<string>;
   ineffective: Array<EffectiveRate>;
 }
+
+interface Field {
+  key: string;
+  label: string;
+  sortable: boolean;
+  formatter?: any;
+}
+
 export default Vue.extend({
   components: {
     DatePicker,
@@ -222,7 +230,7 @@ export default Vue.extend({
       return getDistrict(this.sensorStatusParam.county);
     },
     fields() {
-      let ret = [
+      let ret: Array<Field> = [
         {
           key: '_id',
           label: '設備序號',
@@ -270,6 +278,10 @@ export default Vue.extend({
           key: 'effectRate',
           label: '完整率',
           sortable: true,
+          formatter: (v: number) => {
+            let percent = v * 100;
+            return `${percent.toFixed(0)}%`;
+          },
         });
       }
 

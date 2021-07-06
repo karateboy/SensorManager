@@ -675,12 +675,14 @@ class DataCollectManager @Inject()
           errorReportOp.addConstantSensor(today, m._id);
         }
       }
-      val yesterday = DateTime.now().withMillisOfDay(0)
+      val yesterday = today.minusDays(1)
       val errorReportF = errorReportOp.get(yesterday);
       errorReportF onFailure (errorHandler())
       for (errorReports <- errorReportF) {
         if (errorReports.isEmpty || !errorReports(0).dailyChecked) {
-          val ltFuture = recordOp.getLessThan90Sensor(recordOp.MinCollection)("", "", "", yesterday)
+          // It is tricky less than 90% is calculated based on beginnning of today.
+          val ltFuture = recordOp
+            .getLessThan90Sensor(recordOp.MinCollection)("", "", "", today)
           for (ret: Seq[MonitorRecord] <- ltFuture) {
             val effectRateList: Seq[EffectiveRate] = ret map { m => EffectiveRate(m._id, m.count.getOrElse(0).toDouble / (24 * 60)) }
             errorReportOp.addLessThan90Sensor(yesterday, effectRateList)
