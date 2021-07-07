@@ -1,6 +1,6 @@
 name := """SensorManager"""
 
-version := "1.1.39"
+version := "1.1.40"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala, LauncherJarPlugin)
 
@@ -27,6 +27,9 @@ libraryDependencies += "com.opencsv" % "opencsv" % "5.4"
 
 // https://mvnrepository.com/artifact/org.apache.poi/poi-ooxml
 libraryDependencies += "org.apache.poi" % "poi-ooxml" % "5.0.0"
+
+// https://mvnrepository.com/artifact/com.typesafe.play/play-mailer
+libraryDependencies += "com.typesafe.play" %% "play-mailer" % "5.0.0"
 
 routesGenerator := StaticRoutesGenerator
 

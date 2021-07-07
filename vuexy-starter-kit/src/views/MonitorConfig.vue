@@ -46,18 +46,23 @@
                 />
               </b-td>
               <b-td>
-                <b-button
-                  variant="outline-primary"
-                  class="mr-2"
+                <b-img
+                  v-b-tooltip.hover
+                  title="匯出 Excel"
+                  class="mr-2 clickable"
+                  src="../assets/excel_export.svg"
+                  width="24"
+                  fluid
                   @click="exportExcel"
-                >
-                  <b-img
-                    src="../assets/excel_export.svg"
-                    width="24"
-                    fluid
-                    @click="exportExcel"
-                  />
-                </b-button>
+                />
+                <b-img
+                  v-b-tooltip.hover
+                  title="匯入 Excel"
+                  class="clickable"
+                  src="../assets/excel_import.svg"
+                  width="24"
+                  fluid
+                />
               </b-td>
             </b-tr>
           </b-tbody>
@@ -219,6 +224,10 @@
 .editable_field {
   width: 120px;
 }
+
+.clickable {
+  cursor: pointer;
+}
 </style>
 <script lang="ts">
 import Vue from 'vue';
@@ -231,8 +240,10 @@ import {
   getDistrict,
   TxtStrValue,
   MonitorGroup,
+  MonitorExportFields,
 } from './types';
 import { MonitorState, Monitor } from '../store/monitors/types';
+import { filter } from 'vue/types/umd';
 const excel = require('../libs/excel');
 const _ = require('lodash');
 
@@ -498,18 +509,21 @@ export default Vue.extend({
       return getDistrict(county);
     },
     exportExcel() {
-      const title = this.columns.map(e => e.label);
-      const key = this.columns.map(e => e.key);
-      for (let entry of this.filteredMonitors) {
-        let e = entry as any;
-        for (let k of key) {
-          e[k] = _.get(entry, k);
-        }
-      }
+      const title = MonitorExportFields.map(e => e.name);
+      const key = MonitorExportFields.map(e => e.key);
       let exportList = this.filteredMonitors.filter(m => {
         if (m.monitorGroup !== undefined) return m.monitorGroup;
         else return true;
       });
+
+      for (let entry of exportList) {
+        let e = entry as any;
+        for (let field of MonitorExportFields) {
+          let arg = _.get(entry, field.key);
+          if (field.getter === undefined) e[field.key] = arg;
+          else e[field.key] = field.getter(arg);
+        }
+      }
 
       let filename = this.sensorFilter.monitorGroup
         ? `${this.sensorFilter.monitorGroup._id}感測器`

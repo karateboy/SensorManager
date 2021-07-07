@@ -236,6 +236,18 @@ export default Vue.extend({
         } as highcharts.PointOptionsObject;
       });
 
+      const avgSeries = {
+        name: '平均中位數',
+        type: 'line',
+        data: [
+          [0, avgMean],
+          [ret.length - 1, avgMean],
+        ],
+        tooltip: {
+          valueDecimals: 2,
+        },
+      } as highcharts.SeriesLineOptions;
+
       const outlier = ret
         .map((qr, x) => {
           let name = `${qr.name.slice(-4)}`;
@@ -266,7 +278,9 @@ export default Vue.extend({
       this.setLoading({ loading: false });
 
       const series: Array<
-        highcharts.SeriesBoxplotOptions | highcharts.SeriesScatterOptions
+        | highcharts.SeriesBoxplotOptions
+        | highcharts.SeriesScatterOptions
+        | highcharts.SeriesLineOptions
       > = [
         {
           type: 'boxplot',
@@ -281,6 +295,9 @@ export default Vue.extend({
           },
         },
       ];
+
+      series.push(avgSeries);
+
       if (this.showOutlier) series.unshift(outlierSeries);
 
       let chartOption: highcharts.Options = {
@@ -291,7 +308,7 @@ export default Vue.extend({
           text: `${this.form.monitorGroupID} 離群分析報表`,
         },
         legend: {
-          enabled: false,
+          enabled: true,
         },
         xAxis: {
           categories,
@@ -303,6 +320,7 @@ export default Vue.extend({
           title: {
             text: 'PM2.5測值',
           },
+          /*
           plotLines: [
             {
               value: avgMean,
@@ -318,6 +336,7 @@ export default Vue.extend({
               zIndex: 100,
             },
           ],
+          */
         },
         credits: {
           enabled: false,

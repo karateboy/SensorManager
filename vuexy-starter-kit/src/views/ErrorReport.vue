@@ -279,8 +279,12 @@ export default Vue.extend({
           label: '完整率',
           sortable: true,
           formatter: (v: number) => {
-            let percent = v * 100;
-            return `${percent.toFixed(0)}%`;
+            if (isNaN(v)) {
+              return `N/A`;
+            } else {
+              let percent = v * 100;
+              return `${percent.toFixed(0)}%`;
+            }
           },
         });
       }

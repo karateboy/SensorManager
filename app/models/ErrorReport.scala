@@ -4,6 +4,7 @@ import org.mongodb.scala.model.{ReplaceOptions, UpdateOptions, Updates}
 import org.mongodb.scala.result.UpdateResult
 import play.api.Logger
 import play.api.libs.json.Json
+import play.twirl.api.HtmlFormat
 
 import java.util.Date
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -128,6 +129,10 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB) {
     val f = collection.find(Filters.equal("_id", _id)).toFuture()
     f.onFailure(errorHandler())
     f
+  }
+  def sendEmail()={
+    val ret: HtmlFormat.Appendable = views.html.errorReport("test")
+    ret.body
   }
 }
 

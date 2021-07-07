@@ -224,3 +224,117 @@ export interface QuartileReport {
   outlier: number[];
   away?: boolean;
 }
+
+export interface MonitorField {
+  key: string;
+  name: string;
+  getter?: (arg: any) => string | number;
+}
+
+export const MonitorExportFields: Array<MonitorField> = [
+  {
+    key: '_id',
+    name: '設備序號',
+  },
+  {
+    key: 'shortCode',
+    name: '標識簡碼',
+  },
+  {
+    key: 'code',
+    name: '代碼',
+  },
+  {
+    key: 'enabled',
+    name: '啟用',
+    getter: (arg: boolean) => {
+      if (arg) return 1;
+      else return '';
+    },
+  },
+  {
+    key: 'sensorDetail.sensorType',
+    name: '型號',
+  },
+  {
+    key: 'tags',
+    name: '類型',
+    getter: (arg: any) => {
+      const tags = arg as Array<string>;
+      if (tags.indexOf('ID') !== -1) return '工業區(ID)';
+      if (tags.indexOf('TR') !== -1) return '交通(TR)';
+      if (tags.indexOf('OT') !== -1) return '其他污染(OT)';
+      if (tags.indexOf('CO') !== -1) return '社區(CO)';
+      if (tags.indexOf('LO') !== -1) return '長期比對(LO)';
+      if (tags.indexOf('MO') !== -1) return '監測比對(MO)';
+      return '';
+    },
+  },
+  {
+    key: 'county',
+    name: '縣市',
+  },
+  {
+    key: 'district',
+    name: '鄉鎮區',
+  },
+  {
+    key: 'sensorDetail.roadName',
+    name: '路名',
+  },
+  {
+    key: 'sensorDetail.locationDesc',
+    name: '位置',
+  },
+  {
+    key: 'sensorDetail.authority',
+    name: '所屬單位',
+  },
+  {
+    key: 'sensorDetail.epaCode',
+    name: 'EPA代碼',
+  },
+  {
+    key: 'sensorDetail.target',
+    name: '目標',
+  },
+  {
+    key: 'sensorDetail.targetDetail',
+    name: '目標細分',
+  },
+  {
+    key: 'sensorDetail.height',
+    name: '高度',
+  },
+  {
+    key: 'sensorDetail.year',
+    name: '年度',
+    getter: () => {
+      return '107年';
+    },
+  },
+  {
+    key: 'location[0]',
+    name: '經度',
+  },
+  {
+    key: 'location[1]',
+    name: '緯度',
+  },
+  {
+    key: 'sensorDetail.distance[0]',
+    name: '站1',
+  },
+  {
+    key: 'sensorDetail.distance[1]',
+    name: '站2',
+  },
+  {
+    key: 'sensorDetail.distance[2]',
+    name: '站3',
+  },
+  {
+    key: 'sensorDetail.distance[3]',
+    name: '站4',
+  },
+];
