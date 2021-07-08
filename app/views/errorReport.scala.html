@@ -1,74 +1,16 @@
 @(dateStr: String, kl: Seq[Monitor], pt: Seq[Monitor], yl: Seq[Monitor])
+<!DOCTYPE html>
 <html lang="zh-tw">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+</head>
 <body>
 <div style="font-family:Verdana,Arial,Helvetica,sans-serif;font-size:10pt"><p style="margin:0px"><span
         style="font-family:微軟正黑體,sans-serif"><span
         style="color:red">@{dateStr} 電力異常設備</span></span><br></p>
-    <p style="margin:0px"><span style="font-family:微軟正黑體,sans-serif">基隆：<span lang="EN-US">@{kl.size}</span>台</span><br></p>
-    <div><span style="font-family:微軟正黑體,sans-serif"><br></span></div>
-    <div id="m_-6733834133616900640"><br>
-        <table cellpadding="2" cellspacing="2" border="1"
-               style="font-size:10pt;font-family:Verdana,Arial,Helvetica,sans-serif;width:100%;border-collapse:collapse;border:1px solid black">
-            <tbody>
-            <tr>
-                <td style="width:70px">簡碼</td>
-                <td style="width:70px">
-                    <div><span
-                            style="font-size:6.0pt;font-family:&quot;\005fae\008edf\006b63\009ed1\009ad4&quot;,sans-serif">代碼</span><br>
-                    </div>
-                </td>
-                <td style="width:70px">
-                    <div><span
-                            style="font-size:6.0pt;font-family:&quot;\005fae\008edf\006b63\009ed1\009ad4&quot;,sans-serif">路名</span><br>
-                    </div>
-                </td>
-                <td style="width:70px">
-                    <div><span
-                            style="font-size:5.0pt;font-family:&quot;\005fae\008edf\006b63\009ed1\009ad4&quot;,sans-serif">位置</span><br>
-                    </div>
-                </td>
-                <td style="width:70px">
-                    <div><span
-                            style="font-size:6.0pt;font-family:&quot;\005fae\008edf\006b63\009ed1\009ad4&quot;,sans-serif">經度</span><br>
-                    </div>
-                </td>
-                <td style="width:70px">
-                    <div><span
-                            style="font-size:6.0pt;font-family:&quot;\005fae\008edf\006b63\009ed1\009ad4&quot;,sans-serif">緯度</span><br>
-                    </div>
-                </td>
-                <td style="width:138.429px">
-                    <div>超連結</div>
-                </td>
-            </tr>
-            @for(m <- yl){
-            <tr>
-                <td style="width:70px">
-                    <div>@{m.shortCode}</div>
-                </td>
-                <td style="width:70px">
-                    <div>@{m.code}</div>
-                </td>
-                <td style="width:70px">
-                    <div>@{m.sensorDetail.get.roadName}</div>
-                </td>
-                <td style="width:70px">
-                    <div>@{m.sensorDetail.get.locationDesc}</div>
-                </td>
-                <td style="width:70px">
-                    <div>@{m.location.get(0)}</div>
-                </td>
-                <td style="width:70px">
-                    <div>@{m.location.get(1)}</div>
-                </td>
-                <td style="width:138.429px">
-                    <div><a href="https://www.google.com/maps?q=@{m.location.get(0)}, @{m.location.get(1)}" target="_blank" /></div>
-                </td>
-            </tr>
-            }
-            </tbody>
-        </table>
-    </div>
+    @powerError("基隆", kl)
+    @powerError("屏東", pt)
+    @powerError("宜蘭", yl)
 </div>
 </body>
 </html>

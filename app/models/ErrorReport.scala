@@ -83,18 +83,6 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
 
   def addPowerErrorSensor = initBefore(addPowerErrorSensor1) _
 
-  def initBefore[T](f: (Date, T) => Future[UpdateResult])(date: Date, sensorID: T): Unit = {
-    insertEmptyIfExist(date).andThen({
-      case _ =>
-        f(date, sensorID)
-    })
-  }
-
-  def insertEmptyIfExist(date: Date) = {
-    val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectiveRate])
-    collection.insertOne(emptyDoc).toFuture()
-  }
-
   def addPowerErrorSensor1(date: Date, sensorID: String) = {
     val updates = Updates.addToSet("powerError", sensorID)
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
@@ -122,6 +110,18 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
 
   def addLessThan90Sensor = initBefore(addLessThan90Sensor1) _
 
+  def initBefore[T](f: (Date, T) => Future[UpdateResult])(date: Date, sensorID: T): Unit = {
+    insertEmptyIfExist(date).andThen({
+      case _ =>
+        f(date, sensorID)
+    })
+  }
+
+  def insertEmptyIfExist(date: Date) = {
+    val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectiveRate])
+    collection.insertOne(emptyDoc).toFuture()
+  }
+
   def addLessThan90Sensor1(date: Date, effectRateList: Seq[EffectiveRate]) = {
     Logger.info(s"lt90 #=${effectRateList.size}")
     val updates = Updates.combine(
@@ -132,13 +132,14 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f
   }
 
-  def sendEmail(email: String) = {
+  def sendEmail(receiverEmails: Seq[String]) = {
     val yesterday = DateTime.now.withMillisOfDay(0).minusDays(1)
     val f = get(yesterday.toDate)
     f onFailure (errorHandler())
     for (reports <- f) yield {
       val (kl, pt, yl) =
         if (reports.isEmpty) {
+          Logger.info("Emtpy report!")
           (Seq.empty[Monitor], Seq.empty[Monitor], Seq.empty[Monitor])
         } else {
           val report = reports(0)
@@ -151,11 +152,18 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
       val htmlBody = views.html.errorReport(yesterday.toString("yyyy/MM/dd"), kl, pt, yl).body
       val mail = Email(
         subject = s"${yesterday.toString("yyyy/MM/dd")}電力異常設備",
-        from = "Aragorn <aragorn.huang@mist-tw.com>",
-        to = Seq(email),
+        from = "Aragorn <karateboy@sagainfo.com.tw>",
+        to = receiverEmails,
         bodyHtml = Some(htmlBody)
       )
-      mailerClient.send(mail)
+      try {
+        Thread.currentThread().setContextClassLoader(getClass().getClassLoader())
+        mailerClient.send(mail)
+      } catch {
+        case ex: Exception =>
+          Logger.error("Failed to send email", ex)
+      }
+
     }
   }
 

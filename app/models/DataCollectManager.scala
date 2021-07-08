@@ -15,6 +15,7 @@ import scala.concurrent.duration.SECONDS
 import scala.language.postfixOps
 import scala.util.Success
 
+sealed trait ManagerMessage
 
 case class StartInstrument(inst: Instrument)
 
@@ -68,6 +69,7 @@ case class IsTargetConnected(instId: String)
 
 case object IsConnected
 
+case object SendErrorReport
 
 object DataCollectManager {
   case object CheckSensorStstus
@@ -230,7 +232,7 @@ class DataCollectManager @Inject()
  dataCollectManagerOp: DataCollectManagerOp,
  instrumentTypeOp: InstrumentTypeOp,
  alarmOp: AlarmOp, instrumentOp: InstrumentOp,
- errorReportOp: ErrorReportOp) extends Actor with InjectedActorSupport {
+ errorReportOp: ErrorReportOp, sysConfig: SysConfig) extends Actor with InjectedActorSupport {
   val effectivRatio = 0.75
   val storeSecondData = config.getBoolean("storeSecondData").getOrElse(false)
   Logger.info(s"store second data = $storeSecondData")
@@ -249,6 +251,20 @@ class DataCollectManager @Inject()
     val next30 = DateTime.now().withSecondOfMinute(30).plusMinutes(1)
     val postSeconds = new org.joda.time.Duration(DateTime.now, next30).getStandardSeconds
     system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(10, MINUTES), self, CheckSensorStstus)
+  }
+
+  val alertEmailTimer = {
+    val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(20) // 20:00
+    val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
+    val duration = if (DateTime.now() < emailTime)
+      new Duration(DateTime.now(), emailTime)
+    else
+      new Duration(DateTime.now(), emailTime + 1.day)
+
+    import scala.concurrent.duration._
+    system.scheduler.schedule(
+      Duration(duration.getStandardSeconds + 1, SECONDS),
+      Duration(1, DAYS), self, SendErrorReport)
   }
 
   var calibratorOpt: Option[ActorRef] = None
@@ -689,6 +705,10 @@ class DataCollectManager @Inject()
           }
         }
       }
+    case SendErrorReport =>
+      for(alertEmailTarget <- sysConfig.getAlertEmailTarget())yield{
+        errorReportOp.sendEmail(alertEmailTarget)
+      }
 
     case GetLatestData =>
       //Filter out older than 6 second
@@ -729,6 +749,7 @@ class DataCollectManager @Inject()
     onceTimer map {
       _.cancel()
     }
+    alertEmailTimer.cancel()
   }
 
   case class InstrumentParam(actor: ActorRef, mtList: List[String], calibrationTimerOpt: Option[Cancellable])

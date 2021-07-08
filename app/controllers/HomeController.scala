@@ -693,7 +693,7 @@ class HomeController @Inject()(environment: play.api.Environment,
   })
 
   def testAlertEmail(email:String) = Security.Authenticated{
-    errorReportOp.sendEmail(email)
+    errorReportOp.sendEmail(Seq(email))
     Ok("ok")
   }
   case class EditData(id: String, data: String)
