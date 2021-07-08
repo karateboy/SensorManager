@@ -61,6 +61,11 @@ export default Vue.extend({
     Ripple,
   },
   data() {
+    const form: {
+      uploadFile: Blob | undefined;
+    } = {
+      uploadFile: undefined,
+    };
     return {
       actorName: '',
       fileType: '',
@@ -68,9 +73,7 @@ export default Vue.extend({
         { text: '感測器', value: 'sensor' },
         { text: '環保署測站', value: 'epa' },
       ],
-      form: {
-        uploadFile: '',
-      },
+      form,
       timer: 0,
     };
   },
@@ -81,10 +84,8 @@ export default Vue.extend({
   methods: {
     ...mapMutations(['setLoading']),
     upload() {
-      let file: string = this.form.uploadFile;
-
       var formData = new FormData();
-      formData.append('data', file);
+      formData.append('data', this.form.uploadFile as Blob);
       this.setLoading({ loading: true, message: '資料上傳中' });
       axios
         .post(`/ImportData/${this.fileType}`, formData, {

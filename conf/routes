@@ -119,7 +119,10 @@ GET      /HourRecord/:start/:end                                                
 GET      /MinRecord/:start/:end                                                   controllers.Query.minRecordList(start:Long, end:Long)
 GET      /CalibrationRecord/:start/end                                            controllers.Query.calibrationRecordList(start:Long, end:Long)
 GET      /AlertRecord/:start/end                                                  controllers.Query.alertRecordList(start:Long, end:Long)
-	
+
+GET      /AlertEmailTargets                                                       controllers.HomeController.getAlertEmailTargets
+POST     /AlertEmailTargets                                                       controllers.HomeController.saveAlertEmailTargets
+GET      /TestAlertEmail                                                          controllers.HomeController.testAlertEmail(email)
 	
 GET      /EvtOptHigh                                                              controllers.HomeController.testEvtOptHigh
 GET      /TestSpray                                                               controllers.HomeController.testSpray

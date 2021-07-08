@@ -17,8 +17,8 @@ object SysConfig {
   val valueKey = "value"
   val MonitorTypeVer = "Version"
   val EpaLastDataTime = "EpaLastDateTime"
-  val SensorMeta = "sensorMeta"
   val SensorGPS = "SensorGPS"
+  val AlertEmailTaget = "AlertEmailTarget"
 }
 @Singleton
 class SysConfig @Inject()(mongoDB: MongoDB){
@@ -29,8 +29,8 @@ class SysConfig @Inject()(mongoDB: MongoDB){
   val defaultConfig:Map[String, Document] = Map(
     MonitorTypeVer -> Document(valueKey -> 1),
     EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate),
-    SensorMeta -> Document(valueKey -> Seq.empty[String]),
-    SensorGPS-> Document(valueKey->false)
+    SensorGPS-> Document(valueKey->false),
+    AlertEmailTaget -> Document(valueKey -> Seq("karateboy.tw@gmail.com"))
   )
 
   def init() {
@@ -88,13 +88,9 @@ class SysConfig @Inject()(mongoDB: MongoDB){
 
   def setEpaLastDataTime(time:Date) = set(EpaLastDataTime, time)
 
-  def getImportedSensorMetaFilename = for(v<-get(SensorMeta)) yield {
-    val array = v.asArray().getValues
-    val result = array map {
-      v => v.asString().getValue
-    }
-    result.toList
-  }
+  def getAlertEmailTarget() =
+    for(v<-get(AlertEmailTaget)) yield
+      v.asArray().toSeq.map(_.asString().getValue)
 
-  def setImportedSensorMetaFilename(filenames: Seq[String]) = set(SensorMeta, filenames)
+  def setAlertEmailTarget(emails: Seq[String]) = set(AlertEmailTaget, emails)
 }

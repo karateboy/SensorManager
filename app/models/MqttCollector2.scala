@@ -269,11 +269,10 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
                   mtDataList.:+(MtRecord(MonitorType.BATTERY, 4, MonitorStatus.NormalStat))
             }
 
-            if (now.getHourOfDay >= 20 || now.getHourOfDay < 7) { // nighttime
+            if (now.getHourOfDay >= 20) { // nighttime
               powerUsageError = useBattery
-            } else {
-              powerUsageError = !useBattery
             }
+
             if(powerUsageError)
               powerErrorReportOp.addPowerErrorSensor(today, message.id)
             else

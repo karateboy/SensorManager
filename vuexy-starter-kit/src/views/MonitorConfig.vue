@@ -49,7 +49,7 @@
                 <b-img
                   v-b-tooltip.hover
                   title="匯出 Excel"
-                  class="mr-2 clickable"
+                  class="mr-3 clickable"
                   src="../assets/excel_export.svg"
                   width="24"
                   fluid
@@ -57,6 +57,7 @@
                 />
                 <b-img
                   v-b-tooltip.hover
+                  v-b-modal.modal-import-excel
                   title="匯入 Excel"
                   class="clickable"
                   src="../assets/excel_import.svg"
@@ -215,6 +216,38 @@
         </b-col>
       </b-row>
     </b-card>
+    <b-modal id="modal-import-excel" title="匯入感測器Excel" hide-footer>
+      <b-form @submit.prevent>
+        <b-row>
+          <b-col>
+            <b-form-file
+              v-model="form.uploadFile"
+              :state="Boolean(form.uploadFile)"
+              accept=".xlsx"
+              browse-text="..."
+              placeholder="選擇上傳檔案..."
+              drop-placeholder="拖曳檔案至此..."
+            ></b-form-file>
+          </b-col>
+        </b-row>
+        <br />
+        <b-row>
+          <b-col>
+            <b-button
+              v-ripple.400="'rgba(255, 255, 255, 0.15)'"
+              v-b-modal.modal-import-excel.hide
+              type="submit"
+              variant="primary"
+              class="mr-1"
+              :disabled="!Boolean(form.uploadFile)"
+              @click="upload"
+            >
+              上傳
+            </b-button>
+          </b-col>
+        </b-row>
+      </b-form>
+    </b-modal>
   </div>
 </template>
 <style scoped>
@@ -232,7 +265,7 @@
 <script lang="ts">
 import Vue from 'vue';
 const Ripple = require('vue-ripple-directive');
-import { mapActions, mapState } from 'vuex';
+import { mapActions, mapState, mapMutations } from 'vuex';
 import axios from 'axios';
 import {
   sensorTypes,
@@ -243,7 +276,6 @@ import {
   MonitorExportFields,
 } from './types';
 import { MonitorState, Monitor } from '../store/monitors/types';
-import { filter } from 'vue/types/umd';
 const excel = require('../libs/excel');
 const _ = require('lodash');
 
@@ -351,6 +383,11 @@ export default Vue.extend({
     ];
     const sensorGroups = ['SAQ200', 'SAQ210'];
     let monitorGroup: MonitorGroup | undefined | null;
+    const form: {
+      uploadFile: Blob | undefined;
+    } = {
+      uploadFile: undefined,
+    };
     return {
       sensorFilter: {
         code: '',
@@ -366,6 +403,9 @@ export default Vue.extend({
       sensorGroups,
       currentPage: 1,
       perPage: 15,
+      form,
+      actorName: '',
+      timer: 0,
     };
   },
   computed: {
@@ -471,10 +511,13 @@ export default Vue.extend({
     await this.fetchMonitorTypes();
     await this.getMonitorGroups();
   },
-
+  beforeDestroy() {
+    clearTimeout(this.timer);
+  },
   methods: {
     ...mapActions('monitors', ['fetchMonitors']),
     ...mapActions('monitorTypes', ['fetchMonitorTypes']),
+    ...mapMutations(['setLoading']),
     async getMonitorGroups() {
       const ret = await axios.get('/MonitorGroups');
       this.monitorGroupList = ret.data;
@@ -513,7 +556,9 @@ export default Vue.extend({
       const key = MonitorExportFields.map(e => e.key);
       let exportList = this.filteredMonitors.filter(m => {
         if (m.monitorGroup !== undefined) return m.monitorGroup;
-        else return true;
+        if (!Boolean(m.code)) return false;
+
+        return true;
       });
 
       for (let entry of exportList) {
@@ -537,6 +582,47 @@ export default Vue.extend({
         filename,
       };
       excel.export_array_to_excel(params);
+    },
+    upload() {
+      this.$bvModal.hide('modal-import-excel');
+      var formData = new FormData();
+      formData.append('data', this.form.uploadFile as Blob);
+      this.setLoading({ loading: true, message: '資料上傳中' });
+      axios
+        .post(`/ImportData/monitor`, formData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+        })
+        .then(res => {
+          if (res.status === 200) {
+            this.actorName = res.data.actorName;
+            this.setLoading({ loading: true, message: '資料庫匯入中' });
+            this.timer = setTimeout(this.checkFinished, 1000);
+            //this.$bvModal.msgBoxOk('上傳成功', { headerBgVariant: 'info' });
+          } else {
+            this.setLoading({ loading: false });
+            this.$bvModal.msgBoxOk(
+              `上傳失敗 ${res.status} - ${res.statusText}`,
+              {
+                headerBgVariant: 'danger',
+              },
+            );
+          }
+        })
+        .catch(err => {
+          this.setLoading({ loading: false });
+          alert(err);
+        });
+    },
+    async checkFinished() {
+      const res = await axios.get(`/UploadProgress/${this.actorName}`);
+      if (res.data.finished) {
+        this.setLoading({ loading: false });
+        this.$bvModal.msgBoxOk('上傳成功', { headerBgVariant: 'info' });
+      } else {
+        this.timer = setTimeout(this.checkFinished, 1000);
+      }
     },
   },
 });

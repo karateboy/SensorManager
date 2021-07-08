@@ -244,6 +244,7 @@ export default Vue.extend({
           [ret.length - 1, avgMean],
         ],
         tooltip: {
+          headerFormat: '<em>中位數平均</em><br/>',
           valueDecimals: 2,
         },
       } as highcharts.SeriesLineOptions;

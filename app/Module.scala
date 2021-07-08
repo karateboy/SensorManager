@@ -1,5 +1,5 @@
 import com.google.inject.AbstractModule
-import models.{Adam4017Collector, Adam4068Collector, Adam6017Collector, Adam6066Collector, Baseline9000Collector, DataCollectManager, GpsCollector, Horiba370Collector, MongoDB, MonitorTypeOp, MoxaE1212Collector, MoxaE1240Collector, MqttCollector2, OpenDataReceiver, DataImporter, SensorMetaImporter, T100Collector, T200Collector, T201Collector, T300Collector, T360Collector, T400Collector, T700Collector, ThetaCollector, VerewaF701Collector}
+import models._
 import play.api._
 import play.api.libs.concurrent.AkkaGuiceSupport
 /**
@@ -39,7 +39,6 @@ class Module extends AbstractModule with AkkaGuiceSupport {
     bindActorFactory[VerewaF701Collector, VerewaF701Collector.Factory]
     bindActorFactory[ThetaCollector, ThetaCollector.Factory]
     bindActor[OpenDataReceiver]("openDataReceiver")
-    bindActor[SensorMetaImporter]("sensorImporter")
     //bindActor[SensorDataImporter]("sensorDataImporter")
     //bind(classOf[ForwardManager])
     // Use the system clock as the default implementation of Clock

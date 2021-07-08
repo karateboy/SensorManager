@@ -1,7 +1,8 @@
 package controllers
 
-import akka.actor.{ActorPaths, ActorRef, ActorSystem}
+import akka.actor.ActorSystem
 import com.github.nscala_time.time.Imports._
+import models.ModelHelper.errorHandler
 import models._
 import play.api._
 import play.api.data.Forms._
@@ -11,24 +12,21 @@ import play.api.mvc._
 
 import java.nio.file.Files
 import javax.inject._
-import scala.concurrent.duration.SECONDS
-
 import scala.concurrent.ExecutionContext.Implicits.global
 
 class HomeController @Inject()(environment: play.api.Environment,
                                userOp: UserOp, instrumentOp: InstrumentOp, dataCollectManagerOp: DataCollectManagerOp,
                                monitorTypeOp: MonitorTypeOp, query: Query, monitorOp: MonitorOp, groupOp: GroupOp,
                                instrumentTypeOp: InstrumentTypeOp, monitorStatusOp: MonitorStatusOp, actorSystem: ActorSystem,
-                               recordOp: RecordOp, sysConfig: SysConfig, monitorGroupOp: MonitorGroupOp) extends Controller {
+                               recordOp: RecordOp, sysConfig: SysConfig, monitorGroupOp: MonitorGroupOp,
+                               errorReportOp: ErrorReportOp) extends Controller {
 
   val epaReportPath: String = environment.rootPath + "/importEPA/"
 
   implicit val userParamRead: Reads[User] = Json.reads[User]
 
-  import MonitorType.mtRead
-  import MonitorType.mtWrite
-  import groupOp.read
-  import groupOp.write
+  import MonitorType.{mtRead, mtWrite}
+  import groupOp.{read, write}
 
   def newUser = Security.Authenticated(BodyParsers.parse.json) {
     implicit request =>
@@ -46,12 +44,12 @@ class HomeController @Inject()(environment: play.api.Environment,
   }
 
   def getUserInfo() = Security.Authenticated {
-    implicit request=>
+    implicit request =>
       implicit val write = Json.writes[User]
       val userInfoOpt = Security.getUserinfo(request)
       val userInfo = userInfoOpt.get
       val userOpt = userOp.getUserByEmail(userInfo.id)
-      if(userOpt.isEmpty)
+      if (userOpt.isEmpty)
         Unauthorized("not loginned")
       else
         Ok(Json.toJson(userOpt.get))
@@ -480,10 +478,10 @@ class HomeController @Inject()(environment: play.api.Environment,
 
       import Monitor.mWrite
 
-      if(userInfo.isAdmin){
+      if (userInfo.isAdmin) {
         val mList2 = monitorOp.mvList map { m => monitorOp.map(m) }
         Ok(Json.toJson(mList2))
-      }else{
+      } else {
         val mList2 = group.monitors map { m => monitorOp.map(m) }
         Ok(Json.toJson(mList2))
       }
@@ -608,64 +606,97 @@ class HomeController @Inject()(environment: play.api.Environment,
     Ok("ok")
   }
 
-  case class EditData(id: String, data: String)
-
-  def importData(fileTypeStr:String) = Security.Authenticated(parse.multipartFormData) {
+  def importData(fileTypeStr: String) = Security.Authenticated(parse.multipartFormData) {
     implicit request =>
       val dataFileOpt = request.body.file("data")
-      if(dataFileOpt.isEmpty)
+      if (dataFileOpt.isEmpty) {
+        Logger.info("data is empty..")
         Ok(Json.obj("ok" -> true))
-      else{
+      } else {
         val dataFile = dataFileOpt.get
-        val filePath = Files.createTempFile("temp", ".csv");
+        val (fileType, filePath) = fileTypeStr match {
+          case "sensor" =>
+            (DataImporter.SensorData, Files.createTempFile("sensor", ".csv"))
+          case "epa" =>
+            (DataImporter.EpaData, Files.createTempFile("epa", ".csv"))
+          case "monitor" =>
+            (DataImporter.MonitorData, Files.createTempFile("monitor", ".xlsx"))
+        }
         val file = dataFile.ref.moveTo(filePath.toFile, true)
-        val fileType = if(fileTypeStr == "sensor")
-          DataImporter.SensorData
-        else
-          DataImporter.EpaData
-        val actorName = DataImporter.start(monitorOp=monitorOp ,recordOp = recordOp, dataFile=file, fileType = fileType)(actorSystem)
+
+        val actorName = DataImporter.start(monitorOp = monitorOp, recordOp = recordOp, monitorGroupOp = monitorGroupOp,
+          dataFile = file, fileType = fileType)(actorSystem)
         Ok(Json.obj("actorName" -> actorName))
       }
   }
 
-  def getUploadProgress(actorName:String) = Security.Authenticated {
-    Ok(Json.obj("finished"->DataImporter.isFinished(actorName)))
+  def getUploadProgress(actorName: String) = Security.Authenticated {
+    Ok(Json.obj("finished" -> DataImporter.isFinished(actorName)))
   }
 
-  def getSystemConfig(key:String) = Security.Authenticated.async{
+  def getSystemConfig(key: String) = Security.Authenticated.async {
     key match {
       case SysConfig.SensorGPS =>
-        for(ret <- sysConfig.get(SysConfig.SensorGPS))
+        for (ret <- sysConfig.get(SysConfig.SensorGPS))
           yield {
-            Ok(Json.obj(SysConfig.valueKey->ret.asBoolean().getValue))
+            Ok(Json.obj(SysConfig.valueKey -> ret.asBoolean().getValue))
           }
     }
   }
 
-  case class BooleanValue(value:Boolean)
-  def setSystemConfig(key:String)= Security.Authenticated(BodyParsers.parse.json){
+  def setSystemConfig(key: String) = Security.Authenticated(BodyParsers.parse.json) {
     implicit request =>
-    key match {
-      case SysConfig.SensorGPS =>
-        implicit val reads = Json.reads[BooleanValue]
-        val ret = request.body.validate[BooleanValue]
-        ret.fold(
-          err=>{
-          Logger.error(JsError.toJson(err).toString())
-            BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(err).toString()))
-          },
-          value=>{
-            sysConfig.set(SysConfig.SensorGPS, value.value)
-            Ok(Json.obj("ok"->true))
-          }
-        )
-    }
+      key match {
+        case SysConfig.SensorGPS =>
+          implicit val reads = Json.reads[BooleanValue]
+          val ret = request.body.validate[BooleanValue]
+          ret.fold(
+            err => {
+              Logger.error(JsError.toJson(err).toString())
+              BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(err).toString()))
+            },
+            value => {
+              sysConfig.set(SysConfig.SensorGPS, value.value)
+              Ok(Json.obj("ok" -> true))
+            }
+          )
+      }
   }
-  def monitorGroupList = Security.Authenticated.async{
-    implicit request=>
+
+  def monitorGroupList = Security.Authenticated.async {
+    implicit request =>
       implicit val writes = Json.writes[MonitorGroup]
       val f = monitorGroupOp.getList()
-      for(ret <- f) yield
+      for (ret <- f) yield
         Ok(Json.toJson(ret))
   }
+
+  def getAlertEmailTargets = Security.Authenticated.async({
+    val f = sysConfig.getAlertEmailTarget()
+    f onFailure (errorHandler)
+    for (ret <- f) yield
+      Ok(Json.toJson((ret)))
+  })
+
+  def saveAlertEmailTargets() = Security.Authenticated(BodyParsers.parse.json)({
+    implicit request =>
+      val ret = request.body.validate[Seq[String]]
+      ret.fold(
+        error => {
+          Logger.error(JsError.toJson(error).toString())
+          BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(error).toString()))
+        },
+        emails => {
+          sysConfig.setAlertEmailTarget(emails)
+          Ok(Json.obj("ok" -> true))
+        })
+  })
+
+  def testAlertEmail(email:String) = Security.Authenticated{
+    errorReportOp.sendEmail(email)
+    Ok("ok")
+  }
+  case class EditData(id: String, data: String)
+
+  case class BooleanValue(value: Boolean)
 }
