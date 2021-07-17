@@ -65,15 +65,6 @@ class Realtime @Inject()
     }
   }
 
-  def disconnectSummary = Security.Authenticated.async {
-    implicit val writes = Json.writes[DisconnectSummary]
-    val f = recordOp.getLast10MinDisconnectSummary(recordOp.MinCollection)
-    val start = DateTime.now
-    for (ret <- f) yield {
-      Ok(Json.toJson(ret))
-    }
-  }
-
   def sensorDisconnected(county: String, district: String, sensorType: String) = Security.Authenticated.async {
     val f = recordOp.getSensorDisconnected(recordOp.MinCollection)(county = county, district = district, sensorType = sensorType)
     for (ret <- f) yield {
@@ -114,7 +105,6 @@ class Realtime @Inject()
   def sensorConstant(county: String, district: String, sensorType: String) =
     Security.Authenticated.async {
       implicit request =>
-        import recordOp.monitorRecordWrite
         val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1)
         val f = errorReportOp.get(yesterday.toDate)
         for {report <- f
@@ -253,22 +243,4 @@ class Realtime @Inject()
         }
     }
   case class MonitorTypeStatus(desp: String, value: String, unit: String, instrument: String, status: String, classStr: Seq[String], order: Int)
-  /*
-    def sensorDisconnect() = Security.Authenticated.async {
-      implicit request =>
-        import recordOp.monitorRecordWrite
-        val f = recordOp.getDisconnectSummary(TableType.min)
-        for (recordList <- f) yield {
-          recordList.foreach(r=> {
-            if(monitorOp.map.contains(r._id)) {
-              r.shortCode =monitorOp.map(r._id).shortCode
-              r.code = monitorOp.map(r._id).code
-              r.tags = Some(monitorOp.map(r._id).tags)
-            }
-          })
-          Ok(Json.toJson(recordList))
-        }
-    }
-
-   */
 }

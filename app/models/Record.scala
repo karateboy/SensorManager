@@ -595,10 +595,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
-    val timeFrameFilter = {
-      DateTime.now().minusMinutes(10).toDate
+    val timeFrameFilter =
       Aggregates.filter(Filters.gt("time", DateTime.now().minusMinutes(10).toDate))
-    }
 
     val targetMonitors = monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
       .filter(m => m.enabled.getOrElse(true))
@@ -641,7 +639,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   def getLastestSensorSummary(colName: String) = {
     val today = DateTime.now().withMillisOfDay(0).toDate
     val groupList = List("SAQ200", "SAQ210")
-    val f2 = getLast10MinDisconnected(colName)
+    val f2 = getSensorDisconnected(colName)("", "", "")
     val f4 = powerErrorReportOp.get(today)
     for {
          disconnectedMonitors <- f2
@@ -650,7 +648,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
 
       val groupSummaryList =
         for (group <- groupList) yield {
-          def getCountyByCountyByMonitorIDs(ids: Set[String]) = {
+          def getCountGroupByCounty(ids: Set[String]) = {
             var (kl, pt, yl, rest) = (0, 0, 0, 0)
             ids.foreach(id => {
               val m = monitorOp.map(id)
@@ -674,7 +672,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
           }
 
           val groupMonitorCount =
-            getCountyByCountyByMonitorIDs(monitorOp.map.keys.toSet)
+            getCountGroupByCounty(monitorOp.map.keys.toSet)
 
           val lt90Count = {
             val lt90MonitorID: Seq[String] = {
@@ -685,14 +683,14 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
                   monitorOp.map(ineffect._id)._id
               }
             }
-            getCountyByCountyByMonitorIDs(lt90MonitorID.toSet)
+            getCountGroupByCounty(lt90MonitorID.toSet)
           }
 
           val disconnected =
-            getCountyByCountyByMonitorIDs(monitorOp.map.keys.toSet -- disconnectedMonitors)
+            getCountGroupByCounty(disconnectedMonitors)
 
           val receivedCount =
-            getCountyByCountyByMonitorIDs(disconnectedMonitors)
+            getCountGroupByCounty(monitorOp.map.keys.toSet -- disconnectedMonitors)
 
           val constant = {
             val constantMonitorID: Seq[String] = {
@@ -703,7 +701,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
                   monitorOp.map(sensorID)._id
               }
             }
-            getCountyByCountyByMonitorIDs(constantMonitorID.toSet)
+            getCountGroupByCounty(constantMonitorID.toSet)
           }
 
 
@@ -716,7 +714,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
                   monitorOp.map(sensorID)._id
               }
             }
-            getCountyByCountyByMonitorIDs(powerErrorMonitorID.toSet)
+            getCountGroupByCounty(powerErrorMonitorID.toSet)
           }
 
           GroupSummary(group, groupMonitorCount, receivedCount, lt90Count, constant, disconnected, powerError)
@@ -725,7 +723,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     }
   }
 
-  def getLast10MinConstantSensor(colName: String) = {
+  def getLast10MinConstantSensor(colName: String): Future[Seq[MonitorRecord]] = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
@@ -757,130 +755,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, addPm25ValueStage, latestFilter, constantFilter, projectStage)).toFuture()
   }
 
-  def getLast10MinDisconnectSummary(colName: String) = {
-
-    val f1 = getLast10MinDisconnected(colName)
-    for {idList <- f1
-         } yield {
-      var groupCountMap = Map.empty[String, Int]
-      var countyGroupMap = Map.empty[String, Map[String, Int]]
-      idList foreach { monitorId =>
-        if (monitorOp.map.contains(monitorId)) {
-          val monitor = monitorOp.map(monitorId)
-          for {detail <- monitor.sensorDetail
-               county <- monitor.county
-               group = detail.sensorType
-               } {
-            val groupCount = groupCountMap.getOrElse(group, 0)
-            groupCountMap = groupCountMap + (group -> (groupCount + 1))
-            val countyMap = countyGroupMap.getOrElse(group, Map.empty[String, Int])
-            val countyCount = countyMap.getOrElse(county, 0)
-            val newCountMap = countyMap + (county -> (countyCount + 1))
-            countyGroupMap = countyGroupMap + (group -> newCountMap)
-          }
-        }
-      }
-
-      val groupSummaryList =
-        for (group <- countyGroupMap.keys.toList.sorted) yield {
-          val total = groupCountMap(group)
-          val kl = countyGroupMap(group).getOrElse("基隆市", 0)
-          val pt = countyGroupMap(group).getOrElse("屏東縣", 0)
-          val yl = countyGroupMap(group).getOrElse("宜蘭縣", 0)
-          val rest = total - kl - pt - yl
-          DisconnectSummary(group, kl = kl, pt = pt, yl = yl, rest = rest)
-        }
-      groupSummaryList
-    }
-  }
-
-  def getLast10MinDisconnected(colName: String): Future[Set[String]] = {
-    import org.mongodb.scala.model.Projections._
-    import org.mongodb.scala.model.Sorts._
-
-    val timeFrameFilter = {
-      DateTime.now().minusMinutes(10).toDate
-      Aggregates.filter(Filters.gt("time", DateTime.now().minusMinutes(10).toDate))
-    }
-
-    val targetMonitors = monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
-      .filter(m => m.enabled.getOrElse(true)).map {
-      _._id
-    } toList
-
-    val monitorFilter =
-      Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
-
-    val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
-    val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
-      Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"))
-    val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
-    val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
-    val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    val f = col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, latestFilter, removeIdStage)).toFuture()
-    f.transform(ret => {
-      val targetSet: Set[String] = targetMonitors.toSet
-      val connected = ret.map(_._id)
-      targetSet -- connected
-    }, ex => ex)
-  }
-
-  def getDisconnected(colName: String)(start: DateTime, end: DateTime): Future[Set[String]] = {
-    val timeFrameFilter =
-      Aggregates.filter(Filters.and(
-        Filters.gte("time", start.toDate),
-        Filters.lt("time", end.toDate)
-      ))
-
-    val targetMonitors = monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
-      .filter(m => m.enabled.getOrElse(true)).map {
-      _._id
-    } toList
-
-    val monitorFilter =
-      Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
-
-    val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"))
-    val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
-    val col = mongoDB.database.getCollection(colName)
-    val f = col.aggregate(Seq(timeFrameFilter, monitorFilter, latestFilter)).toFuture()
-    f.transform(ret => {
-      val targetSet: Set[String] = targetMonitors.toSet
-      val connected = ret.map(doc => doc.getString("_id"))
-      targetSet -- connected
-    }, ex => ex)
-  }
-
-  def getLast10MinPowerError(colName: String): Future[Set[String]] = {
-    import org.mongodb.scala.model.Projections._
-    import org.mongodb.scala.model.Sorts._
-
-    val timeFrameFilter = {
-      DateTime.now().minusMinutes(10).toDate
-      Aggregates.filter(Filters.gt("time", DateTime.now().minusMinutes(10).toDate))
-    }
-
-    val targetMonitors = monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
-      .filter(m => m.enabled.getOrElse(true)).map {
-      _._id
-    } toList
-
-    val monitorFilter =
-      Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
-
-    val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
-    val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
-      Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"))
-    val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
-    val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
-    val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    val f = col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, latestFilter, removeIdStage)).toFuture()
-    f.transform(ret => {
-      val targetSet: Set[String] = targetMonitors.toSet
-      val connected = ret.map(_._id)
-      targetSet -- connected
-    }, ex => ex)
-  }
   /*
   def updateMtRecord(colName: String)(mtName: String, updateList: Seq[(DateTime, Double)], monitor: String = monitorOp.SELF_ID) = {
     import org.mongodb.scala.bson._

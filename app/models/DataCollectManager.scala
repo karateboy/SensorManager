@@ -701,7 +701,7 @@ class DataCollectManager @Inject()
 
       // It is tricky less than 90% is calculated based on beginnning of today.
       val ltFuture = recordOp
-        .getLessThan90Sensor(recordOp.MinCollection)("", "", "", today)
+        .getLessThan90Sensor(recordOp.MinCollection)("", "", "")
       for (ret: Seq[MonitorRecord] <- ltFuture) {
         val effectRateList: Seq[EffectiveRate] = ret map { m => EffectiveRate(m._id, m.count.getOrElse(0).toDouble / (24 * 60)) }
         errorReportOp.addLessThan90Sensor(today, effectRateList)

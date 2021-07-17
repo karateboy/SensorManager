@@ -41,6 +41,8 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
   val collection = mongoDB.database.getCollection[ErrorReport](colName).withCodecRegistry(codecRegistry)
   collection.createIndex(Indexes.ascending("powerError")).toFuture()
   collection.createIndex(Indexes.ascending("noErrorCode")).toFuture()
+  collection.createIndex(Indexes.ascending("constant")).toFuture()
+  collection.createIndex(Indexes.ascending("ineffective")).toFuture()
 
   init
 
@@ -123,7 +125,6 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
   }
 
   def addLessThan90Sensor1(date: Date, effectRateList: Seq[EffectiveRate]) = {
-    Logger.info(s"lt90 #=${effectRateList.size}")
     val updates = Updates.combine(
       Updates.addEachToSet("ineffective", effectRateList: _*),
       Updates.set("dailyChecked", true))

@@ -39,7 +39,6 @@ GET      /Lt95Sensor                                                            
 GET      /PowerUsageErrorSensor                                                   controllers.Realtime.getPowerUsageErrorSensor(county, district, sensorType)
 GET      /NoPowerInfoSensor                                                       controllers.Realtime.getNoErrorCodeSensors(county, district, sensorType)
 GET      /SensorSummary                                                           controllers.Realtime.sensorSummary
-GET      /DisconnectSummary                                                       controllers.Realtime.disconnectSummary
 
 GET      /CalibrationReport/:start/:end                                           controllers.Query.calibrationReport(start:Long, end:Long)
 
