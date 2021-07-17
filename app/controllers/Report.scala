@@ -41,7 +41,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
   implicit val w1 = Json.writes[RowData]
   implicit val w = Json.writes[DailyReport]
 
-  def getMonitorReport(reportTypeStr: String, startNum: Long, outputTypeStr: String) = Security.Authenticated {
+  def getMonitorReport(monitorID:String, reportTypeStr: String, startNum: Long, outputTypeStr: String) = Security.Authenticated {
     implicit request =>
       val reportType = PeriodReport.withName(reportTypeStr)
       val outputType = OutputType.withName(outputTypeStr)
@@ -51,7 +51,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           case PeriodReport.DailyReport =>
             val startDate = new DateTime(startNum).withMillisOfDay(0)
             val mtList = monitorTypeOp.realtimeMtvList
-            val periodMap = recordOp.getRecordMap(recordOp.HourCollection)("", mtList, startDate, startDate + 1.day)
+            val periodMap = recordOp.getRecordMap(recordOp.HourCollection)(monitorID, mtList, startDate, startDate + 1.day)
             val mtTimeMap: Map[String, Map[DateTime, Record]] = periodMap.map { pair =>
               val k = pair._1
               val v = pair._2
@@ -109,7 +109,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           case PeriodReport.MonthlyReport =>
             val start = new DateTime(startNum).withMillisOfDay(0).withDayOfMonth(1)
             val mtList = monitorTypeOp.realtimeMtvList
-            val periodMap = recordOp.getRecordMap(recordOp.HourCollection)("", monitorTypeOp.activeMtvList, start, start + 1.month)
+            val periodMap = recordOp.getRecordMap(recordOp.HourCollection)(monitorID, monitorTypeOp.activeMtvList, start, start + 1.month)
             val statMap = query.getPeriodStatReportMap(periodMap, 1.day)(start, start + 1.month)
             val overallStatMap = getOverallStatMap(statMap)
             val avgRow = {

@@ -338,3 +338,20 @@ export const MonitorExportFields: Array<MonitorField> = [
     name: '站4',
   },
 ];
+
+export interface CountByCounty {
+  kl: number;
+  pt: number;
+  yl: number;
+  rest: number;
+}
+
+export interface GroupSummary {
+  name: string;
+  totalCount: CountByCounty;
+  count: CountByCounty;
+  lessThanExpected: CountByCounty;
+  constant: CountByCounty;
+  disconnected: CountByCounty;
+  powerError: CountByCounty;
+}

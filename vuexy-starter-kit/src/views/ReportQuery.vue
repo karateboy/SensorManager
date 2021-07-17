@@ -4,6 +4,39 @@
       <b-form @submit.prevent>
         <b-row>
           <b-col cols="12">
+            <b-form-group label="縣市" label-for="county" label-cols-md="3">
+              <v-select
+                id="county"
+                v-model="county"
+                label="txt"
+                :reduce="county => county.value"
+                :options="countyFilters"
+              />
+            </b-form-group>
+            <b-form-group
+              label="測點群組"
+              label-for="monitorGroup"
+              label-cols-md="3"
+            >
+              <v-select
+                id="monitorGroup"
+                v-model="monitorGroup"
+                label="_id"
+                :reduce="mg => mg"
+                :options="filteredMonitorGroupList"
+              />
+            </b-form-group>
+            <b-form-group label="測點" label-for="monitor" label-cols-md="3">
+              <v-select
+                id="monitor"
+                v-model="form.monitor"
+                label="desc"
+                :reduce="mt => mt._id"
+                :options="filteredMonitors"
+              />
+            </b-form-group>
+          </b-col>
+          <b-col cols="12">
             <b-form-group
               label="報表種類"
               label-for="reportType"
@@ -44,6 +77,7 @@
               type="submit"
               variant="primary"
               class="mr-1"
+              :disabled="!canQuery"
               @click="query"
             >
               查詢
@@ -94,6 +128,8 @@ import 'vue2-datepicker/locale/zh-tw';
 const Ripple = require('vue-ripple-directive');
 import moment from 'moment';
 import axios from 'axios';
+import { mapState, mapActions, mapMutations } from 'vuex';
+import { MonitorGroup, countyFilters, Monitor } from './types';
 
 export default Vue.extend({
   components: {
@@ -105,7 +141,12 @@ export default Vue.extend({
   },
   data() {
     const date = moment().valueOf();
+    let monitorGroup: MonitorGroup | undefined;
+    let monitor: string | undefined;
     return {
+      county: '',
+      countyFilters,
+      monitorGroup,
       display: false,
       reportTypes: [
         { id: 'daily', txt: '日報' },
@@ -115,21 +156,81 @@ export default Vue.extend({
       statRows: Array<any>(),
       rows: Array<any>(),
       form: {
+        monitor,
         date,
         reportType: 'daily',
       },
     };
   },
   computed: {
-    pickerType() {
+    ...mapState('monitors', ['monitors', 'monitorGroupList']),
+    pickerType(): string {
       if (this.form.reportType === 'daily') return 'date';
       return 'month';
     },
+    filteredMonitorGroupList(): Array<MonitorGroup> {
+      if (this.county === '') return this.monitorGroupList;
+      else {
+        return this.monitorGroupList.filter(
+          (value: MonitorGroup, index: number) => {
+            let prefix = '';
+            switch (this.county) {
+              case '基隆市':
+                prefix = 'K';
+                break;
+              case '屏東縣':
+                prefix = 'P';
+                break;
+              case '宜蘭縣':
+                prefix = 'Y';
+                break;
+            }
+
+            return value._id.startsWith(prefix);
+          },
+        );
+      }
+    },
+    filteredMonitors(): Array<Monitor> {
+      return this.monitors
+        .filter((monitor: Monitor) => {
+          if (this.county === '') return true;
+          else return monitor.county === this.county;
+        })
+        .filter((monitor: Monitor) => {
+          if (typeof this.monitorGroup === 'undefined') return true;
+          else {
+            let mg: MonitorGroup = this.monitorGroup as MonitorGroup;
+            return mg.member.indexOf(monitor._id) !== -1;
+          }
+        });
+    },
+    canQuery(): boolean {
+      if (this.form.monitor && this.form.reportType && this.form.date)
+        return true;
+      else return false;
+    },
+  },
+  watch: {
+    county() {
+      this.form.monitor = undefined;
+      this.monitorGroup = undefined;
+    },
+    monitorGroup() {
+      this.form.monitor = undefined;
+    },
+  },
+  async mounted() {
+    await this.getMonitorGroups();
+    await this.fetchMonitors();
   },
   methods: {
+    ...mapActions('monitorTypes', ['fetchMonitorTypes']),
+    ...mapActions('monitors', ['fetchMonitors', 'getMonitorGroups']),
+    ...mapMutations(['setLoading']),
     async query() {
       this.display = true;
-      const url = `/monitorReport/${this.form.reportType}/${this.form.date}`;
+      const url = `/monitorReport/${this.form.reportType}/${this.form.monitor}/${this.form.date}`;
       const res = await axios.get(url);
       this.handleReport(res.data);
     },

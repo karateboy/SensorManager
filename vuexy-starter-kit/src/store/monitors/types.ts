@@ -1,3 +1,4 @@
+/*
 export interface SensorDetail {
   sensorType: string;
   roadName: string;
@@ -23,7 +24,9 @@ export interface Monitor {
   district: string | undefined;
   sensorDetail: SensorDetail | undefined;
 }
-
+*/
+import { Monitor, MonitorGroup } from '../../views/types';
 export interface MonitorState {
   monitors: Array<Monitor>;
+  monitorGroupList: Array<MonitorGroup>;
 }

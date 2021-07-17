@@ -12,7 +12,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 class Realtime @Inject()
 (monitorTypeOp: MonitorTypeOp, dataCollectManagerOp: DataCollectManagerOp,
  monitorStatusOp: MonitorStatusOp, recordOp: RecordOp, monitorOp: MonitorOp, sysConfig: SysConfig,
- powerErrorReportOp: ErrorReportOp) extends Controller {
+ errorReportOp: ErrorReportOp) extends Controller {
   val overTimeLimit = 6
 
   def MonitorTypeStatusList() = Security.Authenticated.async {
@@ -115,23 +115,39 @@ class Realtime @Inject()
     Security.Authenticated.async {
       implicit request =>
         import recordOp.monitorRecordWrite
-        val start = DateTime.now
-        val gpsUsageF = sysConfig.get(SysConfig.SensorGPS)
-        val f = recordOp.getLatestConstantSensor(TableType.mapCollection(TableType.min))(county, district, sensorType)
-        for {recordList <- f
-             ret<-gpsUsageF
+        val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1)
+        val f = errorReportOp.get(yesterday.toDate)
+        for {report <- f
              } yield {
-          val duration = new Duration(start, DateTime.now)
-          recordList.foreach(r => {
-            monitorOp.populateMonitorRecord(r, ret.asBoolean().getValue)
-          })
-          Ok(Json.toJson(recordList))
+          val monitorIDs =
+            if(report.isEmpty)
+              Seq.empty[String]
+            else{
+              report(0).constant.map(monitorOp.map).filter(m => m.enabled.getOrElse(true))
+                .filter(m => {
+                  if (county == "")
+                    true
+                  else
+                    m.county == Some(county)
+                }).filter(m => {
+                if (district == "")
+                  true
+                else
+                  m.district == Some(district)
+              }).filter(m => {
+                if (sensorType == "")
+                  true
+                else
+                  m.tags.contains(sensorType)
+              }).map(_._id)
+            }
+          Ok(Json.toJson(monitorIDs))
         }
     }
 
   def getPowerUsageErrorSensor(county: String, district: String, sensorType: String) = Security.Authenticated.async {
     val today = DateTime.now().withMillisOfDay(0).toDate
-    for (reports <- powerErrorReportOp.get(today)) yield {
+    for (reports <- errorReportOp.get(today)) yield {
       val monitors: Seq[Monitor] = {
         if (reports.isEmpty)
           Seq.empty[Monitor]
@@ -168,7 +184,7 @@ class Realtime @Inject()
 
     def getNoErrorCodeSensors(county: String, district: String, sensorType: String) = Security.Authenticated.async {
       val today = DateTime.now().withMillisOfDay(0).toDate
-      for(reports <- powerErrorReportOp.get(today)) yield {
+      for(reports <- errorReportOp.get(today)) yield {
         val monitors: Seq[Monitor] = {
           if(reports.isEmpty)
             Seq.empty[Monitor]
@@ -206,18 +222,34 @@ class Realtime @Inject()
   def lessThan95sensor(county: String, district: String, sensorType: String) =
     Security.Authenticated.async {
       implicit request =>
-        import recordOp.monitorRecordWrite
-        val start = DateTime.now
-        val gpsUsageF = sysConfig.get(SysConfig.SensorGPS)
-        val f = recordOp.getLessThan90Sensor(TableType.mapCollection(TableType.min))(county, district, sensorType)
-        for {recordList <- f
-             ret <- gpsUsageF
+        val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1)
+        val f = errorReportOp.get(yesterday.toDate)
+        for {report <- f
              } yield {
-          val duration = new Duration(start, DateTime.now)
-          recordList.foreach(r => {
-            monitorOp.populateMonitorRecord(r, ret.asBoolean().getValue)
-          })
-          Ok(Json.toJson(recordList))
+          val monitorIDs =
+            if(report.isEmpty)
+              Seq.empty[String]
+            else{
+              report(0).ineffective.map(_._id).map(monitorOp.map)
+                .filter(m => m.enabled.getOrElse(true))
+                .filter(m => {
+                  if (county == "")
+                    true
+                  else
+                    m.county == Some(county)
+                }).filter(m => {
+                if (district == "")
+                  true
+                else
+                  m.district == Some(district)
+              }).filter(m => {
+                if (sensorType == "")
+                  true
+                else
+                  m.tags.contains(sensorType)
+              }).map(_._id)
+            }
+          Ok(Json.toJson(monitorIDs))
         }
     }
   case class MonitorTypeStatus(desp: String, value: String, unit: String, instrument: String, status: String, classStr: Seq[String], order: Int)

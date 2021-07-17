@@ -42,7 +42,7 @@
               class="mr-1"
               @click="query"
             >
-              查詢
+              下載
             </b-button>
             <b-button
               v-ripple.400="'rgba(186, 191, 199, 0.15)'"

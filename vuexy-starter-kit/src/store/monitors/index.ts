@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { MonitorState, Monitor } from './types';
+import { MonitorState } from './types';
 import { RootState } from '../types';
 import { GetterTree } from 'vuex';
 import { ActionTree } from 'vuex';
@@ -7,8 +7,10 @@ import { MutationTree } from 'vuex';
 import { Module } from 'vuex';
 
 const namespaced: boolean = true;
+import { Monitor, MonitorGroup } from '../../views/types';
 export const state: MonitorState = {
   monitors: [],
+  monitorGroupList: Array<MonitorGroup>(),
 };
 
 const getters: GetterTree<MonitorState, RootState> = {
@@ -32,11 +34,24 @@ const actions: ActionTree<MonitorState, RootState> = {
       throw new Error(err);
     }
   },
+  async getMonitorGroups({ commit }): Promise<void> {
+    try {
+      const res = await axios.get('/MonitorGroups');
+      if (res.status === 200) {
+        commit('setMonitorGroupList', res.data);
+      }
+    } catch (err) {
+      throw new Error(err);
+    }
+  },
 };
 
 const mutations: MutationTree<MonitorState> = {
   setMonitors(state, val) {
     state.monitors = val;
+  },
+  setMonitorGroupList(state, val) {
+    state.monitorGroupList = val;
   },
 };
 

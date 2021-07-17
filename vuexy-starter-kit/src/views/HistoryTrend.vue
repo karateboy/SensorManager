@@ -140,7 +140,7 @@ import { mapState, mapActions, mapMutations } from 'vuex';
 import moment from 'moment';
 import axios from 'axios';
 import highcharts from 'highcharts';
-import { MonitorGroup } from './types';
+import { MonitorGroup, countyFilters } from './types';
 
 export default Vue.extend({
   components: {
@@ -153,24 +153,6 @@ export default Vue.extend({
   data() {
     const range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
     let monitorGroup: MonitorGroup | undefined = undefined;
-    const countyFilters = [
-      {
-        txt: '不限',
-        value: '',
-      },
-      {
-        txt: '基隆',
-        value: '基隆市',
-      },
-      {
-        txt: '屏東',
-        value: '屏東縣',
-      },
-      {
-        txt: '宜蘭',
-        value: '宜蘭縣',
-      },
-    ];
     return {
       reportUnits: [
         { txt: '分', id: 'Min' },
@@ -204,7 +186,6 @@ export default Vue.extend({
           desc: '點圖',
         },
       ],
-      monitorGroupList: Array<MonitorGroup>(),
       monitorGroup,
       countyFilters,
       county: '',
@@ -220,7 +201,7 @@ export default Vue.extend({
   },
   computed: {
     ...mapState('monitorTypes', ['monitorTypes']),
-    ...mapState('monitors', ['monitors']),
+    ...mapState('monitors', ['monitors', 'monitorGroupList']),
     filteredMonitorGroupList(): Array<MonitorGroup> {
       if (this.county === '') return this.monitorGroupList;
       else {
@@ -271,7 +252,7 @@ export default Vue.extend({
   },
   methods: {
     ...mapActions('monitorTypes', ['fetchMonitorTypes']),
-    ...mapActions('monitors', ['fetchMonitors']),
+    ...mapActions('monitors', ['fetchMonitors', 'getMonitorGroups']),
     ...mapMutations(['setLoading']),
     async query(): Promise<void> {
       this.setLoading({ loading: true });
@@ -348,10 +329,6 @@ export default Vue.extend({
         };
       }
       highcharts.chart('chart_container', ret);
-    },
-    async getMonitorGroups(): Promise<void> {
-      const ret = await axios.get('/MonitorGroups');
-      this.monitorGroupList = ret.data;
     },
   },
 });

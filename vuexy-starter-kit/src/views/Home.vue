@@ -150,7 +150,6 @@
               :position="m.position"
               :clickable="true"
               :title="m.title"
-              :label="m.label.text"
               :icon="m.iconUrl"
               :z-index="getZindex(0, index)"
               @click="toggleInfoWindow(m, index)"
@@ -215,7 +214,7 @@
                   <b-td>{{ group.lessThanExpected.rest }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>定值(10分鐘)</b-td>
+                  <b-td>定值(凌晨)</b-td>
                   <b-td>{{ group.constant.kl }} </b-td>
                   <b-td>{{ group.constant.yl }} </b-td>
                   <b-td>{{ group.constant.pt }}</b-td>
@@ -229,7 +228,7 @@
                   <b-td>{{ group.disconnected.rest }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>充電異常(即時)</b-td>
+                  <b-td>充電異常(20:00)</b-td>
                   <b-td>{{ group.powerError.kl }} </b-td>
                   <b-td>{{ group.powerError.yl }} </b-td>
                   <b-td>{{ group.powerError.pt }}</b-td>
@@ -280,8 +279,8 @@ import {
   getDistrict,
   TxtStrValue,
   MtRecord,
+  GroupSummary,
 } from './types';
-import { Monitor } from '@/store/monitors/types';
 
 interface Location {
   lat: number;
@@ -317,12 +316,12 @@ export default Vue.extend({
 
     let sensorStatus = Array<any>();
     let epaStatus = Array<any>();
-    let disconnectedList = Array<any>();
-    let constantList = Array<any>();
-    let lt95List = Array<any>();
+    let disconnectedList = Array<string>();
+    let constantList = Array<string>();
+    let lt90List = Array<string>();
     let powerErrorList = Array<string>();
     let errorStatus = Array<string>();
-    let sensorGroupSummary = Array<any>();
+    let sensorGroupSummary = Array<GroupSummary>();
     let currentMidx: number = -1;
     return {
       sensorStatusParam,
@@ -331,7 +330,7 @@ export default Vue.extend({
       epaStatus,
       disconnectedList,
       constantList,
-      lt95List,
+      lt90List,
       powerErrorList,
       errorStatus,
       refreshTimer: 0,
@@ -394,8 +393,30 @@ export default Vue.extend({
     },
     lt95Markers(): Array<any> {
       if (this.errorStatus.indexOf('lt95') === -1) return [];
+      const ret = [];
+      for (const id of this.lt90List) {
+        const m = this.mMap.get(id);
+        if (!m || !m.location) continue;
 
-      return this.markers(this.lt95List);
+        const lng = m.location[0];
+        const lat = m.location[1];
+
+        const iconUrl = '/static/lt90.svg';
+
+        const infoText = m.code
+          ? `<strong>${m.shortCode}/${m.code}</strong>`
+          : `<strong>${m.desc}</strong>`;
+        const title = m.code ? `有效率低於90% ${m.code}` : `${m.desc}`;
+
+        ret.push({
+          _id: id,
+          title,
+          position: { lat, lng },
+          infoText,
+          iconUrl,
+        });
+      }
+      return ret;
     },
     powerErrorMarkers(): Array<any> {
       if (this.errorStatus.indexOf('powerError') === -1) return [];
@@ -597,7 +618,7 @@ export default Vue.extend({
         params,
       });
       this.updateTime = moment();
-      this.lt95List = ret.data;
+      this.lt90List = ret.data;
     },
     async getPowerErrorList(): Promise<void> {
       const params = {
@@ -631,7 +652,7 @@ export default Vue.extend({
             this.constantList = [];
             break;
           case 'lt95':
-            this.lt95List = [];
+            this.lt90List = [];
             break;
           case 'powerError':
             this.powerErrorList = [];

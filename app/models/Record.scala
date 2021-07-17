@@ -639,41 +639,17 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   }
 
   def getLastestSensorSummary(colName: String) = {
-
-    val now = DateTime.now
     val today = DateTime.now().withMillisOfDay(0).toDate
-    val todayFilter = Aggregates.filter(Filters.and(Filters.gte("time", now.minusDays(1).toDate),
-      Filters.lt("time", now.toDate)))
-
-    val groupByMonitorCount = Aggregates.group(id = "$monitor", Accumulators.sum("count", 1))
-    val col = mongoDB.database.getCollection(colName)
-    val f1 = col.aggregate(Seq(todayFilter, groupByMonitorCount)).toFuture()
+    val groupList = List("SAQ200", "SAQ210")
     val f2 = getLast10MinDisconnected(colName)
-    val f3 = getLast10MinConstantSensor(colName)
     val f4 = powerErrorReportOp.get(today)
-    for {docList <- f1
+    for {
          disconnectedMonitors <- f2
-         constantMonitors <- f3
          powerErrorReport <- f4
          } yield {
-      var receivedCountMap = Map.empty[String, Seq[(String, Int)]]
-      docList foreach { doc =>
-        val count = doc("count").asInt32().getValue
-        val monitorId = doc("_id").asString().getValue
-        if (monitorOp.map.contains(monitorId)) {
-          val monitor = monitorOp.map(monitorId)
-          for {detail <- monitor.sensorDetail
-               county <- monitor.county
-               group = detail.sensorType
-               } {
-            val currentSeq = receivedCountMap.getOrElse(group, Seq.empty[(String, Int)])
-            receivedCountMap = receivedCountMap + (group -> currentSeq.:+((county, count)))
-          }
-        }
-      }
 
       val groupSummaryList =
-        for (group <- receivedCountMap.keys.toList.sorted) yield {
+        for (group <- groupList) yield {
           def getCountyByCountyByMonitorIDs(ids: Set[String]) = {
             var (kl, pt, yl, rest) = (0, 0, 0, 0)
             ids.foreach(id => {
@@ -700,34 +676,34 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
           val groupMonitorCount =
             getCountyByCountyByMonitorIDs(monitorOp.map.keys.toSet)
 
-          def getCountByCounty(countyCountSeq: Seq[(String, Int)]): CountByCounty = {
-            var countyCountMap = Map.empty[String, Int]
-            countyCountSeq.foreach(cc => {
-              val county = cc._1
-              val countyCount = countyCountMap.getOrElse(county, 0)
-              countyCountMap = countyCountMap + (county -> (countyCount + 1))
-            })
-            val total = countyCountMap map {
-              _._2
-            } sum
-            val kl = countyCountMap.getOrElse("基隆市", 0)
-            val pt = countyCountMap.getOrElse("屏東縣", 0)
-            val yl = countyCountMap.getOrElse("宜蘭縣", 0)
-            val rest = total - kl - pt - yl
-            CountByCounty(kl = kl, pt = pt, yl = yl, rest = rest)
+          val lt90Count = {
+            val lt90MonitorID: Seq[String] = {
+              if (powerErrorReport.isEmpty)
+                Seq.empty[String]
+              else {
+                for (ineffect <- powerErrorReport(0).ineffective if monitorOp.map.contains(ineffect._id)) yield
+                  monitorOp.map(ineffect._id)._id
+              }
+            }
+            getCountyByCountyByMonitorIDs(lt90MonitorID.toSet)
           }
 
-          val receivedCount = getCountByCounty(receivedCountMap(group))
-          val expectedCount = 24 * 60 * 90 / 100
-          val lessThanExpectedCount = getCountByCounty(receivedCountMap(group).filter(_._2 < expectedCount))
           val disconnected =
+            getCountyByCountyByMonitorIDs(monitorOp.map.keys.toSet -- disconnectedMonitors)
+
+          val receivedCount =
             getCountyByCountyByMonitorIDs(disconnectedMonitors)
 
           val constant = {
-            val monitorIDs = constantMonitors map {
-              _._id
+            val constantMonitorID: Seq[String] = {
+              if (powerErrorReport.isEmpty)
+                Seq.empty[String]
+              else {
+                for (sensorID <- powerErrorReport(0).constant if monitorOp.map.contains(sensorID)) yield
+                  monitorOp.map(sensorID)._id
+              }
             }
-            getCountyByCountyByMonitorIDs(monitorIDs.toSet)
+            getCountyByCountyByMonitorIDs(constantMonitorID.toSet)
           }
 
 
@@ -743,7 +719,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
             getCountyByCountyByMonitorIDs(powerErrorMonitorID.toSet)
           }
 
-          GroupSummary(group, groupMonitorCount, receivedCount, lessThanExpectedCount, constant, disconnected, powerError)
+          GroupSummary(group, groupMonitorCount, receivedCount, lt90Count, constant, disconnected, powerError)
         }
       groupSummaryList
     }

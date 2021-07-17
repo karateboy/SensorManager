@@ -1,5 +1,9 @@
 <template>
-  <b-card :title="`異常感測器列表 - 資料更新時間(${updateTime.format('lll')})`">
+  <b-card
+    :title="`異常感測器列表 - 資料時間(${updateTime
+      .subtract(1, 'days')
+      .format('ll')})`"
+  >
     <div id="sensorFilter" class="sensorFilter mt-2">
       <b-table-simple small fixed>
         <b-tr>
@@ -84,7 +88,7 @@ export default Vue.extend({
   data() {
     let constantList = Array<Sensor>();
     let disconnectedList = Array<Sensor>();
-    let lt95List = Array<Sensor>();
+    let lt95List = Array<string>();
     let powerErrorList = Array<string>();
     let noPowerInfoList = Array<string>();
 
@@ -162,24 +166,31 @@ export default Vue.extend({
       let ret = Array<Sensor>();
 
       if (this.errorStatus.indexOf('constant') !== -1)
-        for (let sensor of this.constantList) {
-          sensor.status = '定值';
-          const m = this.mMap.get(sensor._id);
+        for (let id of this.constantList) {
+          const m = this.mMap.get(id);
+          if (!m || !m.location) continue;
+
+          let sensor = Object.assign({ status: '定值' }, m);
           if (m.sensorDetail) {
+            sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;
           }
           ret.push(sensor);
         }
 
-      if (this.errorStatus.indexOf('lt95') !== -1)
-        for (const sensor of this.lt95List) {
-          sensor.status = '低於90%';
-          const m = this.mMap.get(sensor._id);
+      if (this.errorStatus.indexOf('lt95') !== -1) {
+        for (const id of this.lt95List) {
+          const m = this.mMap.get(id);
+          if (!m || !m.location) continue;
+
+          let sensor = Object.assign({ status: '低於90%' }, m);
           if (m.sensorDetail) {
+            sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;
           }
           ret.push(sensor);
         }
+      }
 
       if (this.errorStatus.indexOf('disconnect') !== -1)
         for (const id of this.disconnectedList) {

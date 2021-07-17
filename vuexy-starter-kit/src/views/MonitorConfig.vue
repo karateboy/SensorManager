@@ -272,10 +272,11 @@ import {
   countyFilters,
   getDistrict,
   TxtStrValue,
+  Monitor,
   MonitorGroup,
   MonitorExportFields,
 } from './types';
-import { MonitorState, Monitor } from '../store/monitors/types';
+import { MonitorState } from '../store/monitors/types';
 const excel = require('../libs/excel');
 const _ = require('lodash');
 

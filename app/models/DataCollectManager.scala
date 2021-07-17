@@ -2,7 +2,6 @@ package models
 
 import akka.actor._
 import com.github.nscala_time.time.Imports._
-import models.DataCollectManager.CheckSensorStstus
 import models.ModelHelper._
 import play.api._
 import play.api.libs.concurrent.InjectedActorSupport
@@ -72,14 +71,14 @@ case object IsConnected
 case object SendErrorReport
 
 object DataCollectManager {
+  val effectivRatio = 0.75
+
   case object CheckSensorStstus
 }
 
 @Singleton
 class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: ActorRef, instrumentOp: InstrumentOp, recordOp: RecordOp,
                                      alarmOp: AlarmOp)() {
-
-  import DataCollectManager._
 
   val effectivRatio = 0.75
 
@@ -233,7 +232,9 @@ class DataCollectManager @Inject()
  instrumentTypeOp: InstrumentTypeOp,
  alarmOp: AlarmOp, instrumentOp: InstrumentOp,
  errorReportOp: ErrorReportOp, sysConfig: SysConfig) extends Actor with InjectedActorSupport {
-  val effectivRatio = 0.75
+
+  import DataCollectManager._
+
   val storeSecondData = config.getBoolean("storeSecondData").getOrElse(false)
   Logger.info(s"store second data = $storeSecondData")
 
@@ -245,15 +246,21 @@ class DataCollectManager @Inject()
     system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(1, MINUTES), self, CalculateData)
   }
 
-  val timer2 = {
+  val updateErrorReportTimer = {
+    val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(23).withMinuteOfHour(15) // 20:00
+    val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
+    val duration = if (DateTime.now() < emailTime)
+      new Duration(DateTime.now(), emailTime)
+    else
+      new Duration(DateTime.now(), emailTime + 1.day)
+
     import scala.concurrent.duration._
-    //Try to trigger at 30 sec
-    val next30 = DateTime.now().withSecondOfMinute(30).plusMinutes(1)
-    val postSeconds = new org.joda.time.Duration(DateTime.now, next30).getStandardSeconds
-    system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(10, MINUTES), self, CheckSensorStstus)
+    system.scheduler.schedule(
+      Duration(duration.getStandardSeconds + 1, SECONDS),
+      Duration(1, DAYS), self, CheckSensorStstus)
   }
 
-  val alertEmailTimer = {
+  val alertEmailTimer: Cancellable = {
     val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(20).withMinuteOfHour(30) // 20:00
     val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
     val duration = if (DateTime.now() < emailTime)
@@ -691,22 +698,17 @@ class DataCollectManager @Inject()
           errorReportOp.addConstantSensor(today, m._id);
         }
       }
-      val yesterday = today.minusDays(1)
-      val errorReportF = errorReportOp.get(yesterday);
-      errorReportF onFailure (errorHandler())
-      for (errorReports <- errorReportF) {
-        if (errorReports.isEmpty || !errorReports(0).dailyChecked) {
-          // It is tricky less than 90% is calculated based on beginnning of today.
-          val ltFuture = recordOp
-            .getLessThan90Sensor(recordOp.MinCollection)("", "", "", today)
-          for (ret: Seq[MonitorRecord] <- ltFuture) {
-            val effectRateList: Seq[EffectiveRate] = ret map { m => EffectiveRate(m._id, m.count.getOrElse(0).toDouble / (24 * 60)) }
-            errorReportOp.addLessThan90Sensor(yesterday, effectRateList)
-          }
-        }
+
+      // It is tricky less than 90% is calculated based on beginnning of today.
+      val ltFuture = recordOp
+        .getLessThan90Sensor(recordOp.MinCollection)("", "", "", today)
+      for (ret: Seq[MonitorRecord] <- ltFuture) {
+        val effectRateList: Seq[EffectiveRate] = ret map { m => EffectiveRate(m._id, m.count.getOrElse(0).toDouble / (24 * 60)) }
+        errorReportOp.addLessThan90Sensor(today, effectRateList)
       }
+
     case SendErrorReport =>
-      for(alertEmailTarget <- sysConfig.getAlertEmailTarget())yield{
+      for (alertEmailTarget <- sysConfig.getAlertEmailTarget()) yield {
         errorReportOp.sendEmail(alertEmailTarget)
       }
 
@@ -745,7 +747,7 @@ class DataCollectManager @Inject()
 
   override def postStop(): Unit = {
     timer.cancel()
-    timer2.cancel()
+    updateErrorReportTimer.cancel()
     onceTimer map {
       _.cancel()
     }

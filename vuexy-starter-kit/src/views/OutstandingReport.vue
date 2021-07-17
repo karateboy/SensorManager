@@ -46,7 +46,11 @@
             </b-form-group>
           </b-col>
           <b-col cols="12">
-            <b-form-group label="Outlier" label-for="outlier" label-cols-md="3">
+            <b-form-group
+              label="超級限值"
+              label-for="outlier"
+              label-cols-md="3"
+            >
               <b-form-checkbox id="outlier" v-model="showOutlier"
                 >顯示</b-form-checkbox
               >
