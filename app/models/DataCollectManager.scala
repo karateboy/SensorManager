@@ -254,7 +254,7 @@ class DataCollectManager @Inject()
   }
 
   val alertEmailTimer = {
-    val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(20) // 20:00
+    val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(20).withMinuteOfHour(30) // 20:00
     val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
     val duration = if (DateTime.now() < emailTime)
       new Duration(DateTime.now(), emailTime)

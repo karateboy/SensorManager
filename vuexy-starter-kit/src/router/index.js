@@ -118,7 +118,7 @@ const router = new VueRouter({
         pageTitle: '監測報表',
         breadcrumb: [
           {
-            text: '報表查詢',
+            text: '分析報表',
             active: true,
           },
           {
@@ -136,7 +136,7 @@ const router = new VueRouter({
         pageTitle: '月份時報表',
         breadcrumb: [
           {
-            text: '報表查詢',
+            text: '分析報表',
             active: true,
           },
           {
@@ -154,7 +154,7 @@ const router = new VueRouter({
         pageTitle: '衰減分析報表',
         breadcrumb: [
           {
-            text: '報表查詢',
+            text: '分析報表',
             active: true,
           },
           {
@@ -172,7 +172,7 @@ const router = new VueRouter({
         pageTitle: '離群分析報表',
         breadcrumb: [
           {
-            text: '報表查詢',
+            text: '分析報表',
             active: true,
           },
           {

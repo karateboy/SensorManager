@@ -132,7 +132,6 @@
 </style>
 <script lang="ts">
 import Vue from 'vue';
-import vSelect from 'vue-select';
 import DatePicker from 'vue2-datepicker';
 import 'vue2-datepicker/index.css';
 import 'vue2-datepicker/locale/zh-tw';
@@ -145,7 +144,6 @@ import { MonitorGroup } from './types';
 
 export default Vue.extend({
   components: {
-    vSelect,
     DatePicker,
   },
   directives: {
@@ -275,7 +273,7 @@ export default Vue.extend({
     ...mapActions('monitorTypes', ['fetchMonitorTypes']),
     ...mapActions('monitors', ['fetchMonitors']),
     ...mapMutations(['setLoading']),
-    async query() {
+    async query(): Promise<void> {
       this.setLoading({ loading: true });
       this.display = true;
       const monitors = this.form.monitors.join(':');
@@ -351,7 +349,7 @@ export default Vue.extend({
       }
       highcharts.chart('chart_container', ret);
     },
-    async getMonitorGroups() {
+    async getMonitorGroups(): Promise<void> {
       const ret = await axios.get('/MonitorGroups');
       this.monitorGroupList = ret.data;
     },

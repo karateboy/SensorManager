@@ -1,73 +1,6 @@
 <template>
   <b-row class="match-height">
     <b-col lg="12" md="12">
-      <b-card
-        ref="loadingContainer"
-        :title="`更新時間: ${summaryUpdateTime.format('lll')}`"
-      >
-        <b-row>
-          <b-col v-for="group in sensorGroupSummary" :key="group.name">
-            <b-table-simple bordered responsive outlined>
-              <b-thead>
-                <b-tr
-                  ><b-td class="text-center" colspan="5">{{
-                    `${group.name}即時資訊`
-                  }}</b-td></b-tr
-                >
-                <b-tr>
-                  <b-th></b-th>
-                  <b-th>基隆</b-th>
-                  <b-th>宜蘭</b-th>
-                  <b-th>屏東</b-th>
-                  <b-th>其他</b-th>
-                </b-tr>
-              </b-thead>
-              <b-tbody>
-                <b-tr>
-                  <b-td>接收/設置數量</b-td>
-                  <b-td>{{ `${group.count.kl}/${group.totalCount.kl}` }} </b-td>
-                  <b-td>{{ `${group.count.yl}/${group.totalCount.yl}` }} </b-td>
-                  <b-td>{{ `${group.count.pt}/${group.totalCount.pt}` }}</b-td>
-                  <b-td>{{
-                    `${group.count.rest}/${group.totalCount.rest}`
-                  }}</b-td>
-                </b-tr>
-                <b-tr>
-                  <b-td>完整率&lt;90% (前24小時)</b-td>
-                  <b-td>{{ group.lessThanExpected.kl }} </b-td>
-                  <b-td>{{ group.lessThanExpected.yl }} </b-td>
-                  <b-td>{{ group.lessThanExpected.pt }}</b-td>
-                  <b-td>{{ group.lessThanExpected.rest }}</b-td>
-                </b-tr>
-                <b-tr>
-                  <b-td>定值(10分鐘)</b-td>
-                  <b-td>{{ group.constant.kl }} </b-td>
-                  <b-td>{{ group.constant.yl }} </b-td>
-                  <b-td>{{ group.constant.pt }}</b-td>
-                  <b-td>{{ group.constant.rest }}</b-td>
-                </b-tr>
-                <b-tr>
-                  <b-td>通訊中斷(前10分鐘)</b-td>
-                  <b-td>{{ group.disconnected.kl }} </b-td>
-                  <b-td>{{ group.disconnected.yl }} </b-td>
-                  <b-td>{{ group.disconnected.pt }}</b-td>
-                  <b-td>{{ group.disconnected.rest }}</b-td>
-                </b-tr>
-                <b-tr>
-                  <b-td>電力異常(即時)</b-td>
-                  <b-td>{{ group.powerError.kl }} </b-td>
-                  <b-td>{{ group.powerError.yl }} </b-td>
-                  <b-td>{{ group.powerError.pt }}</b-td>
-                  <b-td>{{ group.powerError.rest }}</b-td>
-                </b-tr>
-              </b-tbody>
-            </b-table-simple>
-          </b-col>
-          <b-col cols="12"><span class="float-right">(單位：台)</span></b-col>
-        </b-row>
-      </b-card>
-    </b-col>
-    <b-col lg="12" md="12">
       <b-card>
         <b-row>
           <b-col cols="3">
@@ -240,6 +173,73 @@
             />
           </GmapMap>
         </div>
+      </b-card>
+    </b-col>
+    <b-col lg="12" md="12">
+      <b-card
+        ref="loadingContainer"
+        :title="`更新時間: ${summaryUpdateTime.format('lll')}`"
+      >
+        <b-row>
+          <b-col v-for="group in sensorGroupSummary" :key="group.name">
+            <b-table-simple bordered responsive outlined>
+              <b-thead>
+                <b-tr
+                  ><b-td class="text-center" colspan="5">{{
+                    `${group.name}數據檢核資訊`
+                  }}</b-td></b-tr
+                >
+                <b-tr>
+                  <b-th></b-th>
+                  <b-th>基隆</b-th>
+                  <b-th>宜蘭</b-th>
+                  <b-th>屏東</b-th>
+                  <b-th>其他</b-th>
+                </b-tr>
+              </b-thead>
+              <b-tbody>
+                <b-tr>
+                  <b-td>接收/設置數量</b-td>
+                  <b-td>{{ `${group.count.kl}/${group.totalCount.kl}` }} </b-td>
+                  <b-td>{{ `${group.count.yl}/${group.totalCount.yl}` }} </b-td>
+                  <b-td>{{ `${group.count.pt}/${group.totalCount.pt}` }}</b-td>
+                  <b-td>{{
+                    `${group.count.rest}/${group.totalCount.rest}`
+                  }}</b-td>
+                </b-tr>
+                <b-tr>
+                  <b-td>完整率(前一日)&lt;90% </b-td>
+                  <b-td>{{ group.lessThanExpected.kl }} </b-td>
+                  <b-td>{{ group.lessThanExpected.yl }} </b-td>
+                  <b-td>{{ group.lessThanExpected.pt }}</b-td>
+                  <b-td>{{ group.lessThanExpected.rest }}</b-td>
+                </b-tr>
+                <b-tr>
+                  <b-td>定值(10分鐘)</b-td>
+                  <b-td>{{ group.constant.kl }} </b-td>
+                  <b-td>{{ group.constant.yl }} </b-td>
+                  <b-td>{{ group.constant.pt }}</b-td>
+                  <b-td>{{ group.constant.rest }}</b-td>
+                </b-tr>
+                <b-tr>
+                  <b-td>通訊中斷(前10分鐘)</b-td>
+                  <b-td>{{ group.disconnected.kl }} </b-td>
+                  <b-td>{{ group.disconnected.yl }} </b-td>
+                  <b-td>{{ group.disconnected.pt }}</b-td>
+                  <b-td>{{ group.disconnected.rest }}</b-td>
+                </b-tr>
+                <b-tr>
+                  <b-td>充電異常(即時)</b-td>
+                  <b-td>{{ group.powerError.kl }} </b-td>
+                  <b-td>{{ group.powerError.yl }} </b-td>
+                  <b-td>{{ group.powerError.pt }}</b-td>
+                  <b-td>{{ group.powerError.rest }}</b-td>
+                </b-tr>
+              </b-tbody>
+            </b-table-simple>
+          </b-col>
+          <b-col cols="12"><span class="float-right">(單位：台)</span></b-col>
+        </b-row>
       </b-card>
     </b-col>
   </b-row>
@@ -730,15 +730,12 @@ export default Vue.extend({
           : getIconUrl(pm25);
 
         const getLabelColor = (v: number) => {
-          if (stat.tags.includes('EPA')) return 'black';
-          else {
-            if (v < 15.4) return `white`;
-            else if (v < 35.4) return 'black';
-            else if (v < 54.4) return `white`;
-            else if (v < 150.4) return `white`;
-            else if (v < 250.4) return `white`;
-            else return `white`;
-          }
+          if (v < 15.4) return `white`;
+          else if (v < 35.4) return 'black';
+          else if (v < 54.4) return `white`;
+          else if (v < 150.4) return `white`;
+          else if (v < 250.4) return `white`;
+          else return `white`;
         };
         const label = {
           text: txtPm25,

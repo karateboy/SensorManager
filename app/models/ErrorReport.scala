@@ -133,8 +133,8 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
   }
 
   def sendEmail(receiverEmails: Seq[String]) = {
-    val yesterday = DateTime.now.withMillisOfDay(0).minusDays(1)
-    val f = get(yesterday.toDate)
+    val today = DateTime.now.withMillisOfDay(0)
+    val f = get(today.toDate)
     f onFailure (errorHandler())
     for (reports <- f) yield {
       val (kl, pt, yl) =
@@ -149,9 +149,9 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
           val yl = monitors.filter(_.county == Some("宜蘭縣"))
           (kl, pt, yl)
         }
-      val htmlBody = views.html.errorReport(yesterday.toString("yyyy/MM/dd"), kl, pt, yl).body
+      val htmlBody = views.html.errorReport(today.toString("yyyy/MM/dd"), kl, pt, yl).body
       val mail = Email(
-        subject = s"${yesterday.toString("yyyy/MM/dd")}電力異常設備",
+        subject = s"${today.toString("yyyy/MM/dd")}電力異常設備",
         from = "Aragorn <karateboy@sagainfo.com.tw>",
         to = receiverEmails,
         bodyHtml = Some(htmlBody)

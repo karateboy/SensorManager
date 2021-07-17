@@ -5,28 +5,6 @@ import {
   ToastPlugin,
   ModalPlugin,
 } from 'bootstrap-vue';
-import { library } from '@fortawesome/fontawesome-svg-core';
-import {
-  faLayerGroup,
-  faCompass,
-  faAngleDown,
-  faAngleRight,
-  faSearch,
-  faSearchPlus,
-  faDownload,
-  faSquare,
-  faCheckSquare,
-  faFileExcel,
-  faHome,
-  faAddressCard,
-  faUserCog,
-  faTasks,
-  faWindowClose,
-  faBell,
-  faBars,
-  faUndo,
-} from '@fortawesome/free-solid-svg-icons';
-import { FontAwesomeIcon } from '@fortawesome/vue-fontawesome';
 
 import VueCompositionAPI from '@vue/composition-api';
 import axios from 'axios';
@@ -45,8 +23,7 @@ import { ValidationProvider } from 'vee-validate';
 const VueGoogleMap = require('gmap-vue');
 import vSelect from 'vue-select';
 import Cookies from 'js-cookie';
-// Global Components
-import './global-components';
+import FeatherIcon from '@core/components/feather-icon/FeatherIcon.vue';
 
 // 3rd party plugins
 import '@/libs/acl';
@@ -120,29 +97,6 @@ Highcharts.setOptions({
   },
 });
 
-library.add(
-  faLayerGroup,
-  faCompass,
-  faAngleDown,
-  faAngleRight,
-  faSearch,
-  faSearchPlus,
-  faDownload,
-  faSquare,
-  faCheckSquare,
-  faFileExcel,
-  faHome,
-  faAddressCard,
-  faUserCog,
-  faTasks,
-  faWindowClose,
-  faBell,
-  faBars,
-  faUndo,
-);
-
-// eslint-disable-next-line vue/component-definition-name-casing
-Vue.component('font-awesome-icon', FontAwesomeIcon);
 Vue.component('VSelect', vSelect);
 Vue.component('ValidationProvider', ValidationProvider);
 
@@ -154,7 +108,7 @@ Vue.use(ModalPlugin);
 Vue.use(Loading);
 // Composition API
 Vue.use(VueCompositionAPI);
-
+Vue.component(FeatherIcon.name, FeatherIcon);
 // import core styles
 require('@core/scss/core.scss');
 

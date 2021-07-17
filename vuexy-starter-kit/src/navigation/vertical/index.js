@@ -44,7 +44,7 @@ export default [
     ],
   },
   {
-    title: '報表查詢',
+    title: '分析報表',
     icon: 'BookOpenIcon',
     children: [
       {

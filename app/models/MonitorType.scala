@@ -153,7 +153,7 @@ class MonitorTypeOp @Inject()(mongoDB: MongoDB, alarmOp: AlarmOp) {
     rangeType("RT", "室內溫度", "℃", 1),
     rangeType("O2", "氧氣 ", "%", 1),
     rangeType(VOC, desp="VOC", "", 0),
-    rangeType(H2S, desp="VOC", "", 0),
+    rangeType(H2S, desp="H2S", "", 0),
     /////////////////////////////////////////////////////
     signalType("SPRAY", "灑水"),
     signalType(BATTERY, "使用電池")
