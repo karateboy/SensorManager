@@ -98,6 +98,27 @@
                 value-type="timestamp"
                 :show-second="false"
               />
+              <b-button
+                variant="gradient-success"
+                class="ml-1"
+                size="md"
+                @click="setToday"
+                >今天</b-button
+              >
+              <b-button
+                variant="gradient-success"
+                class="ml-1"
+                size="md"
+                @click="setYesterday"
+                >昨天</b-button
+              >
+              <b-button
+                variant="gradient-success"
+                class="ml-1"
+                size="md"
+                @click="set3DayBefore"
+                >前三天</b-button
+              >
             </b-form-group>
           </b-col>
           <!-- submit and reset -->
@@ -254,6 +275,23 @@ export default Vue.extend({
     ...mapActions('monitorTypes', ['fetchMonitorTypes']),
     ...mapActions('monitors', ['fetchMonitors', 'getMonitorGroups']),
     ...mapMutations(['setLoading']),
+    setToday() {
+      this.form.range = [moment().startOf('day').valueOf(), moment().valueOf()];
+    },
+    setYesterday() {
+      const yesterday = moment().subtract(1, 'day');
+      this.form.range = [
+        yesterday.startOf('day').valueOf(),
+        yesterday.endOf('day').valueOf(),
+      ];
+    },
+    set3DayBefore() {
+      const threeDayBefore = moment().subtract(3, 'day');
+      this.form.range = [
+        threeDayBefore.startOf('day').valueOf(),
+        moment().valueOf(),
+      ];
+    },
     async query(): Promise<void> {
       this.setLoading({ loading: true });
       this.display = true;

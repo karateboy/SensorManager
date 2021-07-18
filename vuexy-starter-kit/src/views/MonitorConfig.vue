@@ -46,24 +46,25 @@
                 />
               </b-td>
               <b-td>
-                <b-img
+                <b-button
                   v-b-tooltip.hover
                   title="匯出 Excel"
-                  class="mr-3 clickable"
-                  src="../assets/excel_export.svg"
-                  width="24"
-                  fluid
+                  class="mr-3"
+                  variant="outline-success"
+                  size="sm"
                   @click="exportExcel"
-                />
-                <b-img
+                >
+                  <b-img src="../assets/excel_export.svg" width="24" fluid />
+                </b-button>
+                <b-button
                   v-b-tooltip.hover
                   v-b-modal.modal-import-excel
                   title="匯入 Excel"
-                  class="clickable"
-                  src="../assets/excel_import.svg"
-                  width="24"
-                  fluid
-                />
+                  variant="outline-success"
+                  size="sm"
+                >
+                  <b-img src="../assets/excel_import.svg" width="24" fluid />
+                </b-button>
               </b-td>
             </b-tr>
           </b-tbody>

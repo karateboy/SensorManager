@@ -229,10 +229,15 @@ export default Vue.extend({
     ...mapActions('monitors', ['fetchMonitors', 'getMonitorGroups']),
     ...mapMutations(['setLoading']),
     async query() {
-      this.display = true;
       const url = `/monitorReport/${this.form.reportType}/${this.form.monitor}/${this.form.date}`;
-      const res = await axios.get(url);
-      this.handleReport(res.data);
+      this.setLoading({ loading: true });
+      try {
+        const res = await axios.get(url);
+        this.display = true;
+        this.handleReport(res.data);
+      } finally {
+        this.setLoading({ loading: false });
+      }
     },
     handleReport(report: any) {
       this.columns.splice(0, this.columns.length);

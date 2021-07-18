@@ -89,7 +89,9 @@
                   size="sm"
                   @click="exportExcel"
                   ><b-img
+                    v-b-tooltip.hover
                     src="../assets/excel_export.svg"
+                    title="匯入 Excel"
                     width="24"
                     fluid
                     @click="exportExcel" /></b-button

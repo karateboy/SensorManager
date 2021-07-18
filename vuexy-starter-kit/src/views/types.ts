@@ -355,3 +355,37 @@ export interface GroupSummary {
   disconnected: CountByCounty;
   powerError: CountByCounty;
 }
+
+export interface CellData {
+  v: string;
+  cellClassName: Array<String>;
+  status?: string;
+}
+
+export interface StatRow {
+  name: string;
+  cellData: Array<CellData>;
+}
+
+export interface RowData {
+  date: number;
+  dateStr?: string;
+  cellData: Array<CellData>;
+}
+
+export interface HourEntry {
+  time: number;
+  cells: CellData;
+}
+
+export interface DailyReport {
+  columnNames: Array<string>;
+  hourRows: Array<RowData>;
+  statRows: Array<StatRow>;
+}
+
+export interface MonthlyHourReport {
+  columnNames: Array<string>;
+  rows: Array<RowData>;
+  statRows: Array<StatRow>;
+}

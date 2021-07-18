@@ -88,7 +88,7 @@ GET      /monitorReport/:reportType/:monitor/:reportDate                        
 GET      /PDF/monitorReport/:reportType/:reportDate                               controllers.Report.getMonitorReport(monitor, reportType, reportDate:Long, outputTypeStr="pdf")
 GET      /Excel/monitorReport/:reportType/:reportDate                             controllers.Report.getMonitorReport(monitor, reportType, reportDate:Long, outputTypeStr="excel")
 
-GET      /MonthlyHourReport/:monitorType/:reportDate                              controllers.Report.monthlyHourReport(monitorType, reportDate:Long, outputTypeStr="html")
+GET      /MonthlyHourReport/:monitor/:monitorType/:reportDate                     controllers.Report.monthlyHourReport(monitor, monitorType, reportDate:Long, outputTypeStr="html")
 
 GET      /DecayReport/:county/:reportDate                                         controllers.Report.decayReport(county, reportDate:Long)
 GET      /OutstandingReport/:county/:reportDate                                   controllers.Report.outstandingReport(county, reportDate:Long)
