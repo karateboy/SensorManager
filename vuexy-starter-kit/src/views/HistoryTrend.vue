@@ -99,21 +99,21 @@
                 :show-second="false"
               />
               <b-button
-                variant="gradient-success"
+                variant="gradient-primary"
                 class="ml-1"
                 size="md"
                 @click="setToday"
                 >今天</b-button
               >
               <b-button
-                variant="gradient-success"
+                variant="gradient-primary"
                 class="ml-1"
                 size="md"
                 @click="setYesterday"
                 >昨天</b-button
               >
               <b-button
-                variant="gradient-success"
+                variant="gradient-primary"
                 class="ml-1"
                 size="md"
                 @click="set3DayBefore"
@@ -128,6 +128,7 @@
               type="submit"
               variant="primary"
               class="mr-1"
+              :disabled="!canQuery"
               @click="query"
             >
               查詢
@@ -252,6 +253,11 @@ export default Vue.extend({
         return monitor.county === this.county;
       });
     },
+    canQuery(): boolean {
+      return (
+        this.form.monitors.length !== 0 && this.form.monitorTypes.length !== 0
+      );
+    },
   },
   watch: {
     monitorGroup(newValue: MonitorGroup) {
@@ -286,7 +292,7 @@ export default Vue.extend({
       ];
     },
     set3DayBefore() {
-      const threeDayBefore = moment().subtract(3, 'day');
+      const threeDayBefore = moment().subtract(2, 'day');
       this.form.range = [
         threeDayBefore.startOf('day').valueOf(),
         moment().valueOf(),
@@ -301,72 +307,77 @@ export default Vue.extend({
       )}/${this.form.reportUnit}/${this.form.statusFilter}/${
         this.form.range[0]
       }/${this.form.range[1]}`;
-      const res = await axios.get(url);
-      const ret = res.data as highcharts.Options;
+      try {
+        const res = await axios.get(url);
+        const ret = res.data as highcharts.Options;
 
-      this.setLoading({ loading: false });
-      if (this.form.chartType !== 'boxplot') {
-        const panning: Highcharts.ChartPanningOptions = {};
-        ret.chart = {
-          type: this.form.chartType,
-          zoomType: 'x',
-          panning,
-          panKey: 'shift',
-          alignTicks: false,
-        };
+        if (this.form.chartType !== 'boxplot') {
+          const panning: Highcharts.ChartPanningOptions = {};
+          ret.chart = {
+            type: this.form.chartType,
+            zoomType: 'x',
+            panning,
+            panKey: 'shift',
+            alignTicks: false,
+          };
 
-        const pointFormatter = function pointFormatter(this: any) {
-          const d = new Date(this.x);
-          return `${d.toLocaleString()}:${Math.round(this.y)}度`;
-        };
+          const pointFormatter = function pointFormatter(this: any) {
+            const d = new Date(this.x);
+            return `${d.toLocaleString()}:${Math.round(this.y)}度`;
+          };
 
-        ret.colors = [
-          '#7CB5EC',
-          '#434348',
-          '#90ED7D',
-          '#F7A35C',
-          '#8085E9',
-          '#F15C80',
-          '#E4D354',
-          '#2B908F',
-          '#FB9FA8',
-          '#91E8E1',
-          '#7CB5EC',
-          '#80C535',
-          '#969696',
-        ];
+          ret.colors = [
+            '#7CB5EC',
+            '#434348',
+            '#90ED7D',
+            '#F7A35C',
+            '#8085E9',
+            '#F15C80',
+            '#E4D354',
+            '#2B908F',
+            '#FB9FA8',
+            '#91E8E1',
+            '#7CB5EC',
+            '#80C535',
+            '#969696',
+          ];
 
-        ret.tooltip = { valueDecimals: 2 };
-        ret.legend = { enabled: true };
-        if (this.form.monitorTypes.indexOf('BATTERY') !== -1) {
-          ret.legend.title = {
-            text: '1=電池、4=市電',
+          ret.tooltip = { valueDecimals: 2 };
+          ret.legend = { enabled: true };
+          if (this.form.monitorTypes.indexOf('BATTERY') !== -1) {
+            ret.legend.title = {
+              text: '1=電池、4=市電',
+            };
+          }
+          ret.credits = {
+            enabled: false,
+            href: 'http://www.wecc.com.tw/',
+          };
+          let xAxis = ret.xAxis as highcharts.XAxisOptions;
+          xAxis.type = 'datetime';
+          xAxis.dateTimeLabelFormats = {
+            day: '%b%e日',
+            week: '%b%e日',
+            month: '%y年%b',
+          };
+
+          ret.plotOptions = {
+            scatter: {
+              tooltip: {
+                pointFormatter,
+              },
+            },
+          };
+          ret.time = {
+            timezoneOffset: -480,
           };
         }
-        ret.credits = {
-          enabled: false,
-          href: 'http://www.wecc.com.tw/',
-        };
-        let xAxis = ret.xAxis as highcharts.XAxisOptions;
-        xAxis.type = 'datetime';
-        xAxis.dateTimeLabelFormats = {
-          day: '%b%e日',
-          week: '%b%e日',
-          month: '%y年%b',
-        };
-
-        ret.plotOptions = {
-          scatter: {
-            tooltip: {
-              pointFormatter,
-            },
-          },
-        };
-        ret.time = {
-          timezoneOffset: -480,
-        };
+        highcharts.chart('chart_container', ret);
+      } catch (err) {
+        throw new Error(err);
+      } finally {
+        this.setLoading({ loading: false });
       }
-      highcharts.chart('chart_container', ret);
     },
   },
 });

@@ -247,7 +247,7 @@ class DataCollectManager @Inject()
   }
 
   val updateErrorReportTimer = {
-    val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(23).withMinuteOfHour(15) // 20:00
+    val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(23).withMinuteOfHour(45) // 20:00
     val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
     val duration = if (DateTime.now() < emailTime)
       new Duration(DateTime.now(), emailTime)
@@ -691,7 +691,8 @@ class DataCollectManager @Inject()
         Logger.warn(s"DO is not online! Ignore EvtOperationOverThreshold.")
       }
     case CheckSensorStstus =>
-      val today = DateTime.now().withMillisOfDay(0);
+      val today = DateTime.now().withMillisOfDay(0)
+      Logger.info(s"update daily error report ${today}")
       val f: Future[Seq[MonitorRecord]] = recordOp.getLast10MinConstantSensor(recordOp.MinCollection)
       for (ret <- f) {
         for (m <- ret) {

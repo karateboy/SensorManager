@@ -65,6 +65,7 @@
               type="submit"
               variant="primary"
               class="mr-1"
+              :disabled="!canQuery"
               @click="query"
             >
               查詢
@@ -171,6 +172,9 @@ export default Vue.extend({
         );
       }
     },
+    canQuery(): boolean {
+      return this.form.monitorGroupID.length !== 0;
+    },
   },
   async mounted() {
     await this.getMonitorGroups();
@@ -186,146 +190,144 @@ export default Vue.extend({
     async query() {
       this.setLoading({ loading: true });
       this.display = true;
-      const url = `/OutstandingReport/JSON/${this.form.monitorGroupID.join(
-        ':',
-      )}/${this.form.date}`;
-      const res = await axios.get(url);
-      const ret: Array<QuartileReport> = res.data;
+      try {
+        const url = `/OutstandingReport/JSON/${this.form.monitorGroupID.join(
+          ':',
+        )}/${this.form.date}`;
+        const res = await axios.get(url);
+        const ret: Array<QuartileReport> = res.data;
 
-      if (ret.length == 0) {
-        this.setLoading({ loading: false });
-        await this.$bvModal
-          .msgBoxOk('無感測器資料, 請確認是否已經匯入', {
-            title: '確認',
-            size: 'sm',
-            buttonSize: 'sm',
-            okVariant: 'success',
-            headerClass: 'p-2 border-bottom-0',
-            footerClass: 'p-2 border-top-0',
-            centered: true,
-          })
-          .catch(err => {
-            // An error occurred
-          });
-        return;
-      }
+        if (ret.length == 0) {
+          await this.$bvModal
+            .msgBoxOk('無感測器資料, 請確認是否已經匯入', {
+              title: '確認',
+              size: 'sm',
+              buttonSize: 'sm',
+              okVariant: 'success',
+              headerClass: 'p-2 border-bottom-0',
+              footerClass: 'p-2 border-top-0',
+              centered: true,
+            })
+            .catch(err => {
+              // An error occurred
+            });
+          return;
+        }
 
-      const avgQr = ret[0];
-      const avgMean = avgQr.quartile.q2;
+        const avgQr = ret[0];
+        const avgMean = avgQr.quartile.q2;
 
-      for (let i = 1; i < ret.length; i++) {
-        const qr = ret[i];
-        if (avgMean > qr.quartile.q3 || avgMean < qr.quartile.q1)
-          ret[i].away = true;
-        else ret[i].away = false;
-      }
+        for (let i = 1; i < ret.length; i++) {
+          const qr = ret[i];
+          if (avgMean > qr.quartile.q3 || avgMean < qr.quartile.q1)
+            ret[i].away = true;
+          else ret[i].away = false;
+        }
 
-      const categories = ret.map(qr => {
-        if (qr.away == true) return `${qr.name.slice(-4)}(離群)`;
-        else return `${qr.name.slice(-4)}`;
-      });
-      const data = ret.map(qr => {
-        const q = qr.quartile;
-        let name = `${qr.name.slice(-4)}`;
-        if (qr.away == true) name = `${qr.name.slice(-4)}(離群)`;
-        let color = qr.away ? 'red' : 'black';
-        return {
-          low: q.min,
-          q1: q.q1,
-          median: q.q2,
-          q3: q.q3,
-          high: q.max,
-          name,
-          color,
-        } as highcharts.PointOptionsObject;
-      });
-
-      const avgSeries = {
-        name: '平均中位數',
-        type: 'line',
-        data: [
-          [0, avgMean],
-          [ret.length - 1, avgMean],
-        ],
-        tooltip: {
-          headerFormat: '<em>中位數平均</em><br/>',
-          valueDecimals: 2,
-        },
-      } as highcharts.SeriesLineOptions;
-
-      const outlier = ret
-        .map((qr, x) => {
+        const categories = ret.map(qr => {
+          if (qr.away == true) return `${qr.name.slice(-4)}(離群)`;
+          else return `${qr.name.slice(-4)}`;
+        });
+        const data = ret.map(qr => {
+          const q = qr.quartile;
           let name = `${qr.name.slice(-4)}`;
-          return qr.outlier.map(y => {
-            return {
-              name,
-              x,
-              y,
-            } as highcharts.PointOptionsObject;
-          });
-        })
-        .flat();
+          if (qr.away == true) name = `${qr.name.slice(-4)}(離群)`;
+          let color = qr.away ? 'red' : 'black';
+          return {
+            low: q.min,
+            q1: q.q1,
+            median: q.q2,
+            q3: q.q3,
+            high: q.max,
+            name,
+            color,
+          } as highcharts.PointOptionsObject;
+        });
 
-      const outlierSeries = {
-        name: 'Farout',
-        type: 'scatter',
-        data: outlier,
-        marker: {
-          fillColor: 'black',
-          lineWidth: 2,
-        },
-        tooltip: {
-          pointFormat: '{point.name}: {point.y}',
-          valueDecimals: 2,
-        },
-      } as highcharts.SeriesScatterOptions;
-
-      this.setLoading({ loading: false });
-
-      const series: Array<
-        | highcharts.SeriesBoxplotOptions
-        | highcharts.SeriesScatterOptions
-        | highcharts.SeriesLineOptions
-      > = [
-        {
-          type: 'boxplot',
-          name: '感測器',
-          data,
-          colorByPoint: true,
+        const avgSeries = {
+          name: '平均中位數',
+          type: 'line',
+          data: [
+            [0, avgMean],
+            [ret.length - 1, avgMean],
+          ],
           tooltip: {
-            headerFormat: '<em>感測器 {point.key}</em><br/>',
-            pointFormat:
-              '<span style="color:{point.color}">●</span> <b> {series.name}</b><br/>上限: {point.high}<br/>第三四分位: {point.q3}<br/>中位數: {point.median}<br/>第一四分位: {point.q1}<br/>下限: {point.low}<br/>',
+            headerFormat: '<em>中位數平均</em><br/>',
             valueDecimals: 2,
           },
-        },
-      ];
+        } as highcharts.SeriesLineOptions;
 
-      series.push(avgSeries);
+        const outlier = ret
+          .map((qr, x) => {
+            let name = `${qr.name.slice(-4)}`;
+            return qr.outlier.map(y => {
+              return {
+                name,
+                x,
+                y,
+              } as highcharts.PointOptionsObject;
+            });
+          })
+          .flat();
 
-      if (this.showOutlier) series.unshift(outlierSeries);
-
-      let chartOption: highcharts.Options = {
-        chart: {
-          type: 'boxplot',
-        },
-        title: {
-          text: `${this.form.monitorGroupID} 離群分析報表`,
-        },
-        legend: {
-          enabled: true,
-        },
-        xAxis: {
-          categories,
-          title: {
-            text: '代碼',
+        const outlierSeries = {
+          name: 'Farout',
+          type: 'scatter',
+          data: outlier,
+          marker: {
+            fillColor: 'black',
+            lineWidth: 2,
           },
-        },
-        yAxis: {
-          title: {
-            text: 'PM2.5測值',
+          tooltip: {
+            pointFormat: '{point.name}: {point.y}',
+            valueDecimals: 2,
           },
-          /*
+        } as highcharts.SeriesScatterOptions;
+
+        const series: Array<
+          | highcharts.SeriesBoxplotOptions
+          | highcharts.SeriesScatterOptions
+          | highcharts.SeriesLineOptions
+        > = [
+          {
+            type: 'boxplot',
+            name: '感測器',
+            data,
+            colorByPoint: true,
+            tooltip: {
+              headerFormat: '<em>感測器 {point.key}</em><br/>',
+              pointFormat:
+                '<span style="color:{point.color}">●</span> <b> {series.name}</b><br/>上限: {point.high}<br/>第三四分位: {point.q3}<br/>中位數: {point.median}<br/>第一四分位: {point.q1}<br/>下限: {point.low}<br/>',
+              valueDecimals: 2,
+            },
+          },
+        ];
+
+        series.push(avgSeries);
+
+        if (this.showOutlier) series.unshift(outlierSeries);
+
+        let chartOption: highcharts.Options = {
+          chart: {
+            type: 'boxplot',
+          },
+          title: {
+            text: `${this.form.monitorGroupID} 離群分析報表`,
+          },
+          legend: {
+            enabled: true,
+          },
+          xAxis: {
+            categories,
+            title: {
+              text: '代碼',
+            },
+          },
+          yAxis: {
+            title: {
+              text: 'PM2.5測值',
+            },
+            /*
           plotLines: [
             {
               value: avgMean,
@@ -342,14 +344,19 @@ export default Vue.extend({
             },
           ],
           */
-        },
-        credits: {
-          enabled: false,
-          href: 'http://www.wecc.com.tw/',
-        },
-        series,
-      };
-      highcharts.chart('chart_container', chartOption);
+          },
+          credits: {
+            enabled: false,
+            href: 'http://www.wecc.com.tw/',
+          },
+          series,
+        };
+        highcharts.chart('chart_container', chartOption);
+      } catch (err) {
+        throw new Error(err);
+      } finally {
+        this.setLoading({ loading: false });
+      }
     },
     async getMonitorGroups() {
       const ret = await axios.get('/MonitorGroups');

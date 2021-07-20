@@ -13,6 +13,7 @@ import play.api.mvc._
 import java.nio.file.Files
 import javax.inject._
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 
 class HomeController @Inject()(environment: play.api.Environment,
                                userOp: UserOp, instrumentOp: InstrumentOp, dataCollectManagerOp: DataCollectManagerOp,
@@ -671,6 +672,37 @@ class HomeController @Inject()(environment: play.api.Environment,
         Ok(Json.toJson(ret))
   }
 
+  def upsertMonitorGroup(id: String) = Security.Authenticated.async(BodyParsers.parse.json) {
+    implicit request =>
+      implicit val reads = Json.reads[MonitorGroup]
+      val ret = request.body.validate[MonitorGroup]
+      ret.fold(
+        err => {
+          Logger.error(JsError.toJson(err).toString())
+          Future {
+            BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(err).toString()))
+          }
+        },
+        mg => {
+          if (mg._id != id) {
+            Future {
+              BadRequest(Json.obj("ok" -> false, "msg" -> s"monitorGroup id mismatch!"))
+            }
+          } else {
+            for (ret <- monitorGroupOp.upsert(mg)) yield
+              Ok(Json.obj("ok" -> (ret.getMatchedCount != 0)))
+          }
+
+        }
+      )
+  }
+
+  def deleteMonitorGroup(id: String) = Security.Authenticated.async({
+    val f = monitorGroupOp.delete(id)
+    for (ret <- f) yield
+      Ok(Json.obj("ok" -> (ret.getDeletedCount != 0)))
+  })
+
   def getAlertEmailTargets = Security.Authenticated.async({
     val f = sysConfig.getAlertEmailTarget()
     f onFailure (errorHandler)
@@ -692,10 +724,11 @@ class HomeController @Inject()(environment: play.api.Environment,
         })
   })
 
-  def testAlertEmail(email:String) = Security.Authenticated{
+  def testAlertEmail(email: String) = Security.Authenticated {
     errorReportOp.sendEmail(Seq(email))
     Ok("ok")
   }
+
   case class EditData(id: String, data: String)
 
   case class BooleanValue(value: Boolean)

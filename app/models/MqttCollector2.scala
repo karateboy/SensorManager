@@ -243,7 +243,6 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
                  v <- value
                  } yield
               MtRecord(mt, v, MonitorStatus.NormalStat)
-
           }
 
         var mtDataList: Seq[MtRecord] = mtData.flatten

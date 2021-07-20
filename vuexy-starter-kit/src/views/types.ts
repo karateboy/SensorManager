@@ -81,6 +81,10 @@ export const countyFilters = [
     txt: '宜蘭',
     value: '宜蘭縣',
   },
+  {
+    txt: '其他',
+    value: '其他',
+  },
 ];
 
 export const errorFilters = [
@@ -195,6 +199,8 @@ export function getDistrict(county: string): Array<TxtStrValue> {
       { txt: '三星鄉', value: 'SS' },
       { txt: '大同鄉', value: 'DT' },
     ];
+  } else if (county === '其他') {
+    return [{ txt: '其他', value: '' }];
   }
   return [{ txt: '不限', value: '' }];
 }

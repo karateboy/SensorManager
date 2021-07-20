@@ -214,7 +214,7 @@ class ExcelUtility @Inject()
 
     for((monitorGroupRecord, idx) <- monitorGroupListRecord.zipWithIndex){
       val average = getGroupAvg(monitorGroupRecord)
-      fillSheet(idx*2, Seq(average, monitorGroupRecord))
+      fillSheet(1 + idx*2, Seq(average, monitorGroupRecord))
     }
 
     wb.setForceFormulaRecalculation(true)

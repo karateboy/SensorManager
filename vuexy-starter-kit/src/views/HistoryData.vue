@@ -84,21 +84,21 @@
                 :show-second="false"
               />
               <b-button
-                variant="gradient-success"
+                variant="gradient-primary"
                 class="ml-1"
                 size="md"
                 @click="setToday"
                 >今天</b-button
               >
               <b-button
-                variant="gradient-success"
+                variant="gradient-primary"
                 class="ml-1"
                 size="md"
                 @click="setYesterday"
                 >昨天</b-button
               >
               <b-button
-                variant="gradient-success"
+                variant="gradient-primary"
                 class="ml-1"
                 size="md"
                 @click="set3DayBefore"
@@ -308,7 +308,7 @@ export default Vue.extend({
       ];
     },
     set3DayBefore() {
-      const threeDayBefore = moment().subtract(3, 'day');
+      const threeDayBefore = moment().subtract(2, 'day');
       this.form.range = [
         threeDayBefore.startOf('day').valueOf(),
         moment().valueOf(),
@@ -323,13 +323,17 @@ export default Vue.extend({
       const monitorTypes = this.form.monitorTypes.join(':');
       const url = `/HistoryReport/${monitors}/${monitorTypes}/${this.form.dataType}/${this.form.range[0]}/${this.form.range[1]}`;
 
-      const ret = await axios.get(url);
-      this.setLoading({ loading: false });
-      for (const row of ret.data.rows) {
-        row.date = moment(row.date).format('lll');
+      try {
+        const ret = await axios.get(url);
+        for (const row of ret.data.rows) {
+          row.date = moment(row.date).format('lll');
+        }
+        this.rows = ret.data.rows;
+      } catch (err) {
+        throw new Error(err);
+      } finally {
+        this.setLoading({ loading: false });
       }
-
-      this.rows = ret.data.rows;
     },
     async getMonitorGroups() {
       const ret = await axios.get('/MonitorGroups');

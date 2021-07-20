@@ -48,8 +48,18 @@
               <b-td>
                 <b-button
                   v-b-tooltip.hover
+                  title="刪除群組"
+                  variant="gradient-danger"
+                  class="btn-icon rounded-circle mr-2"
+                  :disabled="!Boolean(sensorFilter.monitorGroup)"
+                  @click="deleteSelectedMonitorGroup"
+                >
+                  <feather-icon icon="UserMinusIcon" />
+                </b-button>
+                <b-button
+                  v-b-tooltip.hover
                   title="匯出 Excel"
-                  class="mr-3"
+                  class="mr-2"
                   variant="outline-success"
                   size="sm"
                   @click="exportExcel"
@@ -97,7 +107,7 @@
           <b-form-select
             v-model="row.item.county"
             text-field="txt"
-            :options="countyFilters"
+            :options="countySelector"
             @change="markDirty(row.item)"
           />
         </template>
@@ -390,6 +400,9 @@ export default Vue.extend({
     } = {
       uploadFile: undefined,
     };
+    const countySelector = countyFilters.filter(v => {
+      return v.txt !== '不限';
+    });
     return {
       sensorFilter: {
         code: '',
@@ -398,9 +411,9 @@ export default Vue.extend({
         district: '',
         sensorType: '',
       },
-      monitorGroupList: Array<MonitorGroup>(),
       sensorTypes,
       countyFilters,
+      countySelector,
       columns,
       sensorGroups,
       currentPage: 1,
@@ -414,6 +427,9 @@ export default Vue.extend({
     ...mapState('monitors', {
       monitors(state: MonitorState) {
         return state.monitors;
+      },
+      monitorGroupList(state: MonitorState) {
+        return state.monitorGroupList;
       },
     }),
     ...mapState('monitorTypes', ['monitorTypes']),
@@ -517,29 +533,49 @@ export default Vue.extend({
     clearTimeout(this.timer);
   },
   methods: {
-    ...mapActions('monitors', ['fetchMonitors']),
+    ...mapActions('monitors', ['fetchMonitors', 'getMonitorGroups']),
     ...mapActions('monitorTypes', ['fetchMonitorTypes']),
     ...mapMutations(['setLoading']),
-    async getMonitorGroups() {
-      const ret = await axios.get('/MonitorGroups');
-      this.monitorGroupList = ret.data;
-    },
     showMonitorGroupID(mg: MonitorGroup) {
       if (mg) return mg._id;
       else return '';
     },
-    save() {
+    async save() {
       const all = [];
+
       for (const m of this.filteredMonitors) {
         if (m.dirty) {
           all.push(axios.put(`/Monitor/${m._id}`, m));
+          if (typeof this.sensorFilter.monitorGroup == 'object') {
+            const mg = this.sensorFilter.monitorGroup as MonitorGroup;
+            if (typeof m.monitorGroup == 'boolean') {
+              if (m.monitorGroup) {
+                // add it to group
+                if (mg.member.indexOf(m._id) === -1) mg.member.push(m._id);
+              } else {
+                let index = mg.member.indexOf(m._id);
+                if (index !== -1) {
+                  mg.member.splice(index, 1);
+                }
+              }
+            }
+          }
         }
       }
 
-      Promise.all(all).then(() => {
+      if (typeof this.sensorFilter.monitorGroup == 'object') {
+        const mg = this.sensorFilter.monitorGroup as MonitorGroup;
+        all.push(axios.put(`/MonitorGroup/${mg._id}`, mg));
+      }
+
+      try {
+        await Promise.all(all);
         this.fetchMonitors();
+        this.getMonitorGroups();
         this.$bvModal.msgBoxOk('成功');
-      });
+      } catch (err) {
+        throw new Error(err);
+      }
     },
     rollback() {
       this.fetchMonitors();
@@ -551,7 +587,9 @@ export default Vue.extend({
       return v ? '啟用' : '未啟用';
     },
     getDistrictList(county: string) {
-      return getDistrict(county);
+      return getDistrict(county).filter(v => {
+        return v.txt !== '不限';
+      });
     },
     exportExcel() {
       const title = MonitorExportFields.map(e => e.name);
@@ -626,8 +664,22 @@ export default Vue.extend({
         this.timer = setTimeout(this.checkFinished, 1000);
       }
     },
+    async deleteSelectedMonitorGroup() {
+      if (typeof this.sensorFilter.monitorGroup == 'object') {
+        const mg = this.sensorFilter.monitorGroup as MonitorGroup;
+        try {
+          const ret = await axios.delete(`/MonitorGroup/${mg._id}`);
+          if (ret.data.ok) {
+            this.$bvModal.msgBoxOk('刪除成功', { headerBgVariant: 'info' });
+            this.getMonitorGroups();
+            this.sensorFilter.monitorGroup = undefined;
+          } else
+            this.$bvModal.msgBoxOk('刪除失敗', { headerBgVariant: 'danger' });
+        } catch (err) {
+          throw new Error(err);
+        }
+      }
+    },
   },
 });
 </script>
-
-<style></style>

@@ -287,7 +287,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
             val windSpeed = hourList.map(timeMap)
             windAvg(windSpeed, windDir)
           } else {
-            sum / total
+            sum / count
           }
           Stat(
             avg = Some(avg),

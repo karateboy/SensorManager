@@ -637,10 +637,10 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   }
 
   def getLastestSensorSummary(colName: String) = {
-    val today = DateTime.now().withMillisOfDay(0).toDate
+    val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1)
     val groupList = List("SAQ200", "SAQ210")
     val f2 = getSensorDisconnected(colName)("", "", "")
-    val f4 = powerErrorReportOp.get(today)
+    val f4 = powerErrorReportOp.get(yesterday)
     for {
          disconnectedMonitors <- f2
          powerErrorReport <- f4

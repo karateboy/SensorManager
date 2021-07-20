@@ -64,5 +64,11 @@ class MonitorGroupOp @Inject()(mongoDB: MongoDB) {
     f onFailure(errorHandler())
     f
   }
+
+  def delete(_id: String) = {
+    val f = collection.deleteOne(Filters.equal("_id", _id)).toFuture()
+    f onFailure(errorHandler())
+    f
+  }
 }
 
