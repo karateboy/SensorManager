@@ -20,7 +20,7 @@ class HomeController @Inject()(environment: play.api.Environment,
                                monitorTypeOp: MonitorTypeOp, query: Query, monitorOp: MonitorOp, groupOp: GroupOp,
                                instrumentTypeOp: InstrumentTypeOp, monitorStatusOp: MonitorStatusOp, actorSystem: ActorSystem,
                                recordOp: RecordOp, sysConfig: SysConfig, monitorGroupOp: MonitorGroupOp,
-                               errorReportOp: ErrorReportOp) extends Controller {
+                               errorReportOp: ErrorReportOp, emailTargetOp: EmailTargetOp) extends Controller {
 
   val epaReportPath: String = environment.rootPath + "/importEPA/"
 
@@ -704,7 +704,8 @@ class HomeController @Inject()(environment: play.api.Environment,
   })
 
   def getAlertEmailTargets = Security.Authenticated.async({
-    val f = sysConfig.getAlertEmailTarget()
+    import EmailTarget._
+    val f = emailTargetOp.getList()
     f onFailure (errorHandler)
     for (ret <- f) yield
       Ok(Json.toJson((ret)))
@@ -712,20 +713,21 @@ class HomeController @Inject()(environment: play.api.Environment,
 
   def saveAlertEmailTargets() = Security.Authenticated(BodyParsers.parse.json)({
     implicit request =>
-      val ret = request.body.validate[Seq[String]]
+      import EmailTarget._
+      val ret = request.body.validate[Seq[EmailTarget]]
       ret.fold(
         error => {
           Logger.error(JsError.toJson(error).toString())
           BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(error).toString()))
         },
         emails => {
-          sysConfig.setAlertEmailTarget(emails)
+          emailTargetOp.upsertMany(emails)
           Ok(Json.obj("ok" -> true))
         })
   })
 
   def testAlertEmail(email: String) = Security.Authenticated {
-    errorReportOp.sendEmail(Seq(email))
+    errorReportOp.sendEmail(Seq(EmailTarget(email, Seq(""))))
     Ok("ok")
   }
 

@@ -133,7 +133,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f
   }
 
-  def sendEmail(receiverEmails: Seq[String]) = {
+  def sendEmail(emailTargetList: Seq[EmailTarget]) = {
     val today = DateTime.now.withMillisOfDay(0)
     val f = get(today.toDate)
     f onFailure (errorHandler())
@@ -150,20 +150,25 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
           val yl = monitors.filter(_.county == Some("宜蘭縣"))
           (kl, pt, yl)
         }
-      val htmlBody = views.html.errorReport(today.toString("yyyy/MM/dd"), kl, pt, yl).body
-      val mail = Email(
-        subject = s"${today.toString("yyyy/MM/dd")}電力異常設備",
-        from = "Aragorn <karateboy@sagainfo.com.tw>",
-        to = receiverEmails,
-        bodyHtml = Some(htmlBody)
-      )
-      try {
-        Thread.currentThread().setContextClassLoader(getClass().getClassLoader())
-        mailerClient.send(mail)
-      } catch {
-        case ex: Exception =>
-          Logger.error("Failed to send email", ex)
+      for(emailTarget <- emailTargetList){
+        val htmlBody = views.html.errorReport(today.toString("yyyy/MM/dd"), kl, pt, yl, emailTarget.counties).body
+        val mail = Email(
+          subject = s"${today.toString("yyyy/MM/dd")}電力異常設備",
+          from = "Aragorn <karateboy@sagainfo.com.tw>",
+          to = Seq(emailTarget._id),
+          bodyHtml = Some(htmlBody)
+        )
+        try {
+          Thread.currentThread().setContextClassLoader(getClass().getClassLoader())
+          mailerClient.send(mail)
+        } catch {
+          case ex: Exception =>
+            Logger.error("Failed to send email", ex)
+        }
       }
+
+
+
 
     }
   }

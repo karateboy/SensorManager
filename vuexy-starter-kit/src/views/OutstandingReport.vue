@@ -47,7 +47,7 @@
           </b-col>
           <b-col cols="12">
             <b-form-group
-              label="超級限值"
+              label="超限極值"
               label-for="outlier"
               label-cols-md="3"
             >

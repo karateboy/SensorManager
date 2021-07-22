@@ -1,9 +1,5 @@
 <template>
-  <b-card
-    :title="`異常感測器列表 - 資料時間(${updateTime
-      .subtract(1, 'days')
-      .format('ll')})`"
-  >
+  <b-card title="異常感測器列表">
     <div id="sensorFilter" class="sensorFilter mt-2">
       <b-table-simple small fixed>
         <b-tr>
@@ -74,6 +70,9 @@ import {
   errorFilters,
   getDistrict,
   TxtStrValue,
+  Field,
+  Monitor,
+  EffectiveRate,
 } from './types';
 import axios from 'axios';
 import moment from 'moment';
@@ -90,13 +89,37 @@ export default Vue.extend({
   data() {
     let constantList = Array<Sensor>();
     let disconnectedList = Array<Sensor>();
-    let lt95List = Array<string>();
+    let lt95List = Array<EffectiveRate>();
     let powerErrorList = Array<string>();
     let noPowerInfoList = Array<string>();
 
     const errorStatus = Array<string>('constant', 'disconnect');
     return {
-      fields: [
+      items: [],
+      timer: 0,
+      disconnectedList,
+      constantList,
+      lt95List,
+      powerErrorList,
+      noPowerInfoList,
+      errorFilters,
+      errorStatus,
+      sensorStatusParam: {
+        pm25Threshold: '',
+        county: '基隆市',
+        district: '',
+        sensorType: '',
+      },
+      countyFilters,
+      sensorTypes,
+      updateTime: moment(),
+    };
+  },
+  computed: {
+    ...mapState('monitors', ['monitors']),
+    ...mapGetters('monitors', ['mMap']),
+    fields(): Array<Field> {
+      let ret: Array<Field> = [
         {
           key: '_id',
           label: '設備序號',
@@ -133,34 +156,34 @@ export default Vue.extend({
           sortable: true,
         },
         {
+          key: 'dataTime',
+          label: '紀錄時間',
+          sortable: true,
+        },
+        {
           key: 'status',
           label: '狀態',
           sortable: true,
         },
-      ],
-      items: [],
-      timer: 0,
-      disconnectedList,
-      constantList,
-      lt95List,
-      powerErrorList,
-      noPowerInfoList,
-      errorFilters,
-      errorStatus,
-      sensorStatusParam: {
-        pm25Threshold: '',
-        county: '基隆市',
-        district: '',
-        sensorType: '',
-      },
-      countyFilters,
-      sensorTypes,
-      updateTime: moment(),
-    };
-  },
-  computed: {
-    ...mapState('monitors', ['monitors']),
-    ...mapGetters('monitors', ['mMap']),
+      ];
+      if (this.errorStatus.indexOf('lt95') !== -1) {
+        ret.push({
+          key: 'effectRate',
+          label: '完整率',
+          sortable: true,
+          formatter: (v: number) => {
+            if (isNaN(v) || v === null) {
+              return `N/A`;
+            } else {
+              let percent = v * 100;
+              return `${percent.toFixed(0)}%`;
+            }
+          },
+        });
+      }
+
+      return ret;
+    },
     districtFilters(): Array<TxtStrValue> {
       return getDistrict(this.sensorStatusParam.county);
     },
@@ -172,7 +195,8 @@ export default Vue.extend({
           const m = this.mMap.get(id);
           if (!m || !m.location) continue;
 
-          let sensor = Object.assign({ status: '定值' }, m);
+          let dataTime = moment().subtract(1, 'days').format('ll');
+          let sensor = Object.assign({ status: '定值', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;
@@ -181,11 +205,15 @@ export default Vue.extend({
         }
 
       if (this.errorStatus.indexOf('lt95') !== -1) {
-        for (const id of this.lt95List) {
-          const m = this.mMap.get(id);
+        for (const ef of this.lt95List) {
+          const m = this.mMap.get(ef._id);
           if (!m || !m.location) continue;
 
-          let sensor = Object.assign({ status: '低於90%' }, m);
+          let dataTime = moment().subtract(1, 'days').format('ll');
+          let sensor = Object.assign(
+            { status: '低於90%', dataTime, effectRate: ef.rate },
+            m,
+          );
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;
@@ -199,7 +227,8 @@ export default Vue.extend({
           const m = this.mMap.get(id);
           if (!m || !m.location) continue;
 
-          let sensor = Object.assign({ status: '斷線' }, m);
+          let dataTime = moment().subtract(10, 'minute').fromNow();
+          let sensor = Object.assign({ status: '斷線', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;
@@ -213,7 +242,8 @@ export default Vue.extend({
           const m = this.mMap.get(id);
           if (!m || !m.location) continue;
 
-          let sensor = Object.assign({ status: '電力異常' }, m);
+          let dataTime = moment().subtract(1, 'days').format('ll');
+          let sensor = Object.assign({ status: '電力異常', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;
@@ -228,7 +258,8 @@ export default Vue.extend({
           const m = this.mMap.get(id);
           if (!m) continue;
 
-          let sensor = Object.assign({ status: '無電力資訊' }, m);
+          let dataTime = moment().subtract(1, 'days').format('ll');
+          let sensor = Object.assign({ status: '無電力資訊', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;

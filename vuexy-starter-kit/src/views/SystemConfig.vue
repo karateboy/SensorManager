@@ -33,7 +33,7 @@
       </b-form>
     </b-card>
     <b-card title="異常通報">
-      <b-table :items="emails" :fields="fields" selectable responsive>
+      <b-table :items="emails" :fields="fields">
         <template #thead-top>
           <b-tr>
             <b-td colspan="2">
@@ -55,8 +55,17 @@
             </b-td>
           </b-tr>
         </template>
-        <template #cell(email)="row">
-          <b-form-input v-model="row.item.email" />
+        <template #cell(_id)="row">
+          <b-form-input v-model="row.item._id" />
+        </template>
+        <template #cell(counties)="row">
+          <v-select
+            v-model="row.item.counties"
+            label="txt"
+            :reduce="entry => entry.value"
+            :options="countyFilters"
+            multiple
+          />
         </template>
         <template #cell(operation)="row">
           <b-button
@@ -84,9 +93,11 @@
 import Vue from 'vue';
 const Ripple = require('vue-ripple-directive');
 import axios from 'axios';
+import { countyFilters } from './types';
 
-interface AlertEmail {
-  email: string;
+interface EmailTarget {
+  _id: string;
+  counties: Array<string>;
 }
 
 const emailRegx =
@@ -97,23 +108,29 @@ export default Vue.extend({
     Ripple,
   },
   data() {
-    let emails = Array<AlertEmail>();
+    let emails = Array<EmailTarget>();
     const fields = [
       {
-        key: 'email',
+        key: '_id',
         label: 'email',
+      },
+      {
+        key: 'counties',
+        label: '縣市',
       },
       {
         key: 'operation',
         label: '操作',
       },
     ];
+
     return {
       form: {
         sensorGPS: true,
       },
       selected: [],
       emails,
+      countyFilters,
       fields,
     };
   },
@@ -142,38 +159,37 @@ export default Vue.extend({
       this.selected = items;
     },
     async getAlertEmailTarget() {
-      const res = await axios.get('/AlertEmailTargets');
-      this.emails.splice(0, this.emails.length);
-      for (let email of res.data) {
-        this.emails.push({
-          email,
-        });
+      try {
+        const res = await axios.get('/AlertEmailTargets');
+        this.emails = res.data;
+      } catch (err) {
+        throw new Error(err);
       }
     },
     newEmail() {
       this.emails.push({
-        email: '',
+        _id: '',
+        counties: [],
       });
     },
     deleteEmail(index: number) {
       this.emails.splice(index, 1);
     },
     validateEmail(index: number) {
-      return emailRegx.test(this.emails[index].email);
+      return emailRegx.test(this.emails[index]._id);
     },
     async saveEmail() {
       let filteredEmails = this.emails.filter(v => {
-        if (!Boolean(v.email)) return false;
-        return emailRegx.test(v.email.toLowerCase());
+        if (!Boolean(v._id)) return false;
+        return emailRegx.test(v._id.toLowerCase());
       });
 
-      let finalEmails = filteredEmails.map(v => v.email);
-      const res = await axios.post('/AlertEmailTargets', finalEmails);
+      const res = await axios.post('/AlertEmailTargets', filteredEmails);
       if (res.status === 200) this.$bvModal.msgBoxOk('成功');
     },
     async testEmail(index: number) {
       const params = {
-        email: this.emails[index].email,
+        email: this.emails[index]._id,
       };
 
       const res = await axios.get('/TestAlertEmail', {

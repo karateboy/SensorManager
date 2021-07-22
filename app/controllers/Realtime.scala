@@ -2,7 +2,6 @@ package controllers
 
 import com.github.nscala_time.time.Imports._
 import models._
-import play.api.Logger
 import play.api.libs.json._
 import play.api.mvc._
 
@@ -110,9 +109,9 @@ class Realtime @Inject()
         for {report <- f
              } yield {
           val monitorIDs =
-            if(report.isEmpty)
+            if (report.isEmpty)
               Seq.empty[String]
-            else{
+            else {
               report(0).constant.map(monitorOp.map).filter(m => m.enabled.getOrElse(true))
                 .filter(m => {
                   if (county == "")
@@ -136,8 +135,8 @@ class Realtime @Inject()
     }
 
   def getPowerUsageErrorSensor(county: String, district: String, sensorType: String) = Security.Authenticated.async {
-    val today = DateTime.now().withMillisOfDay(0).toDate
-    for (reports <- errorReportOp.get(today)) yield {
+    val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1).toDate
+    for (reports <- errorReportOp.get(yesterday)) yield {
       val monitors: Seq[Monitor] = {
         if (reports.isEmpty)
           Seq.empty[Monitor]
@@ -172,75 +171,66 @@ class Realtime @Inject()
     }
   }
 
-    def getNoErrorCodeSensors(county: String, district: String, sensorType: String) = Security.Authenticated.async {
-      val today = DateTime.now().withMillisOfDay(0).toDate
-      for(reports <- errorReportOp.get(today)) yield {
-        val monitors: Seq[Monitor] = {
-          if(reports.isEmpty)
-            Seq.empty[Monitor]
-          else{
-            for(sensorID <- reports(0).noErrorCode if monitorOp.map.contains(sensorID)) yield
-              monitorOp.map(sensorID)
-          }
+  def getNoErrorCodeSensors(county: String, district: String, sensorType: String) = Security.Authenticated.async {
+    val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1).toDate
+    for (reports <- errorReportOp.get(yesterday)) yield {
+      val monitors: Seq[Monitor] = {
+        if (reports.isEmpty)
+          Seq.empty[Monitor]
+        else {
+          for (sensorID <- reports(0).noErrorCode if monitorOp.map.contains(sensorID)) yield
+            monitorOp.map(sensorID)
         }
-
-        val result: Seq[String] = monitors.filter(m =>
-          m.tags.contains(MonitorTag.SENSOR)
-        ).filter(m => {
-          if (county == "")
-            true
-          else
-            m.county == Some(county)
-        }).filter(m => {
-          if (district == "")
-            true
-          else
-            m.district == Some(district)
-        }).filter(m => {
-          if (sensorType == "")
-            true
-          else
-            m.tags.contains(sensorType)
-        })map {
-          _._id
-        }
-
-        Ok(Json.toJson(result))
       }
+
+      val result: Seq[String] = monitors.filter(m =>
+        m.tags.contains(MonitorTag.SENSOR)
+      ).filter(m => {
+        if (county == "")
+          true
+        else
+          m.county == Some(county)
+      }).filter(m => {
+        if (district == "")
+          true
+        else
+          m.district == Some(district)
+      }).filter(m => {
+        if (sensorType == "")
+          true
+        else
+          m.tags.contains(sensorType)
+      }) map {
+        _._id
+      }
+
+      Ok(Json.toJson(result))
+    }
   }
 
   def lessThan95sensor(county: String, district: String, sensorType: String) =
     Security.Authenticated.async {
       implicit request =>
+        implicit val writes = Json.writes[EffectiveRate]
         val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1)
         val f = errorReportOp.get(yesterday.toDate)
         for {report <- f
              } yield {
-          val monitorIDs =
-            if(report.isEmpty)
-              Seq.empty[String]
-            else{
-              report(0).ineffective.map(_._id).map(monitorOp.map)
-                .filter(m => m.enabled.getOrElse(true))
-                .filter(m => {
-                  if (county == "")
-                    true
-                  else
-                    m.county == Some(county)
-                }).filter(m => {
-                if (district == "")
-                  true
-                else
-                  m.district == Some(district)
-              }).filter(m => {
-                if (sensorType == "")
-                  true
-                else
-                  m.tags.contains(sensorType)
-              }).map(_._id)
+          val effectiveRates =
+            if (report.isEmpty)
+              Seq.empty[EffectiveRate]
+            else {
+              report(0).ineffective.filter(item=>{
+                val m = monitorOp.map(item._id)
+                m.enabled.getOrElse(true) &&
+                  (county == ""||m.county == Some(county)) &&
+                  (district == "" || m.district == Some(district)) &&
+                  (sensorType == "" || m.tags.contains(sensorType))
+              })
             }
-          Ok(Json.toJson(monitorIDs))
+          Ok(Json.toJson(effectiveRates))
         }
     }
+
   case class MonitorTypeStatus(desp: String, value: String, unit: String, instrument: String, status: String, classStr: Seq[String], order: Int)
 }

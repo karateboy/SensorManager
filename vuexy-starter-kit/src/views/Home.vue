@@ -280,6 +280,8 @@ import {
   TxtStrValue,
   MtRecord,
   GroupSummary,
+  Monitor,
+  EffectiveRate,
 } from './types';
 
 interface Location {
@@ -318,7 +320,7 @@ export default Vue.extend({
     let epaStatus = Array<any>();
     let disconnectedList = Array<string>();
     let constantList = Array<string>();
-    let lt90List = Array<string>();
+    let lt90List = Array<EffectiveRate>();
     let powerErrorList = Array<string>();
     let errorStatus = Array<string>();
     let sensorGroupSummary = Array<GroupSummary>();
@@ -389,13 +391,36 @@ export default Vue.extend({
     constantMarkers(): Array<any> {
       if (this.errorStatus.indexOf('constant') === -1) return [];
 
-      return this.markers(this.constantList);
+      const ret = [];
+      for (const id of this.constantList) {
+        const m = this.mMap.get(id) as Monitor;
+        if (!m || !m.location) continue;
+
+        const lng = m.location[0];
+        const lat = m.location[1];
+
+        const iconUrl = '/static/constant.svg';
+
+        const infoText = m.code
+          ? `<strong>${m.shortCode}/${m.code}</strong>`
+          : `<strong>${m.desc}</strong>`;
+        const title = m.code ? `定值 ${m.code}` : `${m.desc}`;
+
+        ret.push({
+          _id: id,
+          title,
+          position: { lat, lng },
+          infoText,
+          iconUrl,
+        });
+      }
+      return ret;
     },
     lt95Markers(): Array<any> {
       if (this.errorStatus.indexOf('lt95') === -1) return [];
       const ret = [];
-      for (const id of this.lt90List) {
-        const m = this.mMap.get(id);
+      for (const ef of this.lt90List) {
+        const m = this.mMap.get(ef._id) as Monitor;
         if (!m || !m.location) continue;
 
         const lng = m.location[0];
@@ -409,7 +434,7 @@ export default Vue.extend({
         const title = m.code ? `有效率低於90% ${m.code}` : `${m.desc}`;
 
         ret.push({
-          _id: id,
+          _id: ef._id,
           title,
           position: { lat, lng },
           infoText,

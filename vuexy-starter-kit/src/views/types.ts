@@ -101,7 +101,7 @@ export const errorFilters = [
     value: 'constant',
   },
   {
-    txt: '電力異常',
+    txt: '充電異常',
     value: 'powerError',
   },
   {
@@ -394,4 +394,15 @@ export interface MonthlyHourReport {
   columnNames: Array<string>;
   rows: Array<RowData>;
   statRows: Array<StatRow>;
+}
+
+export interface Field {
+  key: string;
+  label: string;
+  sortable: boolean;
+  formatter?: any;
+}
+export interface EffectiveRate {
+  _id: string;
+  rate: number;
 }

@@ -250,7 +250,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
 
         var powerUsageError = false
         val today = DateTime.now().withMillisOfDay(0).toDate
-        if(message.attributes.isEmpty)
+        if(message.attributes.isEmpty || message.attributes.get.find(attr=>attr.key == "errorcode") == None)
           powerErrorReportOp.addNoErrorCodeSensor(today, message.id)
 
         //Check power usage

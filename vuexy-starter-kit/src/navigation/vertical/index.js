@@ -32,12 +32,6 @@ export default [
         resource: 'Data',
       },
       {
-        title: '警報記錄查詢',
-        route: 'alarm-query',
-        action: 'read',
-        resource: 'Data',
-      },
-      {
         title: '異常狀況查詢',
         route: 'error-report',
       },

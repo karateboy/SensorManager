@@ -91,7 +91,7 @@
                   ><b-img
                     v-b-tooltip.hover
                     src="../assets/excel_export.svg"
-                    title="匯入 Excel"
+                    title="匯出 Excel"
                     width="24"
                     fluid
                     @click="exportExcel" /></b-button
@@ -121,6 +121,7 @@ import {
   errorFilters as defaultErrorFilter,
   getDistrict,
   TxtStrValue,
+  Field,
 } from './types';
 
 const excel = require('../libs/excel');
@@ -141,13 +142,6 @@ interface ErrorReport {
   powerError: Array<string>;
   constant: Array<string>;
   ineffective: Array<EffectiveRate>;
-}
-
-interface Field {
-  key: string;
-  label: string;
-  sortable: boolean;
-  formatter?: any;
 }
 
 export default Vue.extend({
@@ -281,7 +275,7 @@ export default Vue.extend({
           label: '完整率',
           sortable: true,
           formatter: (v: number) => {
-            if (isNaN(v)) {
+            if (v === null) {
               return `N/A`;
             } else {
               let percent = v * 100;

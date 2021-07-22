@@ -1,4 +1,4 @@
-@(dateStr: String, kl: Seq[Monitor], pt: Seq[Monitor], yl: Seq[Monitor])
+@(dateStr: String, kl: Seq[Monitor], pt: Seq[Monitor], yl: Seq[Monitor], countyFilter: Seq[String])
 <!DOCTYPE html>
 <html lang="zh-tw">
 <head>
@@ -8,9 +8,21 @@
 <div style="font-family:Verdana,Arial,Helvetica,sans-serif;font-size:10pt"><p style="margin:0px"><span
         style="font-family:微軟正黑體,sans-serif"><span
         style="color:red">@{dateStr} 電力異常設備</span></span><br></p>
-    @powerError("基隆", kl)
-    @powerError("屏東", pt)
-    @powerError("宜蘭", yl)
+    @if(countyFilter.contains("")){
+        @powerError("基隆", kl)
+        @powerError("屏東", pt)
+        @powerError("宜蘭", yl)
+    }else{
+        @if(countyFilter.contains("基隆市")){
+            @powerError("基隆", kl)
+        }
+        @if(countyFilter.contains("屏東縣")){
+            @powerError("屏東", pt)
+        }
+        @if(countyFilter.contains("宜蘭縣")){
+            @powerError("宜蘭", yl)
+        }
+    }
 </div>
 </body>
 </html>

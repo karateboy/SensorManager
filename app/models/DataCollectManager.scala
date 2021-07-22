@@ -231,7 +231,7 @@ class DataCollectManager @Inject()
  dataCollectManagerOp: DataCollectManagerOp,
  instrumentTypeOp: InstrumentTypeOp,
  alarmOp: AlarmOp, instrumentOp: InstrumentOp,
- errorReportOp: ErrorReportOp, sysConfig: SysConfig) extends Actor with InjectedActorSupport {
+ errorReportOp: ErrorReportOp, sysConfig: SysConfig, emailTargetOp: EmailTargetOp) extends Actor with InjectedActorSupport {
 
   import DataCollectManager._
 
@@ -709,7 +709,7 @@ class DataCollectManager @Inject()
       }
 
     case SendErrorReport =>
-      for (alertEmailTarget <- sysConfig.getAlertEmailTarget()) yield {
+      for (alertEmailTarget <- emailTargetOp.getList()) yield {
         errorReportOp.sendEmail(alertEmailTarget)
       }
 
