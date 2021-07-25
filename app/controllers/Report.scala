@@ -259,7 +259,6 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     val mt = monitorTypeStr
     val start = new DateTime(startDate).withMillisOfDay(0).withDayOfMonth(1)
     val outputType = OutputType.withName(outputTypeStr)
-    val title = "月份時報表"
     if (outputType == OutputType.html || outputType == OutputType.pdf) {
       val recordList = recordOp.getRecordMap(recordOp.HourCollection)(monitor, List(mt), start, start + 1.month)(mt)
       val timePair = recordList.map { r => r.time -> r }
@@ -310,7 +309,8 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
         }
       val hourStatMap = Map(hourValues: _*)
       val dayStatMap = query.getPeriodStatReportMap(Map(mt -> recordList), 1.day)(start, start + 1.month)
-      val overallStat = query.getPeriodStatReportMap(Map(mt -> recordList), 1.day)(start, start + 1.month)(mt)(start)
+      val overallStat = query.getPeriodStatReportMap(Map(mt -> recordList), 1.month)(start, start + 1.month)(mt)(start)
+
       var columns = Seq.empty[String]
       for (i <- 0 to 23) {
         columns = columns.:+(s"$i:00")

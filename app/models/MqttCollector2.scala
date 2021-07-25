@@ -266,6 +266,9 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
                   mtDataList.:+(MtRecord(MonitorType.BATTERY, 1, MonitorStatus.NormalStat))
                 else
                   mtDataList.:+(MtRecord(MonitorType.BATTERY, 4, MonitorStatus.NormalStat))
+            }else{
+              Logger.warn(s"unknown power code ${ret}")
+              powerErrorReportOp.addNoErrorCodeSensor(today, message.id)
             }
 
             if (now.getHourOfDay >= 20) { // nighttime

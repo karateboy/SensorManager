@@ -70,10 +70,13 @@ case object IsConnected
 
 case object SendErrorReport
 
+
 object DataCollectManager {
   val effectivRatio = 0.75
 
   case object CheckSensorStstus
+
+  case object CleanupOldRecord
 }
 
 @Singleton
@@ -272,6 +275,20 @@ class DataCollectManager @Inject()
     system.scheduler.schedule(
       Duration(duration.getStandardSeconds + 1, SECONDS),
       Duration(1, DAYS), self, SendErrorReport)
+  }
+
+  val cleanupOldRecordTimer: Cancellable = {
+    val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(23).withMinuteOfHour(50)
+    val cleanupTime = DateTime.now().toLocalDate().toDateTime(localtime)
+    val duration = if (DateTime.now() < cleanupTime)
+      new Duration(DateTime.now(), cleanupTime)
+    else
+      new Duration(DateTime.now(), cleanupTime + 1.day)
+
+    import scala.concurrent.duration._
+    system.scheduler.schedule(
+      Duration(duration.getStandardSeconds + 1, SECONDS),
+      Duration(1, DAYS), self, CleanupOldRecord)
   }
 
   var calibratorOpt: Option[ActorRef] = None
@@ -713,6 +730,9 @@ class DataCollectManager @Inject()
         errorReportOp.sendEmail(alertEmailTarget)
       }
 
+    case CleanupOldRecord =>
+      recordOp.deleteOneMonthAgoRecord(recordOp.MinCollection)
+
     case GetLatestData =>
       //Filter out older than 6 second
       val latestMap = latestDataMap.flatMap { kv =>
@@ -753,6 +773,7 @@ class DataCollectManager @Inject()
       _.cancel()
     }
     alertEmailTimer.cancel()
+    cleanupOldRecordTimer.cancel()
   }
 
   case class InstrumentParam(actor: ActorRef, mtList: List[String], calibrationTimerOpt: Option[Cancellable])

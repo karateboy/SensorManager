@@ -161,8 +161,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
         new IndexOptions().unique(true)).toFuture()
       col.createIndex(Indexes.descending("monitor", "time"),
         new IndexOptions().unique(true)).toFuture()
-      col.createIndex(Indexes.descending("time")).toFuture()
-      col.createIndex(Indexes.geo2dsphere("location")).toFuture()
     }
   }
 
@@ -755,6 +753,12 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, addPm25ValueStage, latestFilter, constantFilter, projectStage)).toFuture()
   }
 
+  def deleteOneMonthAgoRecord(colName: String) = {
+    val date = DateTime.now().withMillisOfDay(0).minusDays(45).toDate()
+    val f = getCollection(colName).deleteMany(Filters.lt("time", date)).toFuture()
+    f onFailure(errorHandler)
+    f
+  }
   /*
   def updateMtRecord(colName: String)(mtName: String, updateList: Seq[(DateTime, Double)], monitor: String = monitorOp.SELF_ID) = {
     import org.mongodb.scala.bson._
