@@ -1,6 +1,5 @@
 package controllers
 
-import com.github.nscala_time.time
 import com.github.nscala_time.time.Imports._
 import models.ModelHelper._
 import models._
@@ -10,7 +9,6 @@ import play.api.mvc._
 
 import java.nio.file.Files
 import javax.inject._
-import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.postfixOps
@@ -41,7 +39,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
   implicit val w1 = Json.writes[RowData]
   implicit val w = Json.writes[DailyReport]
 
-  def getMonitorReport(monitorID:String, reportTypeStr: String, startNum: Long, outputTypeStr: String) = Security.Authenticated {
+  def getMonitorReport(monitorID: String, reportTypeStr: String, startNum: Long, outputTypeStr: String) = Security.Authenticated {
     implicit request =>
       val reportType = PeriodReport.withName(reportTypeStr)
       val outputType = OutputType.withName(outputTypeStr)
@@ -255,7 +253,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     }
   }
 
-  def monthlyHourReport(monitor:String, monitorTypeStr: String, startDate: Long, outputTypeStr: String) = Security.Authenticated {
+  def monthlyHourReport(monitor: String, monitorTypeStr: String, startDate: Long, outputTypeStr: String) = Security.Authenticated {
     val mt = monitorTypeStr
     val start = new DateTime(startDate).withMillisOfDay(0).withDayOfMonth(1)
     val outputType = OutputType.withName(outputTypeStr)
@@ -432,6 +430,50 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     }
   }
 
+  def getMonitorGroupRecordList(mt: String, monitorGroup: MonitorGroup, start: DateTime) = {
+    val resultFuture = recordOp.getRecordListFuture(recordOp.HourCollection)(start, start + 1.month, monitorGroup.member)
+    for (recordList <- resultFuture) yield {
+      import scala.collection.mutable.Map
+      val timeMtMonitorMap = Map.empty[DateTime, Map[String, Double]]
+      recordList map {
+        r =>
+          val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
+          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Double])
+          if (r.mtMap.contains(mt)) {
+            val mtRecord = r.mtMap(mt)
+            monitorMap.update(r.monitor, mtRecord.value)
+          }
+      }
+      (monitorGroup, timeMtMonitorMap, start)
+    }
+  }
+
+  def outstandingReport(county: String, date: Long) = Security.Authenticated.async {
+    val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
+    val mt = MonitorType.PM25
+    val mgListFuture =
+      county match {
+        case "基隆市" =>
+          monitorGroupOp.getListStartWith("K9SE")
+      }
+
+    val monitorGroupListReportFuture = mgListFuture map {
+      mgList => {
+        Logger.info(mgList.toString())
+        getMonitorGroupListRecordMap(mt, mgList, reportDate)
+      }
+    } flatMap (x => x)
+
+    for (monitorGroupListReport <- monitorGroupListReportFuture) yield {
+      val excelFile = excelUtility.getOutstandingReport(monitorGroupListReport)
+      Ok.sendFile(excelFile, fileName = _ =>
+        s"${county}${reportDate.toString(DateTimeFormat.forPattern("YYYYMM"))}離群分析.xlsx",
+        onClose = () => {
+          Files.deleteIfExists(excelFile.toPath())
+        })
+    }
+  }
+
   def getMonitorGroupListRecordMap(mt: String, mgList: Seq[MonitorGroup], reportDate: DateTime) = {
     val listF =
       for (mg <- mgList) yield
@@ -457,48 +499,6 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     }
   }
 
-  def getMonitorGroupRecordList(mt: String, monitorGroup: MonitorGroup, start: DateTime) = {
-    val resultFuture = recordOp.getRecordListFuture(recordOp.HourCollection)(start, start + 1.month, monitorGroup.member)
-    for (recordList <- resultFuture) yield {
-      import scala.collection.mutable.Map
-      val timeMtMonitorMap = Map.empty[DateTime, Map[String, Double]]
-      recordList map {
-        r =>
-          val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
-          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Double])
-          if (r.mtMap.contains(mt)) {
-            val mtRecord = r.mtMap(mt)
-            monitorMap.update(r.monitor, mtRecord.value)
-          }
-      }
-      (monitorGroup, timeMtMonitorMap, start)
-    }
-  }
-
-  def outstandingReport(county: String, date: Long) = Security.Authenticated.async {
-    val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
-    val mt = MonitorType.PM25
-
-    val mgListFuture = Future.sequence(
-      county match {
-        case "基隆市" =>
-          Seq("K9SE01", "K9SE02", "K9SE03", "K9SE04", "K9SE05", "K9SE06", "K9SE07", "K9SE08", "K9SE09", "K9SE10", "K9SE11", "K9SE12") map monitorGroupOp.get
-      })
-
-    val monitorGroupListReportFuture = mgListFuture map {
-      mgList => getMonitorGroupListRecordMap(mt, mgList, reportDate)
-    } flatMap (x => x)
-
-    for (monitorGroupListReport <- monitorGroupListReportFuture) yield {
-      val excelFile = excelUtility.getOutstandingReport(monitorGroupListReport)
-      Ok.sendFile(excelFile, fileName = _ =>
-        s"${county}${reportDate.toString(DateTimeFormat.forPattern("YYYYMM"))}離群分析.xlsx",
-        onClose = () => {
-          Files.deleteIfExists(excelFile.toPath())
-        })
-    }
-  }
-
   def outstandingReportJson2(monitorGroupNames: String, date: Long) = Security.Authenticated.async {
     val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
     val mt = MonitorType.PM25
@@ -517,9 +517,9 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           val (mgB, mapB, _) = b
           val mgName = ""
           val mergeList = mapA.toList ++ mapB.toList
-          val newMap = mergeList.groupBy(_._1).map(kv=>{
+          val newMap = mergeList.groupBy(_._1).map(kv => {
             val mapList = kv._2.map(_._2.toMap)
-            val mergedMap = mapList.foldLeft(Map.empty[String, Double])((mapA, mapB)=> mapA ++ mapB)
+            val mergedMap = mapList.foldLeft(Map.empty[String, Double])((mapA, mapB) => mapA ++ mapB)
             (kv._1, mergedMap)
           })
           (MonitorGroup(mgName, mgA.member ++ mgB.member), newMap, dtA)

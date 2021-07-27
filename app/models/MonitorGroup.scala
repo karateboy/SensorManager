@@ -64,6 +64,12 @@ class MonitorGroupOp @Inject()(mongoDB: MongoDB) {
     f onFailure(errorHandler())
     f
   }
+  import org.mongodb.scala.model._
+  def getListStartWith(pattern: String) = {
+    val f = collection.find(Filters.regex("_id", s"^$pattern")).sort(Sorts.ascending("_id")).toFuture()
+    f onFailure(errorHandler())
+    f
+  }
 
   def delete(_id: String) = {
     val f = collection.deleteOne(Filters.equal("_id", _id)).toFuture()
