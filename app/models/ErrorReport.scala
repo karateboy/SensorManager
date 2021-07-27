@@ -24,7 +24,7 @@ object ErrorReport {
 }
 
 import models.ModelHelper.{errorHandler, waitReadyResult}
-import org.mongodb.scala.model.{Filters, Indexes}
+import org.mongodb.scala.model.Filters
 
 import javax.inject._
 
@@ -39,10 +39,6 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
 
   val codecRegistry = fromRegistries(fromProviders(classOf[ErrorReport], classOf[EffectiveRate]), DEFAULT_CODEC_REGISTRY)
   val collection = mongoDB.database.getCollection[ErrorReport](colName).withCodecRegistry(codecRegistry)
-  collection.createIndex(Indexes.ascending("powerError")).toFuture()
-  collection.createIndex(Indexes.ascending("noErrorCode")).toFuture()
-  collection.createIndex(Indexes.ascending("constant")).toFuture()
-  collection.createIndex(Indexes.ascending("ineffective")).toFuture()
 
   init
 
@@ -63,15 +59,10 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
   def addNoErrorCodeSensor = initBefore(addNoErrorCodeSensor1) _
 
   def addNoErrorCodeSensor1(date: Date, sensorID: String): Future[UpdateResult] = {
-    val ff = {
-      insertEmptyIfExist(date).transform(s => {
-        val updates = Updates.addToSet("noErrorCode", sensorID)
-        val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
-        f.onFailure(errorHandler())
-        f
-      }, ex => ex)
-    }
-    ff.flatMap(x => x)
+    val updates = Updates.addToSet("noErrorCode", sensorID)
+    val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
+    f.onFailure(errorHandler())
+    f
   }
 
   def removeNoErrorCodeSensor = initBefore(removeNoErrorCodeSensor1) _
@@ -101,6 +92,19 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f
   }
 
+  def initBefore[T](f: (Date, T) => Future[UpdateResult])(date: Date, sensorID: T): Unit = {
+
+    insertEmptyIfNotExist(date).andThen({
+      case _ =>
+        f(date, sensorID)
+    })
+  }
+
+  def insertEmptyIfNotExist(date: Date) = {
+    val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectiveRate])
+    collection.insertOne(emptyDoc).toFuture()
+  }
+
   def addConstantSensor = initBefore(addConstantSensor1) _
 
   def addConstantSensor1(date: Date, sensorID: String) = {
@@ -111,18 +115,6 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
   }
 
   def addLessThan90Sensor = initBefore(addLessThan90Sensor1) _
-
-  def initBefore[T](f: (Date, T) => Future[UpdateResult])(date: Date, sensorID: T): Unit = {
-    insertEmptyIfExist(date).andThen({
-      case _ =>
-        f(date, sensorID)
-    })
-  }
-
-  def insertEmptyIfExist(date: Date) = {
-    val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectiveRate])
-    collection.insertOne(emptyDoc).toFuture()
-  }
 
   def addLessThan90Sensor1(date: Date, effectRateList: Seq[EffectiveRate]) = {
     val updates = Updates.combine(
@@ -150,7 +142,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
           val yl = monitors.filter(_.county == Some("宜蘭縣"))
           (kl, pt, yl)
         }
-      for(emailTarget <- emailTargetList){
+      for (emailTarget <- emailTargetList) {
         val htmlBody = views.html.errorReport(today.toString("yyyy/MM/dd"), kl, pt, yl, emailTarget.counties).body
         val mail = Email(
           subject = s"${today.toString("yyyy/MM/dd")}電力異常設備",
@@ -166,10 +158,6 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
             Logger.error("Failed to send email", ex)
         }
       }
-
-
-
-
     }
   }
 

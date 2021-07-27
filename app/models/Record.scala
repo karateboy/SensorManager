@@ -157,10 +157,9 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   def createDefaultIndex(colNames: Seq[String]) = {
     for (colName <- colNames) {
       val col = getCollection(colName)
-      col.createIndex(Indexes.descending("time", "monitor"),
-        new IndexOptions().unique(true)).toFuture()
       col.createIndex(Indexes.descending("monitor", "time"),
         new IndexOptions().unique(true)).toFuture()
+      col.createIndex(Indexes.descending("time")).toFuture()
     }
   }
 
@@ -753,7 +752,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, addPm25ValueStage, latestFilter, constantFilter, projectStage)).toFuture()
   }
 
-  def deleteOneMonthAgoRecord(colName: String) = {
+  def delete45dayAgoRecord(colName: String) = {
     val date = DateTime.now().withMillisOfDay(0).minusDays(45).toDate()
     val f = getCollection(colName).deleteMany(Filters.lt("time", date)).toFuture()
     f onFailure(errorHandler)

@@ -267,7 +267,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
                 else
                   mtDataList.:+(MtRecord(MonitorType.BATTERY, 4, MonitorStatus.NormalStat))
             }else{
-              Logger.warn(s"unknown power code ${ret}")
+              Logger.warn(s"${message.id}: unknown power code ${ret}")
               powerErrorReportOp.addNoErrorCodeSensor(today, message.id)
             }
 
