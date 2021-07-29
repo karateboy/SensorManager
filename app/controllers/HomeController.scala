@@ -727,7 +727,13 @@ class HomeController @Inject()(environment: play.api.Environment,
   })
 
   def testAlertEmail(email: String) = Security.Authenticated {
+    Logger.info(s"send test email to $email")
     errorReportOp.sendEmail(Seq(EmailTarget(email, Seq(""))))
+    Ok("ok")
+  }
+  def testAllAlertEmail = Security.Authenticated {
+    Logger.info(s"send test email to all")
+    dataCollectManagerOp.sendErrorReport()
     Ok("ok")
   }
 

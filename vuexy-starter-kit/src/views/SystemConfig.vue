@@ -52,6 +52,13 @@
               >
                 儲存
               </b-button>
+              <b-button
+                variant="gradient-primary"
+                class="mr-1"
+                @click="testAllEmail"
+              >
+                測試全部
+              </b-button>
             </b-td>
           </b-tr>
         </template>
@@ -196,6 +203,14 @@ export default Vue.extend({
         params,
       });
       if (res.status === 200) this.$bvModal.msgBoxOk('成功');
+    },
+    async testAllEmail() {
+      try {
+        const res = await axios.get('/TestAllAlertEmail');
+        if (res.status === 200) this.$bvModal.msgBoxOk('成功');
+      } catch (err) {
+        throw new Error(err);
+      }
     },
   },
 });

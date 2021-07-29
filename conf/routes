@@ -124,7 +124,8 @@ GET      /AlertRecord/:start/end                                                
 GET      /AlertEmailTargets                                                       controllers.HomeController.getAlertEmailTargets
 POST     /AlertEmailTargets                                                       controllers.HomeController.saveAlertEmailTargets
 GET      /TestAlertEmail                                                          controllers.HomeController.testAlertEmail(email)
-	
+GET      /TestAllAlertEmail                                                       controllers.HomeController.testAllAlertEmail
+
 GET      /EvtOptHigh                                                              controllers.HomeController.testEvtOptHigh
 GET      /TestSpray                                                               controllers.HomeController.testSpray
 #GET		/WindRose				controllers.Query.windRose

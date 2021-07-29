@@ -126,6 +126,9 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
     manager ! ExecuteSeq(seq, true)
   }
 
+  def sendErrorReport(): Unit = {
+    manager ! SendErrorReport
+  }
   def getLatestData() = {
     import akka.pattern.ask
     import akka.util.Timeout
@@ -234,7 +237,7 @@ class DataCollectManager @Inject()
  dataCollectManagerOp: DataCollectManagerOp,
  instrumentTypeOp: InstrumentTypeOp,
  alarmOp: AlarmOp, instrumentOp: InstrumentOp,
- errorReportOp: ErrorReportOp, sysConfig: SysConfig, emailTargetOp: EmailTargetOp) extends Actor with InjectedActorSupport {
+ errorReportOp: ErrorReportOp, emailTargetOp: EmailTargetOp) extends Actor with InjectedActorSupport {
 
   import DataCollectManager._
 
@@ -271,6 +274,7 @@ class DataCollectManager @Inject()
     else
       new Duration(DateTime.now(), emailTime + 1.day)
 
+    Logger.info(s"setup to fire SendErrorReport ${duration.getStandardHours}:${duration.getStandardMinutes} latter")
     import scala.concurrent.duration._
     system.scheduler.schedule(
       Duration(duration.getStandardSeconds + 1, SECONDS),
@@ -726,8 +730,10 @@ class DataCollectManager @Inject()
       }
 
     case SendErrorReport =>
+      Logger.info("send daily error report")
       for (alertEmailTarget <- emailTargetOp.getList()) yield {
-        errorReportOp.sendEmail(alertEmailTarget)
+        val f = errorReportOp.sendEmail(alertEmailTarget)
+        f onFailure(errorHandler)
       }
 
     case CleanupOldRecord =>

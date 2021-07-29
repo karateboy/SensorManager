@@ -17,7 +17,7 @@ case class SensorDetail(var sensorType: String,
                         var height: Double,
                         var distance: Seq[Double])
 
-case class Monitor(_id: String, desc: String, monitorTypes: Seq[String], var tags: Seq[String],
+case class Monitor(_id: String, desc: String, var monitorTypes: Seq[String], var tags: Seq[String],
                    var location: Option[Seq[Double]] = None, var shortCode: Option[String] = None,
                    var code: Option[String] = None, var enabled: Option[Boolean] = None,
                    var county: Option[String] = None,
@@ -112,8 +112,18 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
       val monitor = Monitor(_id, desc, monitorTypes, tags)
       newMonitor(monitor)
       monitor
-    } else
+    } else {
+      val current = map(_id)
+      val mtSet = Set[String](current.monitorTypes:_*)
+      val currentSet = Set[String](monitorTypes:_*)
+
+      if(!currentSet.forall(mtSet.contains(_))){
+        val mts: Seq[String] = (mtSet ++ currentSet).toSeq.sorted
+        current.monitorTypes = mts
+        upsert(current)
+      }
       map(_id)
+    }
   }
 
   def newMonitor(m: Monitor) = {

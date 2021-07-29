@@ -143,6 +143,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
           (kl, pt, yl)
         }
       for (emailTarget <- emailTargetList) {
+        Logger.info(s"send report to ${emailTarget.toString}")
         val htmlBody = views.html.errorReport(today.toString("yyyy/MM/dd"), kl, pt, yl, emailTarget.counties).body
         val mail = Email(
           subject = s"${today.toString("yyyy/MM/dd")}電力異常設備",

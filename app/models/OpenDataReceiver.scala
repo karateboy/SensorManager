@@ -70,7 +70,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
 
     case GetEpaHourData =>
       for(epaLast <- sysConfig.getEpaLastDataTime()){
-        val start = new DateTime(epaLast) - 1.day
+        val start = new DateTime(epaLast)
         val end = DateTime.now().withMillisOfDay(0).minusDays(1)
         if (start < end) {
           getEpaHourData(start, end)
@@ -79,7 +79,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
   }
 
   def getEpaHourData(start: DateTime, end: DateTime) {
-    Logger.info(s"get EPA data start=${start.toString()} end=${end.toString()}")
+    Logger.debug(s"get EPA data start=${start.toString()} end=${end.toString()}")
     val limit = 500
 
     def parser(node: Elem) = {
@@ -158,7 +158,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
         f onComplete ({
           case Success(ret) =>
             if(ret.getUpserts().size() !=0)
-              Logger.info(s"EPA ${ret.getUpserts().size()} records have been upserted.")
+              Logger.debug(s"EPA ${ret.getUpserts().size()} records have been upserted.")
           case Failure(ex) =>
             Logger.error("failed", ex)
         })
@@ -250,7 +250,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
           f onComplete ({
             case Success(ret) =>
               if(ret.getUpserts.size() != 0)
-                Logger.info(s"EPA current upsert ${ret.getUpserts.size()} records")
+                Logger.debug(s"EPA current upsert ${ret.getUpserts.size()} records")
 
             case Failure(ex) =>
               Logger.error("failed", ex)

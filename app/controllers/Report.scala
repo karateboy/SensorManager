@@ -107,7 +107,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           case PeriodReport.MonthlyReport =>
             val start = new DateTime(startNum).withMillisOfDay(0).withDayOfMonth(1)
             val mtList = monitorTypeOp.realtimeMtvList
-            val periodMap = recordOp.getRecordMap(recordOp.HourCollection)(monitorID, monitorTypeOp.activeMtvList, start, start + 1.month)
+            val periodMap = recordOp.getRecordMap(recordOp.HourCollection)(monitorID, mtList, start, start + 1.month)
             val statMap = query.getPeriodStatReportMap(periodMap, 1.day)(start, start + 1.month)
             val overallStatMap = getOverallStatMap(statMap)
             val avgRow = {
