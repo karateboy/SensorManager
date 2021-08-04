@@ -722,11 +722,19 @@ class DataCollectManager @Inject()
       }
 
       // It is tricky less than 90% is calculated based on beginnning of today.
-      val ltFuture = recordOp
-        .getLessThan90Sensor(recordOp.MinCollection)("", "", "")
-      for (ret: Seq[MonitorRecord] <- ltFuture) {
-        val effectRateList: Seq[EffectiveRate] = ret map { m => EffectiveRate(m._id, m.count.getOrElse(0).toDouble / (24 * 60)) }
-        errorReportOp.addLessThan90Sensor(today, effectRateList)
+      val sensorCountFuture = recordOp
+        .getSensorCount(recordOp.MinCollection)("", "", "")
+      for (ret: Seq[MonitorRecord] <- sensorCountFuture) {
+        val targetMonitorIDSet = recordOp.getTargetMonitor("", "", "").toSet
+        val connectedSet = ret.map(_._id).toSet
+        val disconnectedSet = targetMonitorIDSet -- connectedSet
+        val disconnectEffectRateList = disconnectedSet.map(id=>EffectiveRate(id, 0)).toList
+
+        val effectRateList: Seq[EffectiveRate] = ret.filter(
+          m=> m.count.getOrElse(0) < 24 * 60 * 90 / 100
+        ).map { m => EffectiveRate(m._id, m.count.getOrElse(0).toDouble / (24 * 60)) }
+        val overall = effectRateList ++ disconnectEffectRateList
+        errorReportOp.addLessThan90Sensor(today, overall)
       }
 
     case SendErrorReport =>
