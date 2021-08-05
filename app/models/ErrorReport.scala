@@ -14,7 +14,9 @@ import scala.concurrent.Future
 case class EffectiveRate(_id: String, rate: Double)
 
 case class ErrorReport(_id: Date, noErrorCode: Seq[String], powerError: Seq[String],
-                       constant: Seq[String], ineffective: Seq[EffectiveRate], dailyChecked: Boolean = false)
+                       constant: Seq[String], ineffective: Seq[EffectiveRate], disconnect:Seq[String],
+                       dailyChecked: Boolean = false)
+case class SensorErrorReport(errorType:String, kl: Seq[Monitor], pt: Seq[Monitor], yl: Seq[Monitor])
 
 object ErrorReport {
   implicit val writeRates = Json.writes[EffectiveRate]
@@ -40,8 +42,6 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
   val codecRegistry = fromRegistries(fromProviders(classOf[ErrorReport], classOf[EffectiveRate]), DEFAULT_CODEC_REGISTRY)
   val collection = mongoDB.database.getCollection[ErrorReport](colName).withCodecRegistry(codecRegistry)
 
-  init
-
   def init(): Unit = {
     val colNames = waitReadyResult(mongoDB.database.listCollectionNames().toFuture())
     if (!colNames.contains(colName)) {
@@ -49,6 +49,16 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
       f.onFailure(errorHandler)
     }
   }
+
+  def upgrade(): Unit ={
+    val filter = Filters.not(Filters.exists("disconnect"))
+    val update = Updates.set("disconnect", Seq.empty[String])
+    val f = collection.updateMany(filter, update).toFuture()
+    f onFailure(errorHandler())
+  }
+
+  init
+  upgrade()
 
   def upsert(report: ErrorReport) = {
     val f = collection.replaceOne(Filters.equal("_id", report._id), report, ReplaceOptions().upsert(true)).toFuture()
@@ -101,7 +111,8 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
   }
 
   def insertEmptyIfNotExist(date: Date) = {
-    val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectiveRate])
+    val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectiveRate],
+      Seq.empty[String])
     collection.insertOne(emptyDoc).toFuture()
   }
 
@@ -130,23 +141,28 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     val f = get(today.toDate)
     f onFailure (errorHandler())
     for (reports <- f) yield {
-      val (kl, pt, yl) =
+      val subReportList =
         if (reports.isEmpty) {
           Logger.info("Emtpy report!")
-          (Seq.empty[Monitor], Seq.empty[Monitor], Seq.empty[Monitor])
+          Seq.empty[SensorErrorReport]
         } else {
           val report = reports(0)
-          val monitors = report.powerError.map(monitorOp.map)
-          val kl = monitors.filter(_.county == Some("基隆市"))
-          val pt = monitors.filter(_.county == Some("屏東縣"))
-          val yl = monitors.filter(_.county == Some("宜蘭縣"))
-          (kl, pt, yl)
+          def getSensorErrorReport(title:String, monitorIDs:Seq[String])={
+            val monitors = report.powerError.map(monitorOp.map)
+            val kl = monitors.filter(_.county == Some("基隆市"))
+            val pt = monitors.filter(_.county == Some("屏東縣"))
+            val yl = monitors.filter(_.county == Some("宜蘭縣"))
+            SensorErrorReport(title,kl = kl, pt = pt, yl=yl)
+          }
+          Seq(getSensorErrorReport("充電異常", report.powerError),
+            getSensorErrorReport("定值", report.constant),
+            getSensorErrorReport("斷線", report.disconnect))
         }
       for (emailTarget <- emailTargetList) {
         Logger.info(s"send report to ${emailTarget.toString}")
-        val htmlBody = views.html.errorReport(today.toString("yyyy/MM/dd"), kl, pt, yl, emailTarget.counties).body
+        val htmlBody = views.html.errorReport(today.toString("yyyy/MM/dd"), subReportList, emailTarget.counties).body
         val mail = Email(
-          subject = s"${today.toString("yyyy/MM/dd")}電力異常設備",
+          subject = s"${today.toString("yyyy/MM/dd")}異常設備",
           from = "Aragorn <karateboy@sagainfo.com.tw>",
           to = Seq(emailTarget._id),
           bodyHtml = Some(htmlBody)
