@@ -572,10 +572,10 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   }
 
   def getLastestSensorSummary(colName: String) = {
-    val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1)
+    val today = DateTime.now().withMillisOfDay(0)
     val groupList = List("SAQ200", "SAQ210")
     val f2 = getSensorDisconnected(colName)("", "", "")
-    val f4 = powerErrorReportOp.get(yesterday)
+    val f4 = powerErrorReportOp.get(today)
     for {
          disconnectedMonitors <- f2
          powerErrorReport <- f4
@@ -658,7 +658,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     }
   }
 
-  def getLast10MinConstantSensor(colName: String): Future[Seq[MonitorRecord]] = {
+  def getLast30MinConstantSensor(colName: String): Future[Seq[MonitorRecord]] = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
@@ -672,7 +672,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
-    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusMinutes(10).toDate)))
+    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusMinutes(30).toDate)))
 
     val addPm25ValueStage = Aggregates.addFields(Field("pm25", "$pm25Data.value"))
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),

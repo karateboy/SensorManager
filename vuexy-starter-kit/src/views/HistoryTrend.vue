@@ -109,8 +109,8 @@
                 variant="gradient-primary"
                 class="ml-1"
                 size="md"
-                @click="setYesterday"
-                >昨天</b-button
+                @click="setLast2Days"
+                >前兩天</b-button
               >
               <b-button
                 variant="gradient-primary"
@@ -284,11 +284,11 @@ export default Vue.extend({
     setToday() {
       this.form.range = [moment().startOf('day').valueOf(), moment().valueOf()];
     },
-    setYesterday() {
-      const yesterday = moment().subtract(1, 'day');
+    setLast2Days() {
+      const last2days = moment().subtract(2, 'day');
       this.form.range = [
-        yesterday.startOf('day').valueOf(),
-        yesterday.endOf('day').valueOf(),
+        last2days.startOf('day').valueOf(),
+        moment().valueOf(),
       ];
     },
     set3DayBefore() {

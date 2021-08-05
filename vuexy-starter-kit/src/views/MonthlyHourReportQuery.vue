@@ -249,14 +249,12 @@ export default Vue.extend({
       this.columns.push({
         key: 'dateStr',
         label: '日\\時間',
-        sortable: true,
       });
 
       for (let i = 0; i < report.columnNames.length; i++) {
         this.columns.push({
           key: `cellData[${i}].v`,
           label: `${report.columnNames[i]}`,
-          sortable: true,
           stickyColumn: true,
         });
       }

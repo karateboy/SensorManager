@@ -104,8 +104,8 @@ class Realtime @Inject()
   def sensorConstant(county: String, district: String, sensorType: String) =
     Security.Authenticated.async {
       implicit request =>
-        val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1)
-        val f = errorReportOp.get(yesterday.toDate)
+        val today = DateTime.now().withMillisOfDay(0)
+        val f = errorReportOp.get(today.toDate)
         for {report <- f
              } yield {
           val monitorIDs =
@@ -135,8 +135,8 @@ class Realtime @Inject()
     }
 
   def getPowerUsageErrorSensor(county: String, district: String, sensorType: String) = Security.Authenticated.async {
-    val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1).toDate
-    for (reports <- errorReportOp.get(yesterday)) yield {
+    val today = DateTime.now().withMillisOfDay(0).toDate
+    for (reports <- errorReportOp.get(today)) yield {
       val monitors: Seq[Monitor] = {
         if (reports.isEmpty)
           Seq.empty[Monitor]
@@ -172,8 +172,8 @@ class Realtime @Inject()
   }
 
   def getNoErrorCodeSensors(county: String, district: String, sensorType: String) = Security.Authenticated.async {
-    val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1).toDate
-    for (reports <- errorReportOp.get(yesterday)) yield {
+    val today = DateTime.now().withMillisOfDay(0).toDate
+    for (reports <- errorReportOp.get(today)) yield {
       val monitors: Seq[Monitor] = {
         if (reports.isEmpty)
           Seq.empty[Monitor]
@@ -212,8 +212,8 @@ class Realtime @Inject()
     Security.Authenticated.async {
       implicit request =>
         implicit val writes = Json.writes[EffectiveRate]
-        val yesterday = DateTime.now().withMillisOfDay(0).minusDays(1)
-        val f = errorReportOp.get(yesterday.toDate)
+        val today = DateTime.now().withMillisOfDay(0)
+        val f = errorReportOp.get(today.toDate)
         for {report <- f
              } yield {
           val effectiveRates =

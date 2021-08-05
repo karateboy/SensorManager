@@ -3,18 +3,18 @@
     <b-col lg="12" md="12">
       <b-card>
         <b-row>
-          <b-col cols="3">
+          <b-col lg="6" md="12">
             <b-table-simple borderless>
               <b-tbody>
                 <b-tr>
-                  <b-td class="text-center align-middle"
+                  <b-td class="text-left align-middle"
                     ><h3>監測地圖 {{ updateTime.format('lll') }}</h3></b-td
                   >
                 </b-tr>
               </b-tbody>
             </b-table-simple>
           </b-col>
-          <b-col cols="5" offset="4"
+          <b-col lg="6" md="12"
             ><b-img src="../assets/images/legend.png" fluid class="float-right"
           /></b-col>
         </b-row>
@@ -145,16 +145,6 @@
               @click="toggleInfoWindow(m, index)"
             />
             <GmapMarker
-              v-for="(m, index) in lt95Markers"
-              :key="`lt${index}`"
-              :position="m.position"
-              :clickable="true"
-              :title="m.title"
-              :icon="m.iconUrl"
-              :z-index="getZindex(0, index)"
-              @click="toggleInfoWindow(m, index)"
-            />
-            <GmapMarker
               v-for="(m, index) in powerErrorMarkers"
               :key="`power${index}`"
               :position="m.position"
@@ -275,13 +265,12 @@ import {
   sensorTypes,
   pm25Filters,
   countyFilters,
-  errorFilters,
   getDistrict,
   TxtStrValue,
   MtRecord,
   GroupSummary,
   Monitor,
-  EffectiveRate,
+  errorFilters as defaultErrorFilters,
 } from './types';
 
 interface Location {
@@ -320,11 +309,13 @@ export default Vue.extend({
     let epaStatus = Array<any>();
     let disconnectedList = Array<string>();
     let constantList = Array<string>();
-    let lt90List = Array<EffectiveRate>();
     let powerErrorList = Array<string>();
     let errorStatus = Array<string>();
     let sensorGroupSummary = Array<GroupSummary>();
     let currentMidx: number = -1;
+    let errorFilters = defaultErrorFilters.filter(v => {
+      return v.value != 'lt95' && v.value != 'noPowerInfo';
+    });
     return {
       sensorStatusParam,
       mapLayer: ['sensor', 'EPA'],
@@ -332,7 +323,6 @@ export default Vue.extend({
       epaStatus,
       disconnectedList,
       constantList,
-      lt90List,
       powerErrorList,
       errorStatus,
       refreshTimer: 0,
@@ -346,10 +336,6 @@ export default Vue.extend({
       sensorTypes,
       mapLayerTypes,
       errorFilters,
-      shape: {
-        coords: [10, 10, 10, 15, 15, 15, 15, 10],
-        type: 'poly',
-      },
       updateTime: moment(),
       summaryUpdateTime: moment(),
     };
@@ -408,33 +394,6 @@ export default Vue.extend({
 
         ret.push({
           _id: id,
-          title,
-          position: { lat, lng },
-          infoText,
-          iconUrl,
-        });
-      }
-      return ret;
-    },
-    lt95Markers(): Array<any> {
-      if (this.errorStatus.indexOf('lt95') === -1) return [];
-      const ret = [];
-      for (const ef of this.lt90List) {
-        const m = this.mMap.get(ef._id) as Monitor;
-        if (!m || !m.location) continue;
-
-        const lng = m.location[0];
-        const lat = m.location[1];
-
-        const iconUrl = '/static/lt90.svg';
-
-        const infoText = m.code
-          ? `<strong>${m.shortCode}/${m.code}</strong>`
-          : `<strong>${m.desc}</strong>`;
-        const title = m.code ? `有效率低於90% ${m.code}` : `${m.desc}`;
-
-        ret.push({
-          _id: ef._id,
           title,
           position: { lat, lng },
           infoText,
@@ -563,7 +522,6 @@ export default Vue.extend({
       if (this.mapLayer.indexOf('sensor') !== -1) this.getSensorStatus();
       if (this.errorStatus.indexOf('disconnect') !== -1) this.getDisconnected();
       if (this.errorStatus.indexOf('constant') !== -1) this.getConstantValue();
-      if (this.errorStatus.indexOf('lt95') !== -1) this.getLt95List();
       if (this.errorStatus.indexOf('powerError') !== -1)
         this.getPowerErrorList();
     },
@@ -633,18 +591,6 @@ export default Vue.extend({
       this.updateTime = moment();
       this.constantList = ret.data;
     },
-    async getLt95List(): Promise<void> {
-      const params = {
-        county: this.sensorStatusParam.county,
-        district: this.sensorStatusParam.district,
-        sensorType: this.sensorStatusParam.sensorType,
-      };
-      const ret = await axios.get('/Lt95Sensor', {
-        params,
-      });
-      this.updateTime = moment();
-      this.lt90List = ret.data;
-    },
     async getPowerErrorList(): Promise<void> {
       const params = {
         county: this.sensorStatusParam.county,
@@ -676,9 +622,6 @@ export default Vue.extend({
           case 'constant':
             this.constantList = [];
             break;
-          case 'lt95':
-            this.lt90List = [];
-            break;
           case 'powerError':
             this.powerErrorList = [];
         }
@@ -692,8 +635,6 @@ export default Vue.extend({
           case 'constant':
             this.getConstantValue();
             break;
-          case 'lt95':
-            this.getLt95List();
           case 'powerError':
             this.getPowerErrorList();
         }

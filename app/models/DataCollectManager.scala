@@ -254,7 +254,7 @@ class DataCollectManager @Inject()
 
   val updateErrorReportTimer = {
     val localtime = LocalTime.now().withMillisOfDay(0)
-      .withHourOfDay(23).withMinuteOfHour(45) // 20:00
+      .withHourOfDay(7).withMinuteOfHour(30) // 07:00
     val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
     val duration = if (DateTime.now() < emailTime)
       new Duration(DateTime.now(), emailTime)
@@ -716,10 +716,16 @@ class DataCollectManager @Inject()
     case CheckSensorStstus =>
       val today = DateTime.now().withMillisOfDay(0)
       Logger.info(s"update daily error report ${today}")
-      val f: Future[Seq[MonitorRecord]] = recordOp.getLast10MinConstantSensor(recordOp.MinCollection)
+      val f: Future[Seq[MonitorRecord]] = recordOp.getLast30MinConstantSensor(recordOp.MinCollection)
       for (ret <- f) {
         for (m <- ret) {
           errorReportOp.addConstantSensor(today, m._id);
+        }
+      }
+      val f2 = recordOp.getSensorDisconnected(recordOp.MinCollection)("","","")
+      for (ret <- f2) {
+        for (m <- ret) {
+          errorReportOp.addDisconnectedSensor(today, m)
         }
       }
 

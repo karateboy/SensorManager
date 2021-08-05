@@ -67,11 +67,10 @@ import { mapActions, mapState, mapGetters, mapMutations } from 'vuex';
 import {
   sensorTypes,
   countyFilters,
-  errorFilters,
+  errorFilters as defaultErrorFilters,
   getDistrict,
   TxtStrValue,
   Field,
-  Monitor,
   EffectiveRate,
 } from './types';
 import axios from 'axios';
@@ -89,19 +88,18 @@ export default Vue.extend({
   data() {
     let constantList = Array<Sensor>();
     let disconnectedList = Array<Sensor>();
-    let lt95List = Array<EffectiveRate>();
     let powerErrorList = Array<string>();
-    let noPowerInfoList = Array<string>();
 
-    const errorStatus = Array<string>('constant', 'disconnect');
+    const errorStatus = Array<string>('constant', 'disconnect', 'powerError');
+    let errorFilters = defaultErrorFilters.filter(v => {
+      return v.value != 'lt95' && v.value != 'noPowerInfo';
+    });
     return {
       items: [],
       timer: 0,
       disconnectedList,
       constantList,
-      lt95List,
       powerErrorList,
-      noPowerInfoList,
       errorFilters,
       errorStatus,
       sensorStatusParam: {
@@ -143,16 +141,6 @@ export default Vue.extend({
         {
           key: 'locationDesc',
           label: '位置',
-          sortable: true,
-        },
-        {
-          key: 'location[0]',
-          label: '經度',
-          sortable: true,
-        },
-        {
-          key: 'location[1]',
-          label: '緯度',
           sortable: true,
         },
         {
@@ -204,24 +192,6 @@ export default Vue.extend({
           ret.push(sensor);
         }
 
-      if (this.errorStatus.indexOf('lt95') !== -1) {
-        for (const ef of this.lt95List) {
-          const m = this.mMap.get(ef._id);
-          if (!m || !m.location) continue;
-
-          let dataTime = moment().subtract(1, 'days').format('ll');
-          let sensor = Object.assign(
-            { status: '低於90%', dataTime, effectRate: ef.rate },
-            m,
-          );
-          if (m.sensorDetail) {
-            sensor.locationDesc = m.sensorDetail.locationDesc;
-            sensor.road = m.sensorDetail.roadName;
-          }
-          ret.push(sensor);
-        }
-      }
-
       if (this.errorStatus.indexOf('disconnect') !== -1)
         for (const id of this.disconnectedList) {
           const m = this.mMap.get(id);
@@ -244,22 +214,6 @@ export default Vue.extend({
 
           let dataTime = moment().subtract(1, 'days').format('ll');
           let sensor = Object.assign({ status: '電力異常', dataTime }, m);
-          if (m.sensorDetail) {
-            sensor.locationDesc = m.sensorDetail.locationDesc;
-            sensor.road = m.sensorDetail.roadName;
-          }
-
-          ret.push(sensor);
-        }
-      }
-
-      if (this.errorStatus.indexOf('noPowerInfo') !== -1) {
-        for (const id of this.noPowerInfoList) {
-          const m = this.mMap.get(id);
-          if (!m) continue;
-
-          let dataTime = moment().subtract(1, 'days').format('ll');
-          let sensor = Object.assign({ status: '無電力資訊', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;
@@ -315,13 +269,8 @@ export default Vue.extend({
       if (this.errorStatus.indexOf('constant') !== -1)
         await this.getConstantValue();
 
-      if (this.errorStatus.indexOf('lt95') !== -1) await this.getLt95List();
-
       if (this.errorStatus.indexOf('powerError') !== -1)
         await this.getPowerErrorList();
-
-      if (this.errorStatus.indexOf('noPowerInfo') !== -1)
-        await this.getNoPowerInfoList();
 
       this.setLoading({ loading: false });
     },
@@ -349,18 +298,6 @@ export default Vue.extend({
       this.updateTime = moment();
       this.constantList = ret.data;
     },
-    async getLt95List() {
-      const params = {
-        county: this.sensorStatusParam.county,
-        district: this.sensorStatusParam.district,
-        sensorType: this.sensorStatusParam.sensorType,
-      };
-      const ret = await axios.get('/Lt95Sensor', {
-        params,
-      });
-      this.updateTime = moment();
-      this.lt95List = ret.data;
-    },
     async getPowerErrorList(): Promise<void> {
       const params = {
         county: this.sensorStatusParam.county,
@@ -373,19 +310,6 @@ export default Vue.extend({
 
       this.updateTime = moment();
       this.powerErrorList = ret.data;
-    },
-    async getNoPowerInfoList(): Promise<void> {
-      const params = {
-        county: this.sensorStatusParam.county,
-        district: this.sensorStatusParam.district,
-        sensorType: this.sensorStatusParam.sensorType,
-      };
-      const ret = await axios.get('/NoPowerInfoSensor', {
-        params,
-      });
-
-      this.updateTime = moment();
-      this.noPowerInfoList = ret.data;
     },
     exportExcel() {
       const title = this.fields.map(e => e.label);

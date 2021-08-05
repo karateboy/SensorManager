@@ -125,6 +125,13 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f
   }
 
+  def addDisconnectedSensor = initBefore(addDisconnectedSensor1) _
+  def addDisconnectedSensor1(date: Date, sensorID: String) = {
+    val updates = Updates.addToSet("disconnect", sensorID)
+    val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
+    f.onFailure(errorHandler())
+    f
+  }
   def addLessThan90Sensor = initBefore(addLessThan90Sensor1) _
 
   def addLessThan90Sensor1(date: Date, effectRateList: Seq[EffectiveRate]) = {
@@ -135,6 +142,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f.onFailure(errorHandler())
     f
   }
+
 
   def sendEmail(emailTargetList: Seq[EmailTarget]) = {
     val today = DateTime.now.withMillisOfDay(0)

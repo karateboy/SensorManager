@@ -183,7 +183,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
 
 
       val outputType = OutputType.withName(outputTypeStr)
-      val chart = trendHelper(monitors, monitorTypes, tabType, reportUnit, start, end)(statusFilter)
+      val chart = trendHelper(monitors, monitorTypes, tabType, reportUnit, start, end, showActual= true)(statusFilter)
 
       if (outputType == OutputType.excel) {
         import java.nio.file.Files
