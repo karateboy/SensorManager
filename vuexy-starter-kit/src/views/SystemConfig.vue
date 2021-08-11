@@ -91,6 +91,35 @@
         </template>
       </b-table>
     </b-card>
+    <b-card title="斷線檢查時間">
+      <b-row>
+        <b-col cols="12">
+          <b-form-group
+            label="每日檢查時間"
+            label-for="slave-id"
+            label-cols-md="3"
+          >
+            <b-form-input
+              v-model="disconnectCheckTime"
+              type="time"
+            ></b-form-input>
+          </b-form-group>
+        </b-col>
+      </b-row>
+      <b-row>
+        <b-col offset-md="3">
+          <b-button
+            v-ripple.400="'rgba(255, 255, 255, 0.15)'"
+            type="submit"
+            variant="primary"
+            class="mr-1"
+            @click="saveDisconnectCheckTime()"
+          >
+            儲存
+          </b-button>
+        </b-col>
+      </b-row>
+    </b-card>
   </div>
 </template>
 <style lang="scss">
@@ -139,11 +168,13 @@ export default Vue.extend({
       emails,
       countyFilters,
       fields,
+      disconnectCheckTime: '',
     };
   },
   mounted() {
     this.getSensorGpsSetting();
     this.getAlertEmailTarget();
+    this.getDisconnectCheckTime();
   },
   methods: {
     async getSensorGpsSetting() {
@@ -207,6 +238,25 @@ export default Vue.extend({
     async testAllEmail() {
       try {
         const res = await axios.get('/TestAllAlertEmail');
+        if (res.status === 200) this.$bvModal.msgBoxOk('成功');
+      } catch (err) {
+        throw new Error(err);
+      }
+    },
+    async getDisconnectCheckTime() {
+      try {
+        const res = await axios.get('/DisconnectCheckTime');
+        this.disconnectCheckTime = res.data;
+      } catch (err) {
+        throw new Error(err);
+      }
+    },
+    async saveDisconnectCheckTime() {
+      try {
+        const res = await axios.post('/DisconnectCheckTime', {
+          id: 'disconnectCheckTime',
+          data: this.disconnectCheckTime,
+        });
         if (res.status === 200) this.$bvModal.msgBoxOk('成功');
       } catch (err) {
         throw new Error(err);

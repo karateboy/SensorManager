@@ -191,5 +191,12 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f.onFailure(errorHandler())
     f
   }
+
+  def get(start:Date, end:Date)= {
+    val filter = Filters.and(Filters.gte("_id", start), Filters.lt("_id", end))
+    val f = collection.find(filter).toFuture()
+    f.onFailure(errorHandler())
+    f
+  }
 }
 

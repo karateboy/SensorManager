@@ -2,6 +2,7 @@ package models
 
 import akka.actor._
 import com.github.nscala_time.time.Imports._
+import models.DataCollectManager.SetCheckDisconnectTime
 import models.ModelHelper._
 import play.api._
 import play.api.libs.concurrent.InjectedActorSupport
@@ -74,7 +75,11 @@ case object SendErrorReport
 object DataCollectManager {
   val effectivRatio = 0.75
 
+  case class SetCheckDisconnectTime(localTime: LocalTime)
+
   case object CheckSensorStstus
+
+  case object CheckDisconnectStatus
 
   case object CleanupOldRecord
 }
@@ -129,6 +134,7 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
   def sendErrorReport(): Unit = {
     manager ! SendErrorReport
   }
+
   def getLatestData() = {
     import akka.pattern.ask
     import akka.util.Timeout
@@ -138,6 +144,10 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
 
     val f = manager ? GetLatestData
     f.mapTo[Map[String, Record]]
+  }
+
+  def udateCheckDisconnectTime(localTime: LocalTime) = {
+    manager ! SetCheckDisconnectTime(localTime)
   }
 
   import scala.collection.mutable.ListBuffer
@@ -237,7 +247,7 @@ class DataCollectManager @Inject()
  dataCollectManagerOp: DataCollectManagerOp,
  instrumentTypeOp: InstrumentTypeOp,
  alarmOp: AlarmOp, instrumentOp: InstrumentOp,
- errorReportOp: ErrorReportOp, emailTargetOp: EmailTargetOp) extends Actor with InjectedActorSupport {
+ errorReportOp: ErrorReportOp, emailTargetOp: EmailTargetOp, sysConfig: SysConfig) extends Actor with InjectedActorSupport {
 
   import DataCollectManager._
 
@@ -252,7 +262,7 @@ class DataCollectManager @Inject()
     system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(1, MINUTES), self, CalculateData)
   }
 
-  val updateErrorReportTimer = {
+  val updateErrorReportTimer: Cancellable = {
     val localtime = LocalTime.now().withMillisOfDay(0)
       .withHourOfDay(7).withMinuteOfHour(30) // 07:00
     val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
@@ -266,7 +276,6 @@ class DataCollectManager @Inject()
       Duration(duration.getStandardSeconds + 1, SECONDS),
       Duration(1, DAYS), self, CheckSensorStstus)
   }
-
   val alertEmailTimer: Cancellable = {
     val localtime = LocalTime.now().withMillisOfDay(0)
       .withHourOfDay(8).withMinuteOfHour(0) // 20:00
@@ -283,6 +292,18 @@ class DataCollectManager @Inject()
       Duration(1, DAYS), self, SendErrorReport)
   }
 
+  for (localtime <- sysConfig.getDisconnectCheckTime()) yield {
+    val checkTime = DateTime.now().toLocalDate().toDateTime(localtime)
+    val duration = if (DateTime.now() < checkTime)
+      new Duration(DateTime.now(), checkTime)
+    else
+      new Duration(DateTime.now(), checkTime + 1.day)
+
+    import scala.concurrent.duration._
+    checkDisconnectTimer = system.scheduler.schedule(
+      Duration(duration.getStandardSeconds + 1, SECONDS),
+      Duration(1, DAYS), self, CheckDisconnectStatus)
+  }
   val cleanupOldRecordTimer: Cancellable = {
     val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(23).withMinuteOfHour(50)
     val cleanupTime = DateTime.now().toLocalDate().toDateTime(localtime)
@@ -296,7 +317,7 @@ class DataCollectManager @Inject()
       Duration(duration.getStandardSeconds + 1, SECONDS),
       Duration(1, DAYS), self, CleanupOldRecord)
   }
-
+  var checkDisconnectTimer: Cancellable = _
   var calibratorOpt: Option[ActorRef] = None
   var digitalOutputOpt: Option[ActorRef] = None
   var onceTimer: Option[Cancellable] = None
@@ -462,6 +483,21 @@ class DataCollectManager @Inject()
       val id = collectorInstrumentMap(sender)
       Logger.info(s"restart $id")
       self ! RestartInstrument(id)
+
+    case SetCheckDisconnectTime(localTime) =>
+      checkDisconnectTimer.cancel()
+
+      val checkTime = DateTime.now().toLocalDate().toDateTime(localTime)
+      val duration = if (DateTime.now() < checkTime)
+        new Duration(DateTime.now(), checkTime)
+      else
+        new Duration(DateTime.now(), checkTime + 1.day)
+
+      import scala.concurrent.duration._
+      checkDisconnectTimer = system.scheduler.schedule(
+        Duration(duration.getStandardSeconds + 1, SECONDS),
+        Duration(1, DAYS), self, CheckDisconnectStatus)
+
 
     case ReportData(dataList) =>
       val now = DateTime.now
@@ -722,12 +758,6 @@ class DataCollectManager @Inject()
           errorReportOp.addConstantSensor(today, m._id);
         }
       }
-      val f2 = recordOp.getSensorDisconnected(recordOp.MinCollection)("","","")
-      for (ret <- f2) {
-        for (m <- ret) {
-          errorReportOp.addDisconnectedSensor(today, m)
-        }
-      }
 
       // It is tricky less than 90% is calculated based on beginnning of today.
       val sensorCountFuture = recordOp
@@ -736,20 +766,29 @@ class DataCollectManager @Inject()
         val targetMonitorIDSet = recordOp.getTargetMonitor("", "", "").toSet
         val connectedSet = ret.map(_._id).toSet
         val disconnectedSet = targetMonitorIDSet -- connectedSet
-        val disconnectEffectRateList = disconnectedSet.map(id=>EffectiveRate(id, 0)).toList
+        val disconnectEffectRateList = disconnectedSet.map(id => EffectiveRate(id, 0)).toList
 
         val effectRateList: Seq[EffectiveRate] = ret.filter(
-          m=> m.count.getOrElse(0) < 24 * 60 * 90 / 100
+          m => m.count.getOrElse(0) < 24 * 60 * 90 / 100
         ).map { m => EffectiveRate(m._id, m.count.getOrElse(0).toDouble / (24 * 60)) }
         val overall = effectRateList ++ disconnectEffectRateList
         errorReportOp.addLessThan90Sensor(today, overall)
+      }
+
+    case CheckDisconnectStatus =>
+      val today = DateTime.now().withMillisOfDay(0)
+      val f2 = recordOp.getSensorDisconnected(recordOp.MinCollection)("", "", "")
+      for (ret <- f2) {
+        for (m <- ret) {
+          errorReportOp.addDisconnectedSensor(today, m)
+        }
       }
 
     case SendErrorReport =>
       Logger.info("send daily error report")
       for (alertEmailTarget <- emailTargetOp.getList()) yield {
         val f = errorReportOp.sendEmail(alertEmailTarget)
-        f onFailure(errorHandler)
+        f onFailure (errorHandler)
       }
 
     case CleanupOldRecord =>

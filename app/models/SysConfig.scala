@@ -1,5 +1,5 @@
 package models
-import play.api.libs.json._
+import com.github.nscala_time.time.Imports.LocalTime
 import models.ModelHelper._
 import org.joda.time.DateTime
 
@@ -10,7 +10,7 @@ import org.mongodb.scala.bson._
 
 import java.util.Date
 import javax.inject._
-import scala.collection.JavaConversions.{asScalaBuffer}
+import scala.collection.JavaConversions.asScalaBuffer
 import scala.concurrent.Future
 
 object SysConfig {
@@ -19,6 +19,7 @@ object SysConfig {
   val EpaLastDataTime = "EpaLastDateTime"
   val SensorGPS = "SensorGPS"
   val AlertEmailTaget = "AlertEmailTarget"
+  val DisconnectCheckTime = "DisconnectCheckTime"
 }
 @Singleton
 class SysConfig @Inject()(mongoDB: MongoDB){
@@ -30,7 +31,8 @@ class SysConfig @Inject()(mongoDB: MongoDB){
     MonitorTypeVer -> Document(valueKey -> 1),
     EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate),
     SensorGPS-> Document(valueKey->false),
-    AlertEmailTaget -> Document(valueKey -> Seq("karateboy.tw@gmail.com"))
+    AlertEmailTaget -> Document(valueKey -> Seq("karateboy.tw@gmail.com")),
+    DisconnectCheckTime->Document(valueKey -> "07:00")
   )
 
   def init() {
@@ -93,4 +95,7 @@ class SysConfig @Inject()(mongoDB: MongoDB){
       v.asArray().toSeq.map(_.asString().getValue)
 
   def setAlertEmailTarget(emails: Seq[String]) = set(AlertEmailTaget, emails)
+
+  def setDisconnectCheckTime(localTime: LocalTime) = set(DisconnectCheckTime, localTime.toString)
+  def getDisconnectCheckTime() = get(DisconnectCheckTime).map(v=>LocalTime.parse(v.asString().getValue))
 }

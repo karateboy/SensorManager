@@ -32,7 +32,7 @@ export default [
         resource: 'Data',
       },
       {
-        title: '異常狀況查詢',
+        title: '異常狀況填報',
         route: 'error-report',
       },
     ],

@@ -576,6 +576,14 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
       Ok(Json.toJson(reports))
     }
   }
+  def getErrorReportOneWeek(date:Long) = Security.Authenticated.async {
+    val start = new DateTime(date).withMillisOfDay(0)
+    val end = start + 7.days
+    for (reports <- errorReportOp.get(start.toDate, end.toDate)) yield {
+      import ErrorReport._
+      Ok(Json.toJson(reports))
+    }
+  }
   def instrumentStatusReport(id: String, startNum: Long, endNum: Long) = Security.Authenticated {
     val (start, end) = (new DateTime(startNum).withMillisOfDay(0),
       new DateTime(endNum).withMillisOfDay(0))

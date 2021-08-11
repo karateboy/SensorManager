@@ -5,7 +5,7 @@
         <b-row>
           <b-col cols="12">
             <b-form-group
-              label="查詢日期"
+              label="查詢日期前七日"
               label-for="dataRange"
               label-cols-md="3"
             >
@@ -128,6 +128,7 @@ const excel = require('../libs/excel');
 const _ = require('lodash');
 
 interface Sensor extends Monitor {
+  date: string;
   status: string;
   effectRate?: number;
 }
@@ -138,6 +139,7 @@ interface EffectiveRate {
 }
 
 interface ErrorReport {
+  _id: number;
   noErrorCode: Array<string>;
   powerError: Array<string>;
   constant: Array<string>;
@@ -153,19 +155,13 @@ export default Vue.extend({
   },
   data() {
     const date = moment().valueOf();
-    let errorReport: ErrorReport = {
-      noErrorCode: [],
-      powerError: [],
-      constant: [],
-      ineffective: [],
-    };
-    const errorStatus = Array<string>('constant');
-    const errorFilters = defaultErrorFilter.filter(p => {
-      return p.value !== 'disconnect';
+    const errorStatus = Array<string>('constant', 'disconnect', 'powerError');
+    let errorFilters = defaultErrorFilter.filter(v => {
+      return v.value != 'lt95' && v.value != 'noPowerInfo';
     });
     return {
       display: false,
-      errorReport,
+      errorReports: Array<ErrorReport>(),
       items: [],
       timer: 0,
       errorFilters,
@@ -186,47 +182,17 @@ export default Vue.extend({
   computed: {
     ...mapState('monitors', ['monitors']),
     ...mapGetters('monitors', ['mMap']),
-    errorSensorList(): Array<Sensor> {
-      let ret = Array<Sensor>();
 
-      if (this.errorStatus.indexOf('powerError') !== -1) {
-        for (const id of this.errorReport.powerError) {
-          let sensor = this.populateSensor(id, '電力異常');
-          if (sensor !== null) ret.push(sensor as Sensor);
-        }
-      }
-
-      if (this.errorStatus.indexOf('constant') !== -1) {
-        for (const id of this.errorReport.constant) {
-          let sensor = this.populateSensor(id, '定值');
-          if (sensor !== null) ret.push(sensor as Sensor);
-        }
-      }
-
-      if (this.errorStatus.indexOf('lt95') !== -1) {
-        for (const effectRate of this.errorReport.ineffective) {
-          let sensor = this.populateSensor(effectRate._id, '完整率<90%');
-          if (sensor !== null) {
-            sensor.effectRate = effectRate.rate;
-            ret.push(sensor as Sensor);
-          }
-        }
-      }
-
-      if (this.errorStatus.indexOf('noPowerInfo') !== -1) {
-        for (const id of this.errorReport.noErrorCode) {
-          let sensor = this.populateSensor(id, '無電力資訊');
-          if (sensor !== null) ret.push(sensor as Sensor);
-        }
-      }
-
-      return ret;
-    },
     districtFilters(): Array<TxtStrValue> {
       return getDistrict(this.sensorStatusParam.county);
     },
     fields() {
       let ret: Array<Field> = [
+        {
+          key: 'Date',
+          label: '日期',
+          sortable: true,
+        },
         {
           key: '_id',
           label: '設備序號',
@@ -253,18 +219,18 @@ export default Vue.extend({
           sortable: true,
         },
         {
-          key: 'location[0]',
-          label: '經度',
-          sortable: true,
-        },
-        {
-          key: 'location[1]',
-          label: '緯度',
-          sortable: true,
-        },
-        {
           key: 'status',
           label: '狀態',
+          sortable: true,
+        },
+        {
+          key: 'actualStatus',
+          label: '現場檢核',
+          sortable: true,
+        },
+        {
+          key: 'action',
+          label: '處理情形',
           sortable: true,
         },
       ];
@@ -287,6 +253,15 @@ export default Vue.extend({
 
       return ret;
     },
+    errorSensorList(): Array<Sensor> {
+      let ret = Array<Sensor>();
+      for (let errorReport of this.errorReports) {
+        let sensors = this.getErrorSensorList(errorReport);
+        ret = ret.concat(sensors);
+      }
+
+      return ret;
+    },
   },
   async mounted() {
     await this.fetchMonitors();
@@ -301,17 +276,48 @@ export default Vue.extend({
       this.setLoading({ loading: false });
     },
     async getPowerErrorList(): Promise<void> {
-      const ret = await axios.get(`/ErrorReport/${this.form.date}`);
+      const ret = await axios.get(`/ErrorReport/week/${this.form.date}`);
 
-      let reports = ret.data as Array<ErrorReport>;
-      if (reports.length === 1) {
-        this.errorReport.noErrorCode = reports[0].noErrorCode;
-        this.errorReport.powerError = reports[0].powerError;
-        this.errorReport.constant = reports[0].constant;
-        this.errorReport.ineffective = reports[0].ineffective;
-      }
+      this.errorReports = ret.data as Array<ErrorReport>;
     },
-    populateSensor(id: string, status: string): Sensor | null {
+    getErrorSensorList(errorReport: ErrorReport): Array<Sensor> {
+      let date = moment(errorReport._id).format('lll');
+      let ret = Array<Sensor>();
+
+      if (this.errorStatus.indexOf('powerError') !== -1) {
+        for (const id of errorReport.powerError) {
+          let sensor = this.populateSensor(date, id, '電力異常');
+          if (sensor !== null) ret.push(sensor as Sensor);
+        }
+      }
+
+      if (this.errorStatus.indexOf('constant') !== -1) {
+        for (const id of errorReport.constant) {
+          let sensor = this.populateSensor(date, id, '定值');
+          if (sensor !== null) ret.push(sensor as Sensor);
+        }
+      }
+
+      if (this.errorStatus.indexOf('lt95') !== -1) {
+        for (const effectRate of errorReport.ineffective) {
+          let sensor = this.populateSensor(date, effectRate._id, '完整率<90%');
+          if (sensor !== null) {
+            sensor.effectRate = effectRate.rate;
+            ret.push(sensor as Sensor);
+          }
+        }
+      }
+
+      if (this.errorStatus.indexOf('noPowerInfo') !== -1) {
+        for (const id of errorReport.noErrorCode) {
+          let sensor = this.populateSensor(date, id, '無電力資訊');
+          if (sensor !== null) ret.push(sensor as Sensor);
+        }
+      }
+
+      return ret;
+    },
+    populateSensor(date: string, id: string, status: string): Sensor | null {
       const m = this.mMap.get(id) as Monitor;
       if (!m || !m.location) return null;
 
@@ -338,6 +344,7 @@ export default Vue.extend({
       let sensor = Object.assign({}, m) as Sensor;
 
       sensor.status = status;
+      sensor.date = date;
       return sensor;
     },
     exportExcel() {

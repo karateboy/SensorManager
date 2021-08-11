@@ -183,7 +183,7 @@ export default Vue.extend({
           const m = this.mMap.get(id);
           if (!m || !m.location) continue;
 
-          let dataTime = moment().subtract(1, 'days').format('ll');
+          let dataTime = moment().hour(7).minute(0).format('lll');
           let sensor = Object.assign({ status: '定值', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
@@ -197,7 +197,7 @@ export default Vue.extend({
           const m = this.mMap.get(id);
           if (!m || !m.location) continue;
 
-          let dataTime = moment().subtract(10, 'minute').fromNow();
+          let dataTime = moment().hour(7).minute(30).format('lll');
           let sensor = Object.assign({ status: '斷線', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
@@ -212,7 +212,11 @@ export default Vue.extend({
           const m = this.mMap.get(id);
           if (!m || !m.location) continue;
 
-          let dataTime = moment().subtract(1, 'days').format('ll');
+          let dataTime = moment()
+            .subtract(1, 'days')
+            .hour(20)
+            .minute(0)
+            .format('lll');
           let sensor = Object.assign({ status: '電力異常', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;

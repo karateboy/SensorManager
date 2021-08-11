@@ -197,28 +197,21 @@
                   }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>完整率(前一日)&lt;90% </b-td>
-                  <b-td>{{ group.lessThanExpected.kl }} </b-td>
-                  <b-td>{{ group.lessThanExpected.yl }} </b-td>
-                  <b-td>{{ group.lessThanExpected.pt }}</b-td>
-                  <b-td>{{ group.lessThanExpected.rest }}</b-td>
-                </b-tr>
-                <b-tr>
-                  <b-td>定值(凌晨)</b-td>
+                  <b-td>定值(07:00)</b-td>
                   <b-td>{{ group.constant.kl }} </b-td>
                   <b-td>{{ group.constant.yl }} </b-td>
                   <b-td>{{ group.constant.pt }}</b-td>
                   <b-td>{{ group.constant.rest }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>通訊中斷(前10分鐘)</b-td>
+                  <b-td>通訊中斷({{ disconnectCheckTime }})</b-td>
                   <b-td>{{ group.disconnected.kl }} </b-td>
                   <b-td>{{ group.disconnected.yl }} </b-td>
                   <b-td>{{ group.disconnected.pt }}</b-td>
                   <b-td>{{ group.disconnected.rest }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>充電異常(20:00)</b-td>
+                  <b-td>充電異常(20:00~20:10)</b-td>
                   <b-td>{{ group.powerError.kl }} </b-td>
                   <b-td>{{ group.powerError.yl }} </b-td>
                   <b-td>{{ group.powerError.pt }}</b-td>
@@ -338,6 +331,7 @@ export default Vue.extend({
       errorFilters,
       updateTime: moment(),
       summaryUpdateTime: moment(),
+      disconnectCheckTime: '',
     };
   },
   computed: {
@@ -511,6 +505,7 @@ export default Vue.extend({
       this.refresh();
     }, 60000);
     this.handlMapLayerChange(this.mapLayer, []);
+    this.getDisconnectCheckTime();
   },
   beforeDestroy() {
     clearInterval(this.refreshTimer);
@@ -608,6 +603,16 @@ export default Vue.extend({
       const ret = res.data;
       this.summaryUpdateTime = moment();
       this.sensorGroupSummary = ret;
+    },
+    async getDisconnectCheckTime() {
+      try {
+        const res = await axios.get('/DisconnectCheckTime');
+        this.disconnectCheckTime = res.data;
+        let ret = this.disconnectCheckTime.split(':');
+        this.disconnectCheckTime = `${ret[0]}:${ret[1]}`;
+      } catch (err) {
+        throw new Error(err);
+      }
     },
     handleErrorStatusChange(
       newMap: Array<string>,

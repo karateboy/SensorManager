@@ -97,14 +97,14 @@ const router = new VueRouter({
       name: 'error-report',
       component: () => import('@/views/ErrorReport.vue'),
       meta: {
-        pageTitle: '異常狀況查詢',
+        pageTitle: '異常狀況填報',
         breadcrumb: [
           {
             text: '數據查詢',
             active: true,
           },
           {
-            text: '異常狀況查詢',
+            text: '異常狀況填報',
             active: true,
           },
         ],

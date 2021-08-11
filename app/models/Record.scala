@@ -62,12 +62,6 @@ object RecordList {
 
 case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _id: RecordListID,
                       location: Option[Seq[Double]]) {
-  def mtMap = {
-    val pairs =
-      mtDataList map { data => data.mtName -> data }
-    pairs.toMap
-  }
-
   def getMtOrdered(mt: String) = {
     new Ordered[RecordList] {
       override def compare(that: RecordList): Int = {
@@ -81,6 +75,12 @@ case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _i
           1
       }
     }
+  }
+
+  def mtMap = {
+    val pairs =
+      mtDataList map { data => data.mtName -> data }
+    pairs.toMap
   }
 }
 
@@ -279,8 +279,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     f
   }
 
-  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
-
   def updateRecordStatus(dt: Long, mt: String, status: String, monitor: String = Monitor.SELF_ID)(colName: String) = {
     import org.mongodb.scala.model.Filters._
     import org.mongodb.scala.model.Updates._
@@ -295,6 +293,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     })
     f
   }
+
+  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
 
   def getID(time: Long, monitor: String) = Document("time" -> new BsonDateTime(time), "monitor" -> monitor)
 
@@ -474,30 +474,31 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   }
 
   def getTargetMonitor(county: String, district: String, sensorType: String) = {
-      monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
-        .filter(m => m.enabled.getOrElse(true))
-        .filter(m => {
-          if (county == "")
-            true
-          else
-            m.county == Some(county)
-        }).filter(m => {
-        if (district == "")
+    monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
+      .filter(m => m.enabled.getOrElse(true))
+      .filter(m => {
+        if (county == "")
           true
         else
-          m.district == Some(district)
+          m.county == Some(county)
       }).filter(m => {
-        if (sensorType == "")
-          true
-        else
-          m.tags.contains(sensorType)
-      }) map {
-        _._id
-      } toList
+      if (district == "")
+        true
+      else
+        m.district == Some(district)
+    }).filter(m => {
+      if (sensorType == "")
+        true
+      else
+        m.tags.contains(sensorType)
+    }) map {
+      _._id
+    } toList
   }
+
   def getSensorCount(colName: String)
                     (county: String, district: String, sensorType: String,
-                          start: DateTime = DateTime.now()) = {
+                     start: DateTime = DateTime.now()) = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
@@ -574,12 +575,10 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   def getLastestSensorSummary(colName: String) = {
     val today = DateTime.now().withMillisOfDay(0)
     val groupList = List("SAQ200", "SAQ210")
-    val f2 = getSensorDisconnected(colName)("", "", "")
     val f4 = powerErrorReportOp.get(today)
     for {
-         disconnectedMonitors <- f2
-         powerErrorReport <- f4
-         } yield {
+      errorReports <- f4
+    } yield {
 
       val groupSummaryList =
         for (group <- groupList) yield {
@@ -611,28 +610,46 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
 
           val lt90Count = {
             val lt90MonitorID: Seq[String] = {
-              if (powerErrorReport.isEmpty)
+              if (errorReports.isEmpty)
                 Seq.empty[String]
               else {
-                for (ineffect <- powerErrorReport(0).ineffective if monitorOp.map.contains(ineffect._id)) yield
+                for (ineffect <- errorReports(0).ineffective if monitorOp.map.contains(ineffect._id)) yield
                   monitorOp.map(ineffect._id)._id
               }
             }
             getCountGroupByCounty(lt90MonitorID.toSet)
           }
 
-          val disconnected =
-            getCountGroupByCounty(disconnectedMonitors)
+          val disconnected = {
+            val constantMonitorID: Seq[String] = {
+              if (errorReports.isEmpty)
+                Seq.empty[String]
+              else {
+                for (sensorID <- errorReports(0).disconnect if monitorOp.map.contains(sensorID)) yield
+                  monitorOp.map(sensorID)._id
+              }
+            }
+            getCountGroupByCounty(constantMonitorID.toSet)
+          }
 
-          val receivedCount =
-            getCountGroupByCounty(monitorOp.map.keys.toSet -- disconnectedMonitors)
+          val receivedCount = {
+            val constantMonitorID: Seq[String] = {
+              if (errorReports.isEmpty)
+                Seq.empty[String]
+              else {
+                for (sensorID <- errorReports(0).disconnect if monitorOp.map.contains(sensorID)) yield
+                  monitorOp.map(sensorID)._id
+              }
+            }
+            getCountGroupByCounty(monitorOp.map.keys.toSet -- constantMonitorID.toSet)
+          }
 
           val constant = {
             val constantMonitorID: Seq[String] = {
-              if (powerErrorReport.isEmpty)
+              if (errorReports.isEmpty)
                 Seq.empty[String]
               else {
-                for (sensorID <- powerErrorReport(0).constant if monitorOp.map.contains(sensorID)) yield
+                for (sensorID <- errorReports(0).constant if monitorOp.map.contains(sensorID)) yield
                   monitorOp.map(sensorID)._id
               }
             }
@@ -642,10 +659,10 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
 
           val powerError = {
             val powerErrorMonitorID: Seq[String] = {
-              if (powerErrorReport.isEmpty)
+              if (errorReports.isEmpty)
                 Seq.empty[String]
               else {
-                for (sensorID <- powerErrorReport(0).powerError if monitorOp.map.contains(sensorID)) yield
+                for (sensorID <- errorReports(0).powerError if monitorOp.map.contains(sensorID)) yield
                   monitorOp.map(sensorID)._id
               }
             }
@@ -693,7 +710,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   def delete45dayAgoRecord(colName: String) = {
     val date = DateTime.now().withMillisOfDay(0).minusDays(45).toDate()
     val f = getCollection(colName).deleteMany(Filters.lt("time", date)).toFuture()
-    f onFailure(errorHandler)
+    f onFailure (errorHandler)
     f
   }
   /*
