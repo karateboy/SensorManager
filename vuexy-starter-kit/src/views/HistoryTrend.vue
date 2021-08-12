@@ -153,7 +153,7 @@
 @import '@core/scss/vue/libs/vue-select.scss';
 </style>
 <script lang="ts">
-import Vue from 'vue';
+import Vue, { PropType } from 'vue';
 import DatePicker from 'vue2-datepicker';
 import 'vue2-datepicker/index.css';
 import 'vue2-datepicker/locale/zh-tw';
@@ -172,9 +172,47 @@ export default Vue.extend({
     Ripple,
   },
 
+  props: {
+    queryMonitors: {
+      type: Array as PropType<Array<string>>,
+      default: () => [],
+    },
+    queryMonitorTypes: {
+      type: Array as PropType<Array<string>>,
+      default: () => [],
+    },
+    queryRange: {
+      type: Array as PropType<Array<number>>,
+      default: () => [],
+    },
+  },
   data() {
-    const range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
+    let range = Array<number>();
+    if (this.queryRange.length === 2) {
+      range.push(this.queryRange[0]);
+      range.push(this.queryRange[1]);
+    } else {
+      range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
+    }
+
     let monitorGroup: MonitorGroup | undefined = undefined;
+    let monitors = Array<string>();
+    if (this.queryMonitors.length !== 0) {
+      for (let id of this.queryMonitors) monitors.push(id);
+    }
+    let monitorTypes = Array<string>();
+    if (this.queryMonitorTypes.length !== 0) {
+      for (let mt of this.queryMonitorTypes) monitorTypes.push(mt);
+    }
+
+    let form = {
+      monitors,
+      monitorTypes,
+      reportUnit: 'Min',
+      statusFilter: 'all',
+      chartType: 'line',
+      range,
+    };
     return {
       reportUnits: [
         { txt: '分', id: 'Min' },
@@ -211,14 +249,7 @@ export default Vue.extend({
       monitorGroup,
       countyFilters,
       county: '',
-      form: {
-        monitors: Array<string>(),
-        monitorTypes: Array<string>(),
-        reportUnit: 'Min',
-        statusFilter: 'all',
-        chartType: 'line',
-        range,
-      },
+      form,
     };
   },
   computed: {
@@ -269,12 +300,12 @@ export default Vue.extend({
     await this.fetchMonitorTypes();
     await this.fetchMonitors();
 
-    if (this.monitorTypes.length !== 0) {
-      this.form.monitorTypes.push('PM25');
-    }
-
-    if (this.monitors.length !== 0) {
-      this.form.monitors.push(this.monitors[0]._id);
+    if (this.queryMonitors.length !== 0) {
+      this.query();
+    } else {
+      if (this.monitorTypes.length !== 0) this.form.monitorTypes.push('PM25');
+      if (this.monitors.length !== 0)
+        this.form.monitors.push(this.monitors[0]._id);
     }
   },
   methods: {

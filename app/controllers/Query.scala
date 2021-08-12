@@ -577,12 +577,44 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
     }
   }
   def getErrorReportOneWeek(date:Long) = Security.Authenticated.async {
-    val start = new DateTime(date).withMillisOfDay(0)
-    val end = start + 7.days
+    val end = new DateTime(date).withMillisOfDay(0)
+    val start = end - 7.days
     for (reports <- errorReportOp.get(start.toDate, end.toDate)) yield {
       import ErrorReport._
       Ok(Json.toJson(reports))
     }
+  }
+
+  def updateErrorReportInspection(date:Long) = Security.Authenticated(BodyParsers.parse.json) {
+    implicit request =>
+      implicit val read = Json.reads[ErrorAction]
+      val ret = request.body.validate[ErrorAction]
+      ret.fold(
+        err => {
+          Logger.error(JsError.toJson(err).toString())
+          BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(err).toString()))
+        },
+        action => {
+          val thatDate  = new DateTime(date).withMillisOfDay(0)
+          errorReportOp.addErrorInspection(thatDate, action)
+        })
+      Ok(Json.obj("ok" -> true))
+  }
+
+  def updateErrorReportAction(date:Long) = Security.Authenticated(BodyParsers.parse.json) {
+    implicit request =>
+      implicit val read = Json.reads[ErrorAction]
+      val ret = request.body.validate[ErrorAction]
+      ret.fold(
+        err => {
+          Logger.error(JsError.toJson(err).toString())
+          BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(err).toString()))
+        },
+        action => {
+          val thatDate  = new DateTime(date).withMillisOfDay(0)
+          errorReportOp.addErrorAction(thatDate, action)
+        })
+      Ok(Json.obj("ok" -> true))
   }
   def instrumentStatusReport(id: String, startNum: Long, endNum: Long) = Security.Authenticated {
     val (start, end) = (new DateTime(startNum).withMillisOfDay(0),

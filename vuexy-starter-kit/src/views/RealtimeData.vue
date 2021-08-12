@@ -57,7 +57,22 @@
         </b-tbody>
       </b-table-simple>
     </div>
-    <b-table striped hover :fields="fields" :items="errorSensorList" />
+    <b-table
+      striped
+      hover
+      :fields="fields"
+      :items="errorSensorList"
+      select-mode="single"
+      selectable
+      @row-selected="onSensorSelected"
+    />
+    <b-modal id="historyTrendModal" size="xl" hide-footer>
+      <history-trend
+        :query-monitors="targetSensors"
+        :query-monitor-types="targetMonitorTypes"
+        :query-range="targetRange"
+      ></history-trend>
+    </b-modal>
   </b-card>
 </template>
 
@@ -71,8 +86,8 @@ import {
   getDistrict,
   TxtStrValue,
   Field,
-  EffectiveRate,
 } from './types';
+import HistoryTrend from './HistoryTrend.vue';
 import axios from 'axios';
 import moment from 'moment';
 const excel = require('../libs/excel');
@@ -85,6 +100,9 @@ interface Sensor {
 }
 
 export default Vue.extend({
+  components: {
+    HistoryTrend,
+  },
   data() {
     let constantList = Array<Sensor>();
     let disconnectedList = Array<Sensor>();
@@ -94,6 +112,12 @@ export default Vue.extend({
     let errorFilters = defaultErrorFilters.filter(v => {
       return v.value != 'lt95' && v.value != 'noPowerInfo';
     });
+    let targetSensors = Array<string>();
+    let targetMonitorTypes = Array<string>();
+    let targetRange = [
+      moment().startOf('day').subtract(3, 'day').valueOf(),
+      moment().valueOf(),
+    ];
     return {
       items: [],
       timer: 0,
@@ -111,6 +135,9 @@ export default Vue.extend({
       countyFilters,
       sensorTypes,
       updateTime: moment(),
+      targetSensors,
+      targetMonitorTypes,
+      targetRange,
     };
   },
   computed: {
@@ -332,6 +359,14 @@ export default Vue.extend({
         filename: '感測器異常列表',
       };
       excel.export_array_to_excel(params);
+    },
+    onSensorSelected(items: Sensor[]) {
+      let sensor = items[0];
+      this.targetSensors = items.map(sensor => sensor._id);
+      if (sensor.status === '斷線' || sensor.status == '定值')
+        this.targetMonitorTypes = ['PM25'];
+
+      this.$bvModal.show('historyTrendModal');
     },
   },
 });

@@ -100,7 +100,22 @@
           </b-tbody>
         </b-table-simple>
       </div>
-      <b-table striped hover :fields="fields" :items="errorSensorList" />
+      <b-table striped hover :fields="fields" :items="errorSensorList">
+        <template #cell(inspection)="row">
+          <b-select
+            v-model="row.item.inspection"
+            :options="getInspections(row.item)"
+            @change="saveInspection(row.item)"
+          />
+        </template>
+        <template #cell(action)="row">
+          <b-select
+            v-model="row.item.action"
+            :options="getActions(row.item)"
+            @change="saveAction(row.item)"
+          />
+        </template>
+      </b-table>
     </b-card>
   </div>
 </template>
@@ -128,14 +143,22 @@ const excel = require('../libs/excel');
 const _ = require('lodash');
 
 interface Sensor extends Monitor {
-  date: string;
+  date: number;
   status: string;
   effectRate?: number;
+  inspection?: string;
+  action?: string;
 }
 
 interface EffectiveRate {
   _id: string;
   rate: number;
+}
+
+interface ErrorAction {
+  sensorID: string;
+  errorType: string;
+  action: string;
 }
 
 interface ErrorReport {
@@ -144,6 +167,8 @@ interface ErrorReport {
   powerError: Array<string>;
   constant: Array<string>;
   ineffective: Array<EffectiveRate>;
+  inspections: Array<ErrorAction>;
+  actions: Array<ErrorAction>;
 }
 
 export default Vue.extend({
@@ -189,8 +214,11 @@ export default Vue.extend({
     fields() {
       let ret: Array<Field> = [
         {
-          key: 'Date',
+          key: 'date',
           label: '日期',
+          formatter: (date: number) => {
+            return moment(date).format('ll');
+          },
           sortable: true,
         },
         {
@@ -224,7 +252,7 @@ export default Vue.extend({
           sortable: true,
         },
         {
-          key: 'actualStatus',
+          key: 'inspection',
           label: '現場檢核',
           sortable: true,
         },
@@ -272,35 +300,72 @@ export default Vue.extend({
     async query() {
       this.display = true;
       this.setLoading({ loading: true });
-      await this.getPowerErrorList();
+      await this.getErrorReportList();
       this.setLoading({ loading: false });
     },
-    async getPowerErrorList(): Promise<void> {
-      const ret = await axios.get(`/ErrorReport/week/${this.form.date}`);
-
-      this.errorReports = ret.data as Array<ErrorReport>;
+    async getErrorReportList(): Promise<void> {
+      try {
+        const ret = await axios.get(`/ErrorReport/week/${this.form.date}`);
+        this.errorReports = ret.data as Array<ErrorReport>;
+      } catch (err) {
+        throw new Error(err);
+      }
     },
     getErrorSensorList(errorReport: ErrorReport): Array<Sensor> {
-      let date = moment(errorReport._id).format('lll');
+      let date = errorReport._id;
       let ret = Array<Sensor>();
+      let updateMap = (
+        actionList: Array<ErrorAction>,
+        map: Map<string, Map<string, string>>,
+      ) => {
+        for (let action of actionList) {
+          if (!map.has(action.errorType))
+            map.set(action.errorType, new Map<string, string>());
 
+          let errorMap = map.get(action.errorType) as Map<string, string>;
+          errorMap.set(action.sensorID, action.action);
+        }
+      };
+
+      let inspectionMap = new Map<string, Map<string, string>>();
+      updateMap(errorReport.inspections, inspectionMap);
+      let actionMap = new Map<string, Map<string, string>>();
+      updateMap(errorReport.actions, actionMap);
       if (this.errorStatus.indexOf('powerError') !== -1) {
         for (const id of errorReport.powerError) {
-          let sensor = this.populateSensor(date, id, '電力異常');
+          let sensor = this.populateSensor(
+            date,
+            id,
+            '充電異常',
+            inspectionMap,
+            actionMap,
+          );
           if (sensor !== null) ret.push(sensor as Sensor);
         }
       }
 
       if (this.errorStatus.indexOf('constant') !== -1) {
         for (const id of errorReport.constant) {
-          let sensor = this.populateSensor(date, id, '定值');
+          let sensor = this.populateSensor(
+            date,
+            id,
+            '定值',
+            inspectionMap,
+            actionMap,
+          );
           if (sensor !== null) ret.push(sensor as Sensor);
         }
       }
 
       if (this.errorStatus.indexOf('lt95') !== -1) {
         for (const effectRate of errorReport.ineffective) {
-          let sensor = this.populateSensor(date, effectRate._id, '完整率<90%');
+          let sensor = this.populateSensor(
+            date,
+            effectRate._id,
+            '完整率<90%',
+            inspectionMap,
+            actionMap,
+          );
           if (sensor !== null) {
             sensor.effectRate = effectRate.rate;
             ret.push(sensor as Sensor);
@@ -310,14 +375,26 @@ export default Vue.extend({
 
       if (this.errorStatus.indexOf('noPowerInfo') !== -1) {
         for (const id of errorReport.noErrorCode) {
-          let sensor = this.populateSensor(date, id, '無電力資訊');
+          let sensor = this.populateSensor(
+            date,
+            id,
+            '無電力資訊',
+            inspectionMap,
+            actionMap,
+          );
           if (sensor !== null) ret.push(sensor as Sensor);
         }
       }
 
       return ret;
     },
-    populateSensor(date: string, id: string, status: string): Sensor | null {
+    populateSensor(
+      date: number,
+      id: string,
+      status: string,
+      inspectionMap: Map<string, Map<string, string>>,
+      actionMap: Map<string, Map<string, string>>,
+    ): Sensor | null {
       const m = this.mMap.get(id) as Monitor;
       if (!m || !m.location) return null;
 
@@ -345,6 +422,18 @@ export default Vue.extend({
 
       sensor.status = status;
       sensor.date = date;
+      if (inspectionMap.has(status)) {
+        let errorMap = inspectionMap.get(status);
+        if (errorMap !== undefined) {
+          sensor.inspection = errorMap.get(sensor._id);
+        }
+      }
+      if (actionMap.has(status)) {
+        let errorMap = actionMap.get(status);
+        if (errorMap != undefined) {
+          sensor.action = errorMap.get(sensor._id);
+        }
+      }
       return sensor;
     },
     exportExcel() {
@@ -368,6 +457,64 @@ export default Vue.extend({
         filename: `${date.getFullYear()}${month}${day}感測器異常列表`,
       };
       excel.export_array_to_excel(params);
+    },
+    async saveInspection(item: Sensor) {
+      try {
+        if (item.inspection) {
+          let action: ErrorAction = {
+            sensorID: item._id,
+            errorType: item.status,
+            action: item.inspection as string,
+          };
+          await axios.post(`/ErrorReport/inspection/${item.date}`, action);
+        }
+      } catch (err) {
+        throw new Error(err);
+      }
+    },
+    async saveAction(item: Sensor) {
+      try {
+        if (item.action) {
+          let action: ErrorAction = {
+            sensorID: item._id,
+            errorType: item.status,
+            action: item.action as string,
+          };
+          await axios.post(`/ErrorReport/action/${item.date}`, action);
+        }
+      } catch (err) {
+        throw new Error(err);
+      }
+    },
+    getInspections(sensor: Sensor): Array<string> {
+      switch (sensor.status) {
+        case '充電異常':
+          return ['路燈沒電', '斷路器跳開', '設備異常', '其他'];
+
+        case '定值':
+          return ['環境因素', '採樣口堵塞', '設備異常', '其他'];
+
+        case '通訊中斷':
+          return ['路燈沒電', '斷路器跳開', '設備異常', '其他'];
+      }
+      return [];
+    },
+    getActions(sensor: Sensor): Array<string> {
+      switch (sensor.status) {
+        case '充電異常':
+        case '通訊中斷':
+          return [
+            '重開機',
+            '更換主機',
+            '通知路燈管理單位',
+            '重啟斷路器',
+            '其他',
+          ];
+
+        case '定值':
+          return ['重開機', '更換主機', '設備清潔', '待觀察', '其他'];
+      }
+      return [];
     },
   },
 });
