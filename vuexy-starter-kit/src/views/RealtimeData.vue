@@ -365,6 +365,7 @@ export default Vue.extend({
       this.targetSensors = items.map(sensor => sensor._id);
       if (sensor.status === '斷線' || sensor.status == '定值')
         this.targetMonitorTypes = ['PM25'];
+      else this.targetMonitorTypes = ['BATTERY'];
 
       this.$bvModal.show('historyTrendModal');
     },
