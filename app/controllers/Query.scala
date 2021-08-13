@@ -9,12 +9,13 @@ import play.api.libs.json.{Json, _}
 import play.api.mvc._
 
 import javax.inject._
-import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
-case class QuartileReport(name:String, quartile:Quartile, outlier: Seq[Double])
-case class Quartile(min:Double, q1:Double, q2:Double, q3:Double, max:Double)
+case class QuartileReport(name: String, quartile: Quartile, outlier: Seq[Double])
+
+case class Quartile(min: Double, q1: Double, q2: Double, q3: Double, max: Double)
+
 case class Stat(
                  avg: Option[Double],
                  min: Option[Double],
@@ -174,16 +175,25 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
           else
             TableType.min
 
-          (tab, new DateTime(startNum), new DateTime(endNum))
+          (tab, new DateTime(startNum).withMinuteOfHour(0)
+            .withMillisOfSecond(0).withMillisOfSecond(0),
+            new DateTime(endNum).withMinuteOfHour(0)
+              .withSecondOfMinute(0).withMillisOfSecond(0))
         } else if (reportUnit.id <= ReportUnit.Day.id) {
-          (TableType.hour, new DateTime(startNum), new DateTime(endNum))
+          (TableType.hour, new DateTime(startNum).withMinuteOfHour(0)
+            .withMillisOfSecond(0).withMillisOfSecond(0),
+            new DateTime(endNum).withMinuteOfHour(0)
+              .withSecondOfMinute(0).withMillisOfSecond(0))
         } else {
-          (TableType.hour, new DateTime(startNum), new DateTime(endNum))
+          (TableType.hour, new DateTime(startNum).withMinuteOfHour(0)
+            .withSecondOfMinute(0).withMillisOfSecond(0),
+            new DateTime(endNum).withMinuteOfHour(0)
+              .withSecondOfMinute(0).withMillisOfSecond(0))
         }
 
 
       val outputType = OutputType.withName(outputTypeStr)
-      val chart = trendHelper(monitors, monitorTypes, tabType, reportUnit, start, end, showActual= true)(statusFilter)
+      val chart = trendHelper(monitors, monitorTypes, tabType, reportUnit, start, end, showActual = true)(statusFilter)
 
       if (outputType == OutputType.excel) {
         import java.nio.file.Files
@@ -256,7 +266,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
                 Seq(Some(time.getMillis.toDouble), None)
             }
           } else {
-            for(time <- valueMap.keys.toList.sorted) yield {
+            for (time <- valueMap.keys.toList.sorted) yield {
               Seq(Some(time.getMillis.toDouble), Some(valueMap(time)))
             }
           }
@@ -399,7 +409,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
           val orignal_end = new DateTime(endNum)
           (orignal_start.withMinuteOfHour(0), orignal_end.withMinute(0) + 1.hour)
         } else {
-          ( new DateTime(startNum), new DateTime(endNum))
+          (new DateTime(startNum), new DateTime(endNum))
         }
 
       val resultFuture = recordOp.getRecordListFuture(TableType.mapCollection(tabType))(start, end, monitors)
@@ -411,31 +421,31 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
           r =>
             val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
             val mtMonitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Map[String, CellData]])
-            for(mt <- monitorTypes.toSeq){
+            for (mt <- monitorTypes.toSeq) {
               val monitorMap = mtMonitorMap.getOrElseUpdate(mt, Map.empty[String, CellData])
-              val cellData = if(r.mtMap.contains(mt)){
+              val cellData = if (r.mtMap.contains(mt)) {
                 val mtRecord = r.mtMap(mt)
                 CellData(monitorTypeOp.format(mt, Some(mtRecord.value)),
                   monitorTypeOp.getCssClassStr(mtRecord), Some(mtRecord.status))
-              }else
+              } else
                 emtpyCell
 
               monitorMap.update(r.monitor, cellData)
             }
         }
         val timeList = timeMtMonitorMap.keys.toList.sorted
-        val timeRows: Seq[RowData] = for(time<-timeList) yield {
+        val timeRows: Seq[RowData] = for (time <- timeList) yield {
           val mtMonitorMap = timeMtMonitorMap(time)
           var cellDataList = Seq.empty[CellData]
-          for{
+          for {
             mt <- monitorTypes
             m <- monitors
-                             } {
+          } {
             val monitorMap = mtMonitorMap(mt)
-            if(monitorMap.contains(m))
-              cellDataList = cellDataList:+(mtMonitorMap(mt)(m))
+            if (monitorMap.contains(m))
+              cellDataList = cellDataList :+ (mtMonitorMap(mt)(m))
             else
-              cellDataList = cellDataList:+(emtpyCell)
+              cellDataList = cellDataList :+ (emtpyCell)
           }
           RowData(time.getMillis, cellDataList)
         }
@@ -453,45 +463,47 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
       val monitorTypes = monitorTypeStr.split(':')
       val tabType = TableType.withName(tabTypeStr)
 
-      val futures = for(m <- monitors.toSeq) yield
+      val futures = for (m <- monitors.toSeq) yield
         recordOp.getLatestRecordFuture(TableType.mapCollection(tabType))(m)
 
       val allFutures = Future.sequence(futures)
 
       val emtpyCell = CellData("-", Seq.empty[String])
       for (allRecordlist <- allFutures) yield {
-        val recordList = allRecordlist.fold(Seq.empty[RecordList])((a,b)=>{ a ++ b})
+        val recordList = allRecordlist.fold(Seq.empty[RecordList])((a, b) => {
+          a ++ b
+        })
         import scala.collection.mutable.Map
         val timeMtMonitorMap = Map.empty[DateTime, Map[String, Map[String, CellData]]]
         recordList map {
           r =>
             val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
             val mtMonitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Map[String, CellData]])
-            for(mt <- monitorTypes.toSeq){
+            for (mt <- monitorTypes.toSeq) {
               val monitorMap = mtMonitorMap.getOrElseUpdate(mt, Map.empty[String, CellData])
-              val cellData = if(r.mtMap.contains(mt)){
+              val cellData = if (r.mtMap.contains(mt)) {
                 val mtRecord = r.mtMap(mt)
                 CellData(monitorTypeOp.format(mt, Some(mtRecord.value)),
                   monitorTypeOp.getCssClassStr(mtRecord), Some(mtRecord.status))
-              }else
+              } else
                 emtpyCell
 
               monitorMap.update(r.monitor, cellData)
             }
         }
         val timeList = timeMtMonitorMap.keys.toList.sorted
-        val timeRows: Seq[RowData] = for(time<-timeList) yield {
+        val timeRows: Seq[RowData] = for (time <- timeList) yield {
           val mtMonitorMap = timeMtMonitorMap(time)
           var cellDataList = Seq.empty[CellData]
-          for{
+          for {
             mt <- monitorTypes
             m <- monitors
           } {
             val monitorMap = mtMonitorMap(mt)
-            if(monitorMap.contains(m))
-              cellDataList = cellDataList:+(mtMonitorMap(mt)(m))
+            if (monitorMap.contains(m))
+              cellDataList = cellDataList :+ (mtMonitorMap(mt)(m))
             else
-              cellDataList = cellDataList:+(emtpyCell)
+              cellDataList = cellDataList :+ (emtpyCell)
           }
           RowData(time.getMillis, cellDataList)
         }
@@ -569,14 +581,15 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
     Ok(Json.toJson(jsonReport))
   }
 
-  def getErrorReport(date:Long) = Security.Authenticated.async {
+  def getErrorReport(date: Long) = Security.Authenticated.async {
     val thatDate = new DateTime(date).withMillisOfDay(0).toDate
     for (reports <- errorReportOp.get(thatDate)) yield {
       import ErrorReport._
       Ok(Json.toJson(reports))
     }
   }
-  def getErrorReportOneWeek(date:Long) = Security.Authenticated.async {
+
+  def getErrorReportOneWeek(date: Long) = Security.Authenticated.async {
     val end = new DateTime(date).withMillisOfDay(0)
     val start = end - 7.days
     for (reports <- errorReportOp.get(start.toDate, end.toDate)) yield {
@@ -585,7 +598,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
     }
   }
 
-  def updateErrorReportInspection(date:Long) = Security.Authenticated(BodyParsers.parse.json) {
+  def updateErrorReportInspection(date: Long) = Security.Authenticated(BodyParsers.parse.json) {
     implicit request =>
       implicit val read = Json.reads[ErrorAction]
       val ret = request.body.validate[ErrorAction]
@@ -595,13 +608,13 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
           BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(err).toString()))
         },
         action => {
-          val thatDate  = new DateTime(date).withMillisOfDay(0)
+          val thatDate = new DateTime(date).withMillisOfDay(0)
           errorReportOp.addErrorInspection(thatDate, action)
         })
       Ok(Json.obj("ok" -> true))
   }
 
-  def updateErrorReportAction(date:Long) = Security.Authenticated(BodyParsers.parse.json) {
+  def updateErrorReportAction(date: Long) = Security.Authenticated(BodyParsers.parse.json) {
     implicit request =>
       implicit val read = Json.reads[ErrorAction]
       val ret = request.body.validate[ErrorAction]
@@ -611,11 +624,12 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
           BadRequest(Json.obj("ok" -> false, "msg" -> JsError.toJson(err).toString()))
         },
         action => {
-          val thatDate  = new DateTime(date).withMillisOfDay(0)
+          val thatDate = new DateTime(date).withMillisOfDay(0)
           errorReportOp.addErrorAction(thatDate, action)
         })
       Ok(Json.obj("ok" -> true))
   }
+
   def instrumentStatusReport(id: String, startNum: Long, endNum: Long) = Security.Authenticated {
     val (start, end) = (new DateTime(startNum).withMillisOfDay(0),
       new DateTime(endNum).withMillisOfDay(0))
