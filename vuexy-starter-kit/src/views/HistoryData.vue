@@ -195,7 +195,10 @@ export default Vue.extend({
   },
 
   data() {
-    const range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
+    const range = [
+      moment().subtract(1, 'days').startOf('hour').valueOf(),
+      moment().startOf('hour').valueOf(),
+    ];
     let monitorGroup: MonitorGroup | undefined = undefined;
     const countyFilters = [
       {
@@ -228,7 +231,7 @@ export default Vue.extend({
       form: {
         monitors: Array<any>(),
         monitorTypes: Array<any>(),
-        dataType: 'min',
+        dataType: 'hour',
         range,
       },
       display: false,

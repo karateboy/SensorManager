@@ -197,14 +197,14 @@
                   }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>定值(07:00)</b-td>
+                  <b-td>定值({{ disconnectCheckTime }})</b-td>
                   <b-td>{{ group.constant.kl }} </b-td>
                   <b-td>{{ group.constant.yl }} </b-td>
                   <b-td>{{ group.constant.pt }}</b-td>
                   <b-td>{{ group.constant.rest }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>通訊中斷({{ disconnectCheckTime }})</b-td>
+                  <b-td>通訊中斷(07:05~07:10)</b-td>
                   <b-td>{{ group.disconnected.kl }} </b-td>
                   <b-td>{{ group.disconnected.yl }} </b-td>
                   <b-td>{{ group.disconnected.pt }}</b-td>
@@ -505,7 +505,7 @@ export default Vue.extend({
       this.refresh();
     }, 60000);
     this.handlMapLayerChange(this.mapLayer, []);
-    this.getDisconnectCheckTime();
+    this.getConstantCheckTime();
   },
   beforeDestroy() {
     clearInterval(this.refreshTimer);
@@ -604,9 +604,9 @@ export default Vue.extend({
       this.summaryUpdateTime = moment();
       this.sensorGroupSummary = ret;
     },
-    async getDisconnectCheckTime() {
+    async getConstantCheckTime() {
       try {
-        const res = await axios.get('/DisconnectCheckTime');
+        const res = await axios.get('/ConstantCheckTime');
         this.disconnectCheckTime = res.data;
         let ret = this.disconnectCheckTime.split(':');
         this.disconnectCheckTime = `${ret[0]}:${ret[1]}`;

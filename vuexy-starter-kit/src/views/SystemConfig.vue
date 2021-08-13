@@ -91,7 +91,7 @@
         </template>
       </b-table>
     </b-card>
-    <b-card title="斷線檢查時間">
+    <b-card title="定值檢查時間">
       <b-row>
         <b-col cols="12">
           <b-form-group
@@ -113,7 +113,7 @@
             type="submit"
             variant="primary"
             class="mr-1"
-            @click="saveDisconnectCheckTime()"
+            @click="saveConstantCheckTime()"
           >
             儲存
           </b-button>
@@ -174,7 +174,7 @@ export default Vue.extend({
   mounted() {
     this.getSensorGpsSetting();
     this.getAlertEmailTarget();
-    this.getDisconnectCheckTime();
+    this.getConstantCheckTime();
   },
   methods: {
     async getSensorGpsSetting() {
@@ -243,18 +243,18 @@ export default Vue.extend({
         throw new Error(err);
       }
     },
-    async getDisconnectCheckTime() {
+    async getConstantCheckTime() {
       try {
-        const res = await axios.get('/DisconnectCheckTime');
+        const res = await axios.get('/ConstantCheckTime');
         this.disconnectCheckTime = res.data;
       } catch (err) {
         throw new Error(err);
       }
     },
-    async saveDisconnectCheckTime() {
+    async saveConstantCheckTime() {
       try {
-        const res = await axios.post('/DisconnectCheckTime', {
-          id: 'disconnectCheckTime',
+        const res = await axios.post('/ConstantCheckTime', {
+          id: 'constantCheckTime',
           data: this.disconnectCheckTime,
         });
         if (res.status === 200) this.$bvModal.msgBoxOk('成功');

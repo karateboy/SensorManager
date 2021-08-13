@@ -44,7 +44,7 @@ GET      /CalibrationReport/:start/:end                                         
 
 GET      /AlarmReport/:level/:start/:end                                          controllers.Query.alarmReport(level:Int, start:Long, end:Long)
 GET      /ErrorReport/:date                                                       controllers.Query.getErrorReport(date:Long)
-GET      /ErrorReport/week/:date                                                  controllers.Query.getErrorReportOneWeek(date:Long)
+GET      /ErrorReport/:start/:end                                                 controllers.Query.getErrorReports(start:Long, end:Long)
 POST     /ErrorReport/action/:date                                                controllers.Query.updateErrorReportAction(date:Long)
 POST     /ErrorReport/inspection/:date                                            controllers.Query.updateErrorReportInspection(date:Long)
 
@@ -128,8 +128,8 @@ GET      /AlertEmailTargets                                                     
 POST     /AlertEmailTargets                                                       controllers.HomeController.saveAlertEmailTargets
 GET      /TestAlertEmail                                                          controllers.HomeController.testAlertEmail(email)
 GET      /TestAllAlertEmail                                                       controllers.HomeController.testAllAlertEmail
-GET      /DisconnectCheckTime                                                     controllers.HomeController.getDisconnectCheckTime
-POST     /DisconnectCheckTime                                                     controllers.HomeController.saveDisconnectCheckTime
+GET      /ConstantCheckTime                                                       controllers.HomeController.getConstantCheckTime
+POST     /ConstantCheckTime                                                       controllers.HomeController.saveConstantCheckTime
 
 GET      /EvtOptHigh                                                              controllers.HomeController.testEvtOptHigh
 GET      /TestSpray                                                               controllers.HomeController.testSpray

@@ -589,9 +589,9 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
     }
   }
 
-  def getErrorReportOneWeek(date: Long) = Security.Authenticated.async {
-    val end = new DateTime(date).withMillisOfDay(0)
-    val start = end - 7.days
+  def getErrorReports(startN: Long, endN:Long) = Security.Authenticated.async {
+    val end = new DateTime(endN).withMillisOfDay(0)
+    val start = new DateTime(startN).withMillisOfDay(0)
     for (reports <- errorReportOp.get(start.toDate, end.toDate)) yield {
       import ErrorReport._
       Ok(Json.toJson(reports))

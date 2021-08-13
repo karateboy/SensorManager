@@ -5,17 +5,40 @@
         <b-row>
           <b-col cols="12">
             <b-form-group
-              label="查詢日期前七日"
+              label="查詢區間"
               label-for="dataRange"
               label-cols-md="3"
             >
               <date-picker
                 id="dataRange"
-                v-model="form.date"
+                v-model="form.range"
+                :range="true"
                 type="date"
+                format="YYYY-MM-DD"
                 value-type="timestamp"
                 :show-second="false"
               />
+              <b-button
+                variant="gradient-primary"
+                class="ml-1"
+                size="md"
+                @click="setToday"
+                >今天</b-button
+              >
+              <b-button
+                variant="gradient-primary"
+                class="ml-1"
+                size="md"
+                @click="setLast2Days"
+                >前兩天</b-button
+              >
+              <b-button
+                variant="gradient-primary"
+                class="ml-1"
+                size="md"
+                @click="set3DayBefore"
+                >前三天</b-button
+              >
             </b-form-group>
           </b-col>
         </b-row>
@@ -179,7 +202,11 @@ export default Vue.extend({
     Ripple,
   },
   data() {
-    const date = moment().valueOf();
+    let range = [
+      moment().subtract(6, 'day').startOf('day').valueOf(),
+      moment().startOf('day').valueOf(),
+    ];
+
     const errorStatus = Array<string>('constant', 'disconnect', 'powerError');
     let errorFilters = defaultErrorFilter.filter(v => {
       return v.value != 'lt95' && v.value != 'noPowerInfo';
@@ -200,7 +227,7 @@ export default Vue.extend({
       countyFilters,
       sensorTypes,
       form: {
-        date,
+        range,
       },
     };
   },
@@ -297,6 +324,23 @@ export default Vue.extend({
   methods: {
     ...mapActions('monitors', ['fetchMonitors']),
     ...mapMutations(['setLoading']),
+    setToday() {
+      this.form.range = [moment().startOf('day').valueOf(), moment().valueOf()];
+    },
+    setLast2Days() {
+      const last2days = moment().subtract(2, 'day');
+      this.form.range = [
+        last2days.startOf('day').valueOf(),
+        moment().startOf('day').valueOf(),
+      ];
+    },
+    set3DayBefore() {
+      const threeDayBefore = moment().subtract(2, 'day');
+      this.form.range = [
+        threeDayBefore.startOf('day').valueOf(),
+        moment().startOf('day').valueOf(),
+      ];
+    },
     async query() {
       this.display = true;
       this.setLoading({ loading: true });
@@ -305,7 +349,9 @@ export default Vue.extend({
     },
     async getErrorReportList(): Promise<void> {
       try {
-        const ret = await axios.get(`/ErrorReport/week/${this.form.date}`);
+        const ret = await axios.get(
+          `/ErrorReport/${this.form.range[0]}/${this.form.range[1]}`,
+        );
         this.errorReports = ret.data as Array<ErrorReport>;
       } catch (err) {
         throw new Error(err);
@@ -445,16 +491,19 @@ export default Vue.extend({
           e[k] = _.get(entry, k);
         }
       }
-      const date = new Date(this.form.date);
-      date.toLocaleDateString();
-      let month = String(date.getMonth() + 1).padStart(2, '0');
-      let day = String(date.getDate()).padStart(2, '0');
+      const start = new Date(this.form.range[0]);
+      start.toLocaleDateString();
+      let month = String(start.getMonth() + 1).padStart(2, '0');
+      let day = String(start.getDate()).padStart(2, '0');
+      const end = new Date(this.form.range[1]);
+      let monthEnd = String(end.getMonth() + 1).padStart(2, '0');
+      let dayEnd = String(end.getDate()).padStart(2, '0');
       const params = {
         title,
         key,
         data: this.errorSensorList,
         autoWidth: true,
-        filename: `${date.getFullYear()}${month}${day}感測器異常列表`,
+        filename: `${start.getFullYear()}${month}${day}_${monthEnd}${dayEnd}感測器異常列表`,
       };
       excel.export_array_to_excel(params);
     },

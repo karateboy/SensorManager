@@ -115,8 +115,8 @@ export default Vue.extend({
     let targetSensors = Array<string>();
     let targetMonitorTypes = Array<string>();
     let targetRange = [
-      moment().startOf('day').subtract(3, 'day').valueOf(),
-      moment().valueOf(),
+      moment().startOf('day').subtract(3, 'day').startOf('hour').valueOf(),
+      moment().startOf('hour').valueOf(),
     ];
     return {
       items: [],

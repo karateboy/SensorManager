@@ -19,7 +19,7 @@ object SysConfig {
   val EpaLastDataTime = "EpaLastDateTime"
   val SensorGPS = "SensorGPS"
   val AlertEmailTaget = "AlertEmailTarget"
-  val DisconnectCheckTime = "DisconnectCheckTime"
+  val ConstantCheckTime = "ConstantCheckTime"
 }
 @Singleton
 class SysConfig @Inject()(mongoDB: MongoDB){
@@ -32,7 +32,7 @@ class SysConfig @Inject()(mongoDB: MongoDB){
     EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate),
     SensorGPS-> Document(valueKey->false),
     AlertEmailTaget -> Document(valueKey -> Seq("karateboy.tw@gmail.com")),
-    DisconnectCheckTime->Document(valueKey -> "07:00")
+    ConstantCheckTime->Document(valueKey -> "07:00")
   )
 
   def init() {
@@ -96,6 +96,6 @@ class SysConfig @Inject()(mongoDB: MongoDB){
 
   def setAlertEmailTarget(emails: Seq[String]) = set(AlertEmailTaget, emails)
 
-  def setDisconnectCheckTime(localTime: LocalTime) = set(DisconnectCheckTime, localTime.toString)
-  def getDisconnectCheckTime() = get(DisconnectCheckTime).map(v=>LocalTime.parse(v.asString().getValue))
+  def setConstantCheckTime(localTime: LocalTime) = set(ConstantCheckTime, localTime.toString)
+  def getConstantCheckTime() = get(ConstantCheckTime).map(v=>LocalTime.parse(v.asString().getValue))
 }

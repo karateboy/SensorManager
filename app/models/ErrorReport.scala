@@ -15,7 +15,8 @@ case class EffectiveRate(_id: String, rate: Double)
 case class ErrorAction(sensorID:String, errorType:String, action:String)
 case class ErrorReport(_id: Date, noErrorCode: Seq[String], powerError: Seq[String],
                        constant: Seq[String], ineffective: Seq[EffectiveRate], disconnect:Seq[String],
-                       inspections: Seq[ErrorAction], actions:Seq[ErrorAction],
+                       inspections: Seq[ErrorAction], actions:Seq[ErrorAction], constantRecordTime: Option[Long],
+                       disconnectRecordTime: Option[Long],
                        dailyChecked: Boolean = false)
 case class SensorErrorReport(errorType:String, kl: Seq[Monitor], pt: Seq[Monitor], yl: Seq[Monitor])
 
@@ -132,7 +133,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
 
   def insertEmptyIfNotExist(date: Date) = {
     val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectiveRate],
-      Seq.empty[String], Seq.empty[ErrorAction], Seq.empty[ErrorAction])
+      Seq.empty[String], Seq.empty[ErrorAction], Seq.empty[ErrorAction], None, None)
     collection.insertOne(emptyDoc).toFuture()
   }
 
@@ -163,6 +164,19 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f
   }
 
+  def setConstantRecordTime(date: Date, constantRecordTime:Long) = {
+    val updates = Updates.set("constantRecordTime", constantRecordTime)
+    val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
+    f.onFailure(errorHandler())
+    f
+  }
+
+  def setDisconnectRecordTime(date: Date, disconnectRecordTime:Long) = {
+    val updates = Updates.set("disconnectRecordTime", disconnectRecordTime)
+    val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
+    f.onFailure(errorHandler())
+    f
+  }
 
 
   def sendEmail(emailTargetList: Seq[EmailTarget]) = {
@@ -214,7 +228,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
   }
 
   def get(start:Date, end:Date)= {
-    val filter = Filters.and(Filters.gte("_id", start), Filters.lt("_id", end))
+    val filter = Filters.and(Filters.gte("_id", start), Filters.lte("_id", end))
     val f = collection.find(filter).toFuture()
     f.onFailure(errorHandler())
     f

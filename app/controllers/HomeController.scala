@@ -737,13 +737,13 @@ class HomeController @Inject()(environment: play.api.Environment,
     Ok("ok")
   }
 
-  def getDisconnectCheckTime() = Security.Authenticated.async {
-    val f = sysConfig.getDisconnectCheckTime()
+  def getConstantCheckTime() = Security.Authenticated.async {
+    val f = sysConfig.getConstantCheckTime()
     for(v<-f) yield {
       Ok(v.toString)
     }
   }
-  def saveDisconnectCheckTime() = Security.Authenticated(BodyParsers.parse.json) {
+  def saveConstantCheckTime() = Security.Authenticated(BodyParsers.parse.json) {
     implicit request =>
       implicit val reads = Json.reads[EditData]
       val ret = request.body.validate[EditData]
@@ -755,8 +755,8 @@ class HomeController @Inject()(environment: play.api.Environment,
         },
         param => {
           val localTime = LocalTime.parse(param.data)
-          sysConfig.setDisconnectCheckTime(localTime)
-          dataCollectManagerOp.udateCheckDisconnectTime(localTime)
+          sysConfig.setConstantCheckTime(localTime)
+          dataCollectManagerOp.udateCheckConstantTime(localTime)
           Ok(Json.obj("ok" -> true))
         })
   }

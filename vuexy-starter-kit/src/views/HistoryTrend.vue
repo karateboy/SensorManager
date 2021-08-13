@@ -151,6 +151,11 @@
 </template>
 <style lang="scss">
 @import '@core/scss/vue/libs/vue-select.scss';
+$namespace: 'mx';
+$default-color: #000;
+$primary-color: #1284e7;
+
+@import 'vue2-datepicker/scss/index.scss';
 </style>
 <script lang="ts">
 import Vue, { PropType } from 'vue';
@@ -162,8 +167,9 @@ import { mapState, mapActions, mapMutations } from 'vuex';
 import moment from 'moment';
 import axios from 'axios';
 import highcharts from 'highcharts';
+import darkTheme from 'highcharts/themes/dark-unica';
 import { MonitorGroup, countyFilters } from './types';
-
+import useAppConfig from '../@core/app-config/useAppConfig';
 export default Vue.extend({
   components: {
     DatePicker,
@@ -192,7 +198,10 @@ export default Vue.extend({
       range.push(this.queryRange[0]);
       range.push(this.queryRange[1]);
     } else {
-      range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
+      range = [
+        moment().subtract(1, 'days').startOf('hour').valueOf(),
+        moment().startOf('hour').valueOf(),
+      ];
     }
 
     let monitorGroup: MonitorGroup | undefined = undefined;
@@ -208,7 +217,7 @@ export default Vue.extend({
     let form = {
       monitors,
       monitorTypes,
-      reportUnit: 'Min',
+      reportUnit: 'Hour',
       statusFilter: 'all',
       chartType: 'line',
       range,
@@ -296,6 +305,11 @@ export default Vue.extend({
     },
   },
   async mounted() {
+    const { skin } = useAppConfig();
+    if (skin.value == 'dark') {
+      darkTheme(highcharts);
+    }
+
     await this.getMonitorGroups();
     await this.fetchMonitorTypes();
     await this.fetchMonitors();

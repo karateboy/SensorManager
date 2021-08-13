@@ -2,7 +2,7 @@ package models
 
 import akka.actor._
 import com.github.nscala_time.time.Imports._
-import models.DataCollectManager.SetCheckDisconnectTime
+import models.DataCollectManager.SetCheckConstantTime
 import models.ModelHelper._
 import play.api._
 import play.api.libs.concurrent.InjectedActorSupport
@@ -75,11 +75,11 @@ case object SendErrorReport
 object DataCollectManager {
   val effectivRatio = 0.75
 
-  case class SetCheckDisconnectTime(localTime: LocalTime)
+  case class SetCheckConstantTime(localTime: LocalTime)
 
   case object CheckSensorStstus
 
-  case object CheckDisconnectStatus
+  case object CheckConstantSensor
 
   case object CleanupOldRecord
 }
@@ -146,8 +146,8 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
     f.mapTo[Map[String, Record]]
   }
 
-  def udateCheckDisconnectTime(localTime: LocalTime) = {
-    manager ! SetCheckDisconnectTime(localTime)
+  def udateCheckConstantTime(localTime: LocalTime) = {
+    manager ! SetCheckConstantTime(localTime)
   }
 
   import scala.collection.mutable.ListBuffer
@@ -292,7 +292,7 @@ class DataCollectManager @Inject()
       Duration(1, DAYS), self, SendErrorReport)
   }
 
-  for (localtime <- sysConfig.getDisconnectCheckTime()) yield {
+  for (localtime <- sysConfig.getConstantCheckTime()) yield {
     val checkTime = DateTime.now().toLocalDate().toDateTime(localtime)
     val duration = if (DateTime.now() < checkTime)
       new Duration(DateTime.now(), checkTime)
@@ -300,9 +300,9 @@ class DataCollectManager @Inject()
       new Duration(DateTime.now(), checkTime + 1.day)
 
     import scala.concurrent.duration._
-    checkDisconnectTimer = system.scheduler.schedule(
+    checkConstantTimer = system.scheduler.schedule(
       Duration(duration.getStandardSeconds + 1, SECONDS),
-      Duration(1, DAYS), self, CheckDisconnectStatus)
+      Duration(1, DAYS), self, CheckConstantSensor)
   }
   val cleanupOldRecordTimer: Cancellable = {
     val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(23).withMinuteOfHour(50)
@@ -317,7 +317,7 @@ class DataCollectManager @Inject()
       Duration(duration.getStandardSeconds + 1, SECONDS),
       Duration(1, DAYS), self, CleanupOldRecord)
   }
-  var checkDisconnectTimer: Cancellable = _
+  var checkConstantTimer: Cancellable = _
   var calibratorOpt: Option[ActorRef] = None
   var digitalOutputOpt: Option[ActorRef] = None
   var onceTimer: Option[Cancellable] = None
@@ -484,8 +484,8 @@ class DataCollectManager @Inject()
       Logger.info(s"restart $id")
       self ! RestartInstrument(id)
 
-    case SetCheckDisconnectTime(localTime) =>
-      checkDisconnectTimer.cancel()
+    case SetCheckConstantTime(localTime) =>
+      checkConstantTimer.cancel()
 
       val checkTime = DateTime.now().toLocalDate().toDateTime(localTime)
       val duration = if (DateTime.now() < checkTime)
@@ -494,9 +494,9 @@ class DataCollectManager @Inject()
         new Duration(DateTime.now(), checkTime + 1.day)
 
       import scala.concurrent.duration._
-      checkDisconnectTimer = system.scheduler.schedule(
+      checkConstantTimer = system.scheduler.schedule(
         Duration(duration.getStandardSeconds + 1, SECONDS),
-        Duration(1, DAYS), self, CheckDisconnectStatus)
+        Duration(1, DAYS), self, CheckConstantSensor)
 
 
     case ReportData(dataList) =>
@@ -680,7 +680,7 @@ class DataCollectManager @Inject()
           dataCollectManagerOp.recalculateHourData(monitor = monitor._id,
             current = current,
             forward = false,
-            alwaysValid = true)(monitor.monitorTypes.toList)
+            alwaysValid = true)(monitorTypeOp.realtimeMtvList)
         }
       }
     }
@@ -752,12 +752,6 @@ class DataCollectManager @Inject()
     case CheckSensorStstus =>
       val today = DateTime.now().withMillisOfDay(0)
       Logger.info(s"update daily error report ${today}")
-      val f: Future[Seq[MonitorRecord]] = recordOp.getLast30MinConstantSensor(recordOp.MinCollection)
-      for (ret <- f) {
-        for (m <- ret) {
-          errorReportOp.addConstantSensor(today, m._id);
-        }
-      }
 
       // It is tricky less than 90% is calculated based on beginnning of today.
       val sensorCountFuture = recordOp
@@ -766,6 +760,10 @@ class DataCollectManager @Inject()
         val targetMonitorIDSet = recordOp.getTargetMonitor("", "", "").toSet
         val connectedSet = ret.map(_._id).toSet
         val disconnectedSet = targetMonitorIDSet -- connectedSet
+        errorReportOp.setDisconnectRecordTime(today, DateTime.now().getTime)
+        for(m<-disconnectedSet)
+          errorReportOp.addDisconnectedSensor(today, m)
+
         val disconnectEffectRateList = disconnectedSet.map(id => EffectiveRate(id, 0)).toList
 
         val effectRateList: Seq[EffectiveRate] = ret.filter(
@@ -775,12 +773,13 @@ class DataCollectManager @Inject()
         errorReportOp.addLessThan90Sensor(today, overall)
       }
 
-    case CheckDisconnectStatus =>
+    case CheckConstantSensor =>
       val today = DateTime.now().withMillisOfDay(0)
-      val f2 = recordOp.getSensorDisconnected(recordOp.MinCollection)("", "", "")
-      for (ret <- f2) {
+      val f: Future[Seq[MonitorRecord]] = recordOp.getLast30MinConstantSensor(recordOp.MinCollection)
+      errorReportOp.setConstantRecordTime(today, DateTime.now().getTime)
+      for (ret <- f) {
         for (m <- ret) {
-          errorReportOp.addDisconnectedSensor(today, m)
+          errorReportOp.addConstantSensor(today, m._id);
         }
       }
 
