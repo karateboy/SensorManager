@@ -65,9 +65,39 @@ class Realtime @Inject()
   }
 
   def sensorDisconnected(county: String, district: String, sensorType: String) = Security.Authenticated.async {
-    val f = recordOp.getSensorDisconnected(recordOp.MinCollection)(county = county, district = district, sensorType = sensorType)
-    for (ret <- f) yield {
-      Ok(Json.toJson(ret))
+    val today = DateTime.now().withMillisOfDay(0).toDate
+    for (reports <- errorReportOp.get(today)) yield {
+      val monitors: Seq[Monitor] = {
+        if (reports.isEmpty)
+          Seq.empty[Monitor]
+        else {
+          for (sensorID <- reports(0).disconnect if monitorOp.map.contains(sensorID)) yield
+            monitorOp.map(sensorID)
+        }
+      }
+
+      val result: Seq[String] = monitors.filter(m =>
+        m.tags.contains(MonitorTag.SENSOR)
+      ).filter(m => {
+        if (county == "")
+          true
+        else
+          m.county == Some(county)
+      }).filter(m => {
+        if (district == "")
+          true
+        else
+          m.district == Some(district)
+      }).filter(m => {
+        if (sensorType == "")
+          true
+        else
+          m.tags.contains(sensorType)
+      }) map {
+        _._id
+      }
+
+      Ok(Json.toJson(result))
     }
   }
 

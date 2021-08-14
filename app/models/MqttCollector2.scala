@@ -249,9 +249,10 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
         val time = DateTime.parse(message.time, DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
 
         var powerUsageError = false
-        val today = DateTime.now().withMillisOfDay(0).toDate
+        // FIXME power error is reported tomorrow so
+        val tomorrow = DateTime.tomorrow().withMillisOfDay(0).toDate
         if(message.attributes.isEmpty || message.attributes.get.find(attr=>attr.key == "errorcode") == None)
-          powerErrorReportOp.addNoErrorCodeSensor(today, message.id)
+          powerErrorReportOp.addNoErrorCodeSensor(tomorrow, message.id)
 
         //Check power usage
         for {attributeDefined <- message.attributes
@@ -267,7 +268,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
                 else
                   mtDataList.:+(MtRecord(MonitorType.BATTERY, 4, MonitorStatus.NormalStat))
             }else{
-              powerErrorReportOp.addNoErrorCodeSensor(today, message.id)
+              powerErrorReportOp.addNoErrorCodeSensor(tomorrow, message.id)
             }
 
             if (now.getHourOfDay >= 20) { // nighttime
@@ -275,9 +276,9 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
             }
 
             if(powerUsageError)
-              powerErrorReportOp.addPowerErrorSensor(today, message.id)
+              powerErrorReportOp.addPowerErrorSensor(tomorrow, message.id)
             else
-              powerErrorReportOp.removePowerErrorSensor(today, message.id)
+              powerErrorReportOp.removePowerErrorSensor(tomorrow, message.id)
 
             mqttSensorOp.updatePowerUsageError(message.id, powerUsageError)
           } catch {

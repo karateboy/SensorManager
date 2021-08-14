@@ -104,8 +104,8 @@ export default Vue.extend({
     HistoryTrend,
   },
   data() {
-    let constantList = Array<Sensor>();
-    let disconnectedList = Array<Sensor>();
+    let constantList = Array<string>();
+    let disconnectedList = Array<string>();
     let powerErrorList = Array<string>();
 
     const errorStatus = Array<string>('constant', 'disconnect', 'powerError');
@@ -181,21 +181,6 @@ export default Vue.extend({
           sortable: true,
         },
       ];
-      if (this.errorStatus.indexOf('lt95') !== -1) {
-        ret.push({
-          key: 'effectRate',
-          label: '完整率',
-          sortable: true,
-          formatter: (v: number) => {
-            if (isNaN(v) || v === null) {
-              return `N/A`;
-            } else {
-              let percent = v * 100;
-              return `${percent.toFixed(0)}%`;
-            }
-          },
-        });
-      }
 
       return ret;
     },

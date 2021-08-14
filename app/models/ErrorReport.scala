@@ -191,7 +191,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
         } else {
           val report = reports(0)
           def getSensorErrorReport(title:String, monitorIDs:Seq[String])={
-            val monitors = report.powerError.map(monitorOp.map)
+            val monitors = monitorIDs.map(monitorOp.map)
             val kl = monitors.filter(_.county == Some("基隆市"))
             val pt = monitors.filter(_.county == Some("屏東縣"))
             val yl = monitors.filter(_.county == Some("宜蘭縣"))
