@@ -35,6 +35,10 @@ export default [
         title: '異常狀況填報',
         route: 'error-report',
       },
+      {
+        title: '完整率異常查詢',
+        route: 'effective-rate-report',
+      },
     ],
   },
   {
