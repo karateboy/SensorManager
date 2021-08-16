@@ -116,8 +116,7 @@
                     src="../assets/excel_export.svg"
                     title="匯出 Excel"
                     width="24"
-                    fluid
-                    @click="exportExcel" /></b-button
+                    fluid /></b-button
               ></b-td>
             </b-tr>
           </b-tbody>
@@ -486,11 +485,16 @@ export default Vue.extend({
     exportExcel() {
       const title = this.fields.map(e => e.label);
       const key = this.fields.map(e => e.key);
+      const data = Array<any>();
       for (let entry of this.errorSensorList) {
-        let e = entry as any;
-        for (let k of key) {
-          e[k] = _.get(entry, k);
+        let e: any = Object.assign({}, entry);
+        for (let field of this.fields) {
+          let k = field.key;
+          if (field.formatter) {
+            e[k] = field.formatter(_.get(entry, k));
+          } else e[k] = _.get(entry, k);
         }
+        data.push(e);
       }
       const start = new Date(this.form.range[0]);
       start.toLocaleDateString();
@@ -502,7 +506,7 @@ export default Vue.extend({
       const params = {
         title,
         key,
-        data: this.errorSensorList,
+        data,
         autoWidth: true,
         filename: `${start.getFullYear()}${month}${day}_${monthEnd}${dayEnd}感測器異常列表`,
       };

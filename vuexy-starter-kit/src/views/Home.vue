@@ -413,7 +413,7 @@ export default Vue.extend({
         const infoText = m.code
           ? `<strong>${m.shortCode}/${m.code}</strong>`
           : `<strong>${m.desc}</strong>`;
-        const title = m.code ? `電力異常 ${m.code}` : `${m.desc}`;
+        const title = m.code ? `充電異常 ${m.code}` : `${m.desc}`;
 
         ret.push({
           _id: id,

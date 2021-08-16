@@ -130,7 +130,6 @@
     </b-card>
     <b-card v-show="display" :title="resultTitle">
       <b-table
-        striped
         hover
         :fields="columns"
         :items="rows"

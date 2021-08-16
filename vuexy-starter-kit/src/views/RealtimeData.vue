@@ -229,7 +229,7 @@ export default Vue.extend({
             .hour(20)
             .minute(0)
             .format('lll');
-          let sensor = Object.assign({ status: '電力異常', dataTime }, m);
+          let sensor = Object.assign({ status: '充電異常', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;
             sensor.road = m.sensorDetail.roadName;
