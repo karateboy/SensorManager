@@ -187,6 +187,7 @@ interface ErrorReport {
   _id: number;
   noErrorCode: Array<string>;
   powerError: Array<string>;
+  disconnect: Array<string>;
   constant: Array<string>;
   ineffective: Array<EffectiveRate>;
   inspections: Array<ErrorAction>;
@@ -241,7 +242,7 @@ export default Vue.extend({
       let ret: Array<Field> = [
         {
           key: 'date',
-          label: '日期',
+          label: '檢核日期',
           formatter: (date: number) => {
             return moment(date).format('ll');
           },
@@ -335,7 +336,7 @@ export default Vue.extend({
       ];
     },
     set3DayBefore() {
-      const threeDayBefore = moment().subtract(2, 'day');
+      const threeDayBefore = moment().subtract(3, 'day');
       this.form.range = [
         threeDayBefore.startOf('day').valueOf(),
         moment().startOf('day').valueOf(),
@@ -403,34 +404,17 @@ export default Vue.extend({
         }
       }
 
-      if (this.errorStatus.indexOf('lt95') !== -1) {
-        for (const effectRate of errorReport.ineffective) {
-          let sensor = this.populateSensor(
-            date,
-            effectRate._id,
-            '完整率<90%',
-            inspectionMap,
-            actionMap,
-          );
-          if (sensor !== null) {
-            sensor.effectRate = effectRate.rate;
-            ret.push(sensor as Sensor);
-          }
-        }
-      }
-
-      if (this.errorStatus.indexOf('noPowerInfo') !== -1) {
-        for (const id of errorReport.noErrorCode) {
+      if (this.errorStatus.indexOf('disconnect') !== -1)
+        for (const id of errorReport.constant) {
           let sensor = this.populateSensor(
             date,
             id,
-            '無電力資訊',
+            '斷線',
             inspectionMap,
             actionMap,
           );
           if (sensor !== null) ret.push(sensor as Sensor);
         }
-      }
 
       return ret;
     },

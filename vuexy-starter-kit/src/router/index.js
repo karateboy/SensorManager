@@ -93,24 +93,6 @@ const router = new VueRouter({
       },
     },
     {
-      path: '/error-report',
-      name: 'error-report',
-      component: () => import('@/views/ErrorReport.vue'),
-      meta: {
-        pageTitle: '異常狀況填報',
-        breadcrumb: [
-          {
-            text: '數據查詢',
-            active: true,
-          },
-          {
-            text: '異常狀況填報',
-            active: true,
-          },
-        ],
-      },
-    },
-    {
       path: '/effective-rate-report',
       name: 'effective-rate-report',
       component: () => import('@/views/EffectiveRateReport.vue'),
@@ -123,6 +105,24 @@ const router = new VueRouter({
           },
           {
             text: '完整率異常查詢',
+            active: true,
+          },
+        ],
+      },
+    },
+    {
+      path: '/error-report',
+      name: 'error-report',
+      component: () => import('@/views/ErrorReport.vue'),
+      meta: {
+        pageTitle: '異常狀況填報',
+        breadcrumb: [
+          {
+            text: '異常狀況填報',
+            active: true,
+          },
+          {
+            text: '異常狀況填報',
             active: true,
           },
         ],

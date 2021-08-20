@@ -260,25 +260,17 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
           try {
             val now = DateTime.now()
             val ret = attr.value.validate[String].get
-            val useBattery = ret.contains("1")
-            if(ret.contains("1")||ret.contains("4")){
-              mtDataList =
-                if(useBattery)
-                  mtDataList.:+(MtRecord(MonitorType.BATTERY, 1, MonitorStatus.NormalStat))
-                else
-                  mtDataList.:+(MtRecord(MonitorType.BATTERY, 4, MonitorStatus.NormalStat))
-            }else{
-              powerErrorReportOp.addNoErrorCodeSensor(tomorrow, message.id)
-            }
+            val powerCode = Integer.valueOf(ret(4)).toInt
+            val useBattery = powerCode == 4
+            mtDataList.:+(MtRecord(MonitorType.BATTERY, powerCode, MonitorStatus.NormalStat))
 
-            if (now.getHourOfDay >= 20) { // nighttime
+            if (now.getHourOfDay >= 20 &&
+              (now.getMinuteOfHour >=0 && now.getMinuteOfHour <= 30)) {
               powerUsageError = useBattery
             }
 
             if(powerUsageError)
               powerErrorReportOp.addPowerErrorSensor(tomorrow, message.id)
-            else
-              powerErrorReportOp.removePowerErrorSensor(tomorrow, message.id)
 
             mqttSensorOp.updatePowerUsageError(message.id, powerUsageError)
           } catch {

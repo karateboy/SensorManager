@@ -334,7 +334,7 @@ export default Vue.extend({
       ];
     },
     set3DayBefore() {
-      const threeDayBefore = moment().subtract(2, 'day');
+      const threeDayBefore = moment().subtract(3, 'day');
       this.form.range = [
         threeDayBefore.startOf('day').valueOf(),
         moment().startOf('day').valueOf(),
@@ -401,6 +401,18 @@ export default Vue.extend({
           if (sensor !== null) ret.push(sensor as Sensor);
         }
       }
+
+      if (this.errorStatus.indexOf('disconnect') !== -1)
+        for (const id of errorReport.constant) {
+          let sensor = this.populateSensor(
+            date,
+            id,
+            '通訊中斷',
+            inspectionMap,
+            actionMap,
+          );
+          if (sensor !== null) ret.push(sensor as Sensor);
+        }
 
       if (this.errorStatus.indexOf('lt95') !== -1) {
         for (const effectRate of errorReport.ineffective) {

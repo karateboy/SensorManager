@@ -42,8 +42,18 @@ export default [
     ],
   },
   {
+    title: '異常狀況填報',
+    icon: 'CheckSquareIcon',
+    children: [
+      {
+        title: '異常狀況填報',
+        route: 'error-report',
+      },
+    ],
+  },
+  {
     title: '分析報表',
-    icon: 'BookOpenIcon',
+    icon: 'ClipboardIcon',
     children: [
       {
         title: '監測報表',
@@ -65,7 +75,7 @@ export default [
   },
   {
     title: '系統管理',
-    icon: 'BookOpenIcon',
+    icon: 'SettingsIcon',
     children: [
       {
         title: '儀器管理',
