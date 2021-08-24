@@ -172,7 +172,7 @@ export default Vue.extend({
         },
         {
           key: 'dataTime',
-          label: '紀錄時間',
+          label: '檢核時間',
           sortable: true,
         },
         {
@@ -195,7 +195,7 @@ export default Vue.extend({
           const m = this.mMap.get(id);
           if (!m || !m.location) continue;
 
-          let dataTime = moment().hour(7).minute(0).format('lll');
+          let dataTime = moment().hour(7).minute(30).format('lll');
           let sensor = Object.assign({ status: '定值', dataTime }, m);
           if (m.sensorDetail) {
             sensor.locationDesc = m.sensorDetail.locationDesc;

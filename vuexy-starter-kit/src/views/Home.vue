@@ -204,14 +204,14 @@
                   <b-td>{{ group.constant.rest }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>通訊中斷(07:05~07:10)</b-td>
+                  <b-td>通訊中斷(07:30)</b-td>
                   <b-td>{{ group.disconnected.kl }} </b-td>
                   <b-td>{{ group.disconnected.yl }} </b-td>
                   <b-td>{{ group.disconnected.pt }}</b-td>
                   <b-td>{{ group.disconnected.rest }}</b-td>
                 </b-tr>
                 <b-tr>
-                  <b-td>充電異常(20:00~20:10)</b-td>
+                  <b-td>充電異常(20:30)</b-td>
                   <b-td>{{ group.powerError.kl }} </b-td>
                   <b-td>{{ group.powerError.yl }} </b-td>
                   <b-td>{{ group.powerError.pt }}</b-td>
