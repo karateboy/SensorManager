@@ -260,9 +260,10 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
           try {
             val now = DateTime.now()
             val ret = attr.value.validate[String].get
-            val powerCode = Integer.valueOf(ret(4)).toInt
+            val powerCodeStr = ret.reverse.substring(4, 5)
+            val powerCode = Integer.valueOf(powerCodeStr).toInt
             val useBattery = powerCode == 4
-            mtDataList.:+(MtRecord(MonitorType.BATTERY, powerCode, MonitorStatus.NormalStat))
+            mtDataList = mtDataList.:+(MtRecord(MonitorType.BATTERY, powerCode, MonitorStatus.NormalStat))
 
             if (now.getHourOfDay >= 20 &&
               (now.getMinuteOfHour >=0 && now.getMinuteOfHour <= 30)) {

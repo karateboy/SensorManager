@@ -378,43 +378,21 @@ export default Vue.extend({
       updateMap(errorReport.inspections, inspectionMap);
       let actionMap = new Map<string, Map<string, string>>();
       updateMap(errorReport.actions, actionMap);
-      if (this.errorStatus.indexOf('powerError') !== -1) {
-        for (const id of errorReport.powerError) {
+      if (this.errorStatus.indexOf('lt95') !== -1) {
+        for (const ef of errorReport.ineffective) {
           let sensor = this.populateSensor(
             date,
-            id,
-            '充電異常',
+            ef._id,
+            '完整率異常',
             inspectionMap,
             actionMap,
           );
-          if (sensor !== null) ret.push(sensor as Sensor);
+          if (sensor !== null) {
+            sensor.effectRate = ef.rate;
+            ret.push(sensor as Sensor);
+          }
         }
       }
-
-      if (this.errorStatus.indexOf('constant') !== -1) {
-        for (const id of errorReport.constant) {
-          let sensor = this.populateSensor(
-            date,
-            id,
-            '定值',
-            inspectionMap,
-            actionMap,
-          );
-          if (sensor !== null) ret.push(sensor as Sensor);
-        }
-      }
-
-      if (this.errorStatus.indexOf('disconnect') !== -1)
-        for (const id of errorReport.constant) {
-          let sensor = this.populateSensor(
-            date,
-            id,
-            '斷線',
-            inspectionMap,
-            actionMap,
-          );
-          if (sensor !== null) ret.push(sensor as Sensor);
-        }
 
       return ret;
     },
@@ -492,7 +470,7 @@ export default Vue.extend({
         key,
         data,
         autoWidth: true,
-        filename: `${start.getFullYear()}${month}${day}_${monthEnd}${dayEnd}感測器異常列表`,
+        filename: `${start.getFullYear()}${month}${day}_${monthEnd}${dayEnd}完整率異常列表`,
       };
       excel.export_array_to_excel(params);
     },
