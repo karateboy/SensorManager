@@ -310,7 +310,7 @@ export default Vue.extend({
       ];
     },
     set3DayBefore() {
-      const threeDayBefore = moment().subtract(2, 'day');
+      const threeDayBefore = moment().subtract(3, 'day');
       this.form.range = [
         threeDayBefore.startOf('day').valueOf(),
         moment().valueOf(),

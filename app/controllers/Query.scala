@@ -178,17 +178,13 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
           (tab, new DateTime(startNum).withMinuteOfHour(0)
             .withMillisOfSecond(0).withMillisOfSecond(0),
             new DateTime(endNum).withMinuteOfHour(0)
-              .withSecondOfMinute(0).withMillisOfSecond(0))
+              .withSecondOfMinute(0).withMillisOfSecond(0).plusHours(1))
         } else if (reportUnit.id <= ReportUnit.Day.id) {
-          (TableType.hour, new DateTime(startNum).withMinuteOfHour(0)
-            .withMillisOfSecond(0).withMillisOfSecond(0),
-            new DateTime(endNum).withMinuteOfHour(0)
-              .withSecondOfMinute(0).withMillisOfSecond(0))
+          (TableType.hour, new DateTime(startNum).withMillisOfDay(0),
+            new DateTime(endNum).withMillisOfDay(0).plusDays(1))
         } else {
-          (TableType.hour, new DateTime(startNum).withMinuteOfHour(0)
-            .withSecondOfMinute(0).withMillisOfSecond(0),
-            new DateTime(endNum).withMinuteOfHour(0)
-              .withSecondOfMinute(0).withMillisOfSecond(0))
+          (TableType.hour, new DateTime(startNum).withMillisOfDay(0),
+            new DateTime(endNum).withMillisOfDay(0).plusDays(1))
         }
 
 

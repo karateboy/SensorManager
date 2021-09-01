@@ -14,7 +14,7 @@
       class="bookmark-wrapper align-items-center flex-grow-1 d-none d-lg-flex"
     >
       <dark-Toggler class="d-none d-lg-block" />
-      <h3 class="mt-1 mb-1">空氣品質感測器維運操作平台</h3>
+      <b-img src="../../assets/images/title.png" height="40" />
     </div>
 
     <b-navbar-nav class="nav align-items-center ml-auto">
@@ -34,7 +34,6 @@
             size="40"
             variant="light-primary"
             badge
-            :src="require('@/assets/images/avatars/13-small.png')"
             class="badge-minimal"
             badge-variant="success"
           />
