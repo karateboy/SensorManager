@@ -189,6 +189,7 @@ interface ErrorReport {
   powerError: Array<string>;
   constant: Array<string>;
   ineffective: Array<EffectiveRate>;
+  disconnect: Array<string>;
   inspections: Array<ErrorAction>;
   actions: Array<ErrorAction>;
 }
@@ -403,7 +404,7 @@ export default Vue.extend({
       }
 
       if (this.errorStatus.indexOf('disconnect') !== -1)
-        for (const id of errorReport.constant) {
+        for (const id of errorReport.disconnect) {
           let sensor = this.populateSensor(
             date,
             id,
