@@ -206,7 +206,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
         val htmlBody = views.html.errorReport(today.toString("yyyy/MM/dd"), subReportList, emailTarget.counties).body
         val mail = Email(
           subject = s"${today.toString("yyyy/MM/dd")}異常設備",
-          from = "Aragorn <karateboy@sagainfo.com.tw>",
+          from = "AirIot <airiot@wecc.com.tw>",
           to = Seq(emailTarget._id),
           bodyHtml = Some(htmlBody)
         )
