@@ -425,8 +425,16 @@ class ExcelUtility @Inject()
       }
     }
 
-    fillSheet(wb.getSheetAt(0), thisMonthRecord.take(3), 1.month)
-    fillSheet(wb.getSheetAt(2), thisMonthRecord.take(1) ++ thisMonthRecord.drop(3).take(2), 1.month)
+    county match{
+      case "基隆市"=>
+        fillSheet(wb.getSheetAt(0), thisMonthRecord.take(3), 1.month)
+        fillSheet(wb.getSheetAt(2), thisMonthRecord.take(1) ++ thisMonthRecord.drop(3).take(2), 1.month)
+
+      case "屏東縣"=>
+        // 屏東站, P0LO01, 恆春站, P0LO02, 潮州站, P0LO03, 屏東(枋寮), P0LO04, P0KM01, P0KM04
+        fillSheet(wb.getSheetAt(0), thisMonthRecord.take(8), 1.month)
+        fillSheet(wb.getSheetAt(2), Seq(thisMonthRecord(0), thisMonthRecord(8), thisMonthRecord(6), thisMonthRecord(9)) , 1.month)
+    }
 
     val historyAvgRecords = for (monthRecord <- historyRecordList) yield
       for ((mgRecord, idx) <- monthRecord.zipWithIndex) yield

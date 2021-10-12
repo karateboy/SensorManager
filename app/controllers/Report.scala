@@ -401,6 +401,8 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
             MonitorGroup("屏東(枋寮)", Seq("epa313"))
           }
           sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0LO04")
+          sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0KM01")
+          sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0KM04")
           sensorGroupFuture
 
       })
