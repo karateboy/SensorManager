@@ -221,11 +221,14 @@ class ExcelUtility @Inject()
     finishExcel(reportFilePath, pkg, wb)
   }
 
-  def getDecayReport(thisMonthRecord: Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)],
+  def getDecayReport(county:String, thisMonthRecord: Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)],
                      historyRecordList: Seq[Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)]]) = {
-    val (reportFilePath, pkg, wb) = prepareTemplate("decayReport.xlsx")
-    val evaluator = wb.getCreationHelper().createFormulaEvaluator()
-    val format = wb.createDataFormat();
+    val (reportFilePath, pkg, wb) = county match{
+      case "基隆市"=>
+        prepareTemplate("decayReportKL.xlsx")
+      case "屏東縣"=>
+        prepareTemplate("decayReportPT.xlsx")
+    }
 
     def fillSheet(sheet: Sheet,
                   sensorGroupResults: Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)],

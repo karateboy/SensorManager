@@ -376,7 +376,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     val mt = MonitorType.PM25
 
     val mgListFuture = Future.sequence(
-      county match {
+      in = county match {
         case "基隆市" =>
           val epaGroupFuture = Future {
             MonitorGroup("基隆站", Seq("epa1"))
@@ -384,11 +384,25 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           val sensorGroupFuture = Seq("K0LO01", "K1LO01", "K0KM01", "K1KM01") map monitorGroupOp.get
           sensorGroupFuture.+:(epaGroupFuture)
         case "屏東縣" =>
-          val epaGroupFuture = Future {
-            MonitorGroup("基隆站", Seq("epa1"))
+          var sensorGroupFuture: Seq[Future[MonitorGroup]] = Seq.empty[Future[MonitorGroup]]
+          sensorGroupFuture = sensorGroupFuture :+ Future {
+            MonitorGroup("屏東站", Seq("epa59"))
           }
-          val sensorGroupFuture = Seq("K0LO01", "K1LO01", "K0KM01", "K1KM01", "K0AL99", "K1AL99") map monitorGroupOp.get
-          sensorGroupFuture.+:(epaGroupFuture)
+          sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0LO01")
+          sensorGroupFuture = sensorGroupFuture :+ Future {
+            MonitorGroup("恆春站", Seq("epa61"))
+          }
+          sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0LO02")
+          sensorGroupFuture = sensorGroupFuture :+ Future {
+            MonitorGroup("潮州站", Seq("epa60"))
+          }
+          sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0LO03")
+          sensorGroupFuture = sensorGroupFuture :+ Future {
+            MonitorGroup("屏東(枋寮)", Seq("epa313"))
+          }
+          sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0LO04")
+          sensorGroupFuture
+
       })
 
     val thisMonthReportFuture = mgListFuture map {
@@ -404,6 +418,12 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
                 MonitorGroup("基隆站", Seq("epa1"))
               }
               val sensorGroupFuture = Seq("K0AL99", "K1AL99") map monitorGroupOp.get
+              sensorGroupFuture.+:(epaGroupFuture)
+            case "屏東縣" =>
+              val epaGroupFuture = Future {
+                MonitorGroup("屏東站", Seq("epa59"))
+              }
+              val sensorGroupFuture = Seq("P0AL99", "P1AL99") map monitorGroupOp.get
               sensorGroupFuture.+:(epaGroupFuture)
           }
         }
@@ -421,7 +441,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     for {thisMonthReport <- thisMonthReportFuture
          historyReport <- getLast18MonthSensorReport
          } yield {
-      val excelFile = excelUtility.getDecayReport(thisMonthReport, historyReport.toList)
+      val excelFile = excelUtility.getDecayReport(county, thisMonthReport, historyReport.toList)
       Ok.sendFile(excelFile, fileName = _ =>
         s"${county}${reportDate.toString(DateTimeFormat.forPattern("YYYYMM"))}衰減報告.xlsx",
         onClose = () => {
