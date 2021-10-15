@@ -75,7 +75,13 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
           try {
             fileType match {
               case SensorData =>
-                importSensorData()
+                try {
+                  importSensorData("UTF-8")
+                } catch {
+                  case _: Throwable =>
+                    importSensorData("BIG5")
+                }
+
               case EpaData =>
                 importEpaData()
               case MonitorData =>
@@ -92,23 +98,30 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
       self ! PoisonPill
   }
 
-  def importSensorData() = {
+  def importSensorData(encoding: String) = {
     Logger.info(s"Start import ${dataFile.getName}")
-    val reader = CSVReader.open(dataFile)
+    val reader = CSVReader.open(dataFile, encoding)
     var count = 0
-    val docs =
-      for (record <- reader.allWithHeaders()) yield {
-        val deviceID = record("DEVICE_NAME")
-        val time = try {
-          LocalDateTime.parse(record("TIME"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss")).toDate
+    val docOpts =
+      for (record <- reader.allWithHeaders()) yield
+        try {
+          val deviceID = record("DEVICE_NAME")
+          val time = try {
+            LocalDateTime.parse(record("TIME"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss")).toDate
+          } catch {
+            case _: IllegalArgumentException =>
+              LocalDateTime.parse(record("TIME"), DateTimeFormat.forPattern("YYYY/MM/dd HH:mm")).toDate
+          }
+          val value = record("VALUE(小時平均值)").toDouble
+          count = count + 1
+          Some(RecordList(time = time, monitor = deviceID,
+            mtDataList = Seq(MtRecord(mtName = MonitorType.PM25, value, MonitorStatus.NormalStat))))
         } catch {
-          case _: IllegalArgumentException =>
-            LocalDateTime.parse(record("TIME"), DateTimeFormat.forPattern("YYYY/MM/dd HH:mm")).toDate
+          case _: Throwable =>
+            None
         }
-        val value = record("VALUE(小時平均值)").toDouble
-        count = count + 1
-        RecordList(time = time, monitor = deviceID, mtDataList = Seq(MtRecord(mtName = MonitorType.PM25, value, MonitorStatus.NormalStat)))
-      }
+    val docs = docOpts.flatten
+
     reader.close()
     dataFile.delete()
     Logger.info(s"Total $count records")
