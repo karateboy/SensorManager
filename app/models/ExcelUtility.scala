@@ -367,7 +367,7 @@ class ExcelUtility @Inject()
           }
           val (biasMin, biasMax, biasMedian) = {
             val flattenRecords = biasRecord flatMap { x => x flatMap (a => a) }
-            val sorted = flattenRecords.sorted
+            val sorted = flattenRecords.map(Math.abs(_)).sorted
             if (sorted.length != 0) {
               (Some(sorted.head), Some(sorted.reverse.head), Some(sorted(sorted.length / 2)))
             } else {
@@ -431,7 +431,7 @@ class ExcelUtility @Inject()
         fillSheet(wb.getSheetAt(2), thisMonthRecord.take(1) ++ thisMonthRecord.drop(3).take(2), 1.month)
 
       case "屏東縣"=>
-        // 屏東站, P0LO01, 恆春站, P0LO02, 潮州站, P0LO03, 屏東(枋寮), P0LO04, P0KM01, P0KM04
+        // 屏東站, P0LO01, 潮州站, P0LO02, 恆春站, P0LO03, 屏東(枋寮), P0LO04, P0KM01, P0KM04
         fillSheet(wb.getSheetAt(0), thisMonthRecord.take(8), 1.month)
         fillSheet(wb.getSheetAt(2), Seq(thisMonthRecord(0), thisMonthRecord(8), thisMonthRecord(6), thisMonthRecord(9)) , 1.month)
     }

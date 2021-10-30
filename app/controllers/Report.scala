@@ -390,11 +390,11 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           }
           sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0LO01")
           sensorGroupFuture = sensorGroupFuture :+ Future {
-            MonitorGroup("恆春站", Seq("epa61"))
+            MonitorGroup("潮州站", Seq("epa60"))
           }
           sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0LO02")
           sensorGroupFuture = sensorGroupFuture :+ Future {
-            MonitorGroup("潮州站", Seq("epa60"))
+            MonitorGroup("恆春站", Seq("epa61"))
           }
           sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0LO03")
           sensorGroupFuture = sensorGroupFuture :+ Future {

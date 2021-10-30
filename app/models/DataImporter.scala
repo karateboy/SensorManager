@@ -76,14 +76,16 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
             fileType match {
               case SensorData =>
                 try {
-                  importSensorData("UTF-8")
-                } catch {
-                  case _: Throwable =>
+                  if(importSensorData("UTF-8") == 0)
                     importSensorData("BIG5")
+                } catch {
+                  case ex: Throwable =>
+                    Logger.error("failed to import sensor data", ex)
                 }
 
               case EpaData =>
                 importEpaData()
+
               case MonitorData =>
                 importSensorMonitorMeta(dataFile)
             }
@@ -98,7 +100,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
       self ! PoisonPill
   }
 
-  def importSensorData(encoding: String) = {
+  def importSensorData(encoding: String):Int = {
     Logger.info(s"Start import ${dataFile.getName}")
     val reader = CSVReader.open(dataFile, encoding)
     var count = 0
@@ -117,24 +119,27 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
           Some(RecordList(time = time, monitor = deviceID,
             mtDataList = Seq(MtRecord(mtName = MonitorType.PM25, value, MonitorStatus.NormalStat))))
         } catch {
-          case _: Throwable =>
+          case ex: Throwable =>
             None
         }
     val docs = docOpts.flatten
 
     reader.close()
-    dataFile.delete()
     Logger.info(s"Total $count records")
-    val f = recordOp.upsertManyRecord(docs = docs)(recordOp.HourCollection)
-    f onFailure (errorHandler)
-    f onComplete ({
-      case Success(result) =>
-        Logger.info(s"Import ${dataFile.getName} complete. ${result.getUpserts.size()} records upserted.")
-        self ! Complete
-      case Failure(exception) =>
-        Logger.error("Failed to import data", exception)
-        self ! Complete
-    })
+    if(docs.nonEmpty){
+      dataFile.delete()
+      val f = recordOp.upsertManyRecord(docs = docs)(recordOp.HourCollection)
+      f onFailure (errorHandler)
+      f onComplete ({
+        case Success(result) =>
+          Logger.info(s"Import ${dataFile.getName} complete. ${result.getUpserts.size()} records upserted.")
+          self ! Complete
+        case Failure(exception) =>
+          Logger.error("Failed to import data", exception)
+          self ! Complete
+      })
+    }
+    docs.size
   }
 
   def importEpaData() = {
