@@ -367,7 +367,7 @@ class ExcelUtility @Inject()
           }
           val (biasMin, biasMax, biasMedian) = {
             val flattenRecords = biasRecord flatMap { x => x flatMap (a => a) }
-            val sorted = flattenRecords.map(Math.abs(_)).sorted
+            val sorted = flattenRecords.sorted
             if (sorted.length != 0) {
               (Some(sorted.head), Some(sorted.reverse.head), Some(sorted(sorted.length / 2)))
             } else {
