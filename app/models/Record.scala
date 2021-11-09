@@ -507,11 +507,11 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
-    val end = start.withMillisOfDay(0)
-    val begin = end.minusDays(1)
+    val begin = start.minusMinutes(30)
+    val end = start
     val timeFrameFilter = Aggregates.filter(Filters.and(
       Filters.gte("time", begin.toDate),
-      Filters.lt("time", end.toDate)))
+      Filters.lt("time", start.toDate)))
 
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
       Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"),

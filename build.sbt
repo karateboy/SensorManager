@@ -1,6 +1,6 @@
 name := """SensorManager"""
 
-version := "1.1.74"
+version := "1.1.75"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala, LauncherJarPlugin)
 

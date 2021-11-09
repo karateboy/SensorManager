@@ -21,6 +21,10 @@ const router = new VueRouter({
             text: '即時資訊',
             active: true,
           },
+          {
+            text: '儀表板',
+            active: true,
+          },
         ],
       },
     },
@@ -33,6 +37,10 @@ const router = new VueRouter({
         breadcrumb: [
           {
             text: '即時資訊',
+            active: true,
+          },
+          {
+            text: '即時狀況',
             active: true,
           },
         ],
