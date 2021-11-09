@@ -18,7 +18,7 @@ const router = new VueRouter({
         pageTitle: '儀表板',
         breadcrumb: [
           {
-            text: '儀表板',
+            text: '即時資訊',
             active: true,
           },
         ],
@@ -32,7 +32,7 @@ const router = new VueRouter({
         pageTitle: '即時狀況',
         breadcrumb: [
           {
-            text: '即時狀況',
+            text: '即時資訊',
             active: true,
           },
         ],
@@ -43,7 +43,7 @@ const router = new VueRouter({
       name: 'history-data',
       component: () => import('@/views/HistoryData.vue'),
       meta: {
-        pageTitle: '歷史資料',
+        pageTitle: '歷史資料查詢',
         breadcrumb: [
           {
             text: '數據查詢',

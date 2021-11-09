@@ -14,7 +14,7 @@
       class="bookmark-wrapper align-items-center flex-grow-1 d-none d-lg-flex"
     >
       <dark-Toggler class="d-none d-lg-block" />
-      <b-img src="../../assets/images/title.png" height="40" />
+      <h2 class="m-0">空氣品質感測器維運操作平台</h2>
     </div>
 
     <b-navbar-nav class="nav align-items-center ml-auto">
