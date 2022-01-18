@@ -1,5 +1,6 @@
 package controllers
 
+import com.github.nscala_time.time.Imports
 import com.github.nscala_time.time.Imports._
 import models.ModelHelper._
 import models._
@@ -9,6 +10,7 @@ import play.api.mvc._
 
 import java.nio.file.Files
 import javax.inject._
+import scala.collection.{immutable, mutable}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.postfixOps
@@ -404,14 +406,19 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0KM01")
           sensorGroupFuture = sensorGroupFuture :+ monitorGroupOp.get("P0KM04")
           sensorGroupFuture
-
+        case "宜蘭縣" =>
+          val epaGroupFuture = Future {
+            MonitorGroup("宜蘭站", Seq("epa65"))
+          }
+          val sensorGroupFuture = Seq("Y0LO01", "Y1LO01", "Y0KM01", "Y1KM01") map monitorGroupOp.get
+          sensorGroupFuture.+:(epaGroupFuture)
       })
 
     val thisMonthReportFuture = mgListFuture map {
       mgList => getMonitorGroupListRecordMap(mt, mgList, reportDate)
     } flatMap (x => x)
 
-    def getLast18MonthSensorReport = {
+    def getLast18MonthSensorReport: Future[immutable.IndexedSeq[Seq[(MonitorGroup, mutable.Map[Imports.DateTime, mutable.Map[String, Double]], Imports.DateTime)]]] = {
       val monitorGroupListFuture =
         Future.sequence {
           county match {
@@ -426,6 +433,12 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
                 MonitorGroup("屏東站", Seq("epa59"))
               }
               val sensorGroupFuture = Seq("P0AL99", "P1AL99") map monitorGroupOp.get
+              sensorGroupFuture.+:(epaGroupFuture)
+            case "宜蘭縣" =>
+              val epaGroupFuture = Future {
+                MonitorGroup("宜蘭站", Seq("epa65"))
+              }
+              val sensorGroupFuture = Seq("Y0AL99", "Y1AL99") map monitorGroupOp.get
               sensorGroupFuture.+:(epaGroupFuture)
           }
         }
