@@ -4,6 +4,28 @@
       <b-form @submit.prevent>
         <b-row>
           <b-col cols="12">
+            <b-form-group label="縣市" label-for="county" label-cols-md="3">
+              <v-select
+                id="county"
+                v-model="county"
+                label="txt"
+                :reduce="county => county.value"
+                :options="countyFilters"
+              />
+            </b-form-group>
+            <b-form-group
+              label="測點群組"
+              label-for="monitorGroup"
+              label-cols-md="3"
+            >
+              <v-select
+                id="monitorGroup"
+                v-model="monitorGroup"
+                label="_id"
+                :reduce="mg => mg"
+                :options="filteredMonitorGroupList"
+              />
+            </b-form-group>
             <b-form-group label="測點" label-for="monitor" label-cols-md="3">
               <v-select
                 id="monitor"
@@ -41,7 +63,7 @@
                 v-model="form.range"
                 :range="true"
                 type="datetime"
-                format="YYYY-MM-DD HH:mm"
+                format="YYYY-MM-DD"
                 value-type="timestamp"
                 :show-second="false"
               />
@@ -51,9 +73,9 @@
           <b-col offset-md="3">
             <b-button
               v-ripple.400="'rgba(255, 255, 255, 0.15)'"
-              type="submit"
               variant="primary"
               class="mr-1"
+              :disabled="!canRecalculate"
               @click="recalculate"
             >
               重新計算
@@ -81,9 +103,10 @@ import DatePicker from 'vue2-datepicker';
 import 'vue2-datepicker/index.css';
 import 'vue2-datepicker/locale/zh-tw';
 const Ripple = require('vue-ripple-directive');
-import { mapState, mapGetters, mapActions } from 'vuex';
+import { mapState, mapGetters, mapActions, mapMutations } from 'vuex';
 import moment from 'moment';
 import axios from 'axios';
+import { MonitorGroup } from './types';
 
 export default Vue.extend({
   components: {
@@ -95,16 +118,38 @@ export default Vue.extend({
   },
 
   data() {
-    const range = [moment().subtract(1, 'days').valueOf(), moment().valueOf()];
+    const range = [
+      moment().subtract(1, 'days').hour(0).minute(0).millisecond(0).valueOf(),
+      moment().hour(23).minute(59).minute(0).millisecond(0).valueOf(),
+    ];
+    let monitorGroup: MonitorGroup | undefined = undefined;
+    const countyFilters = [
+      {
+        txt: '不限',
+        value: '',
+      },
+      {
+        txt: '基隆',
+        value: '基隆市',
+      },
+      {
+        txt: '屏東',
+        value: '屏東縣',
+      },
+      {
+        txt: '宜蘭',
+        value: '宜蘭縣',
+      },
+    ];
     return {
-      dataTypes: [
-        { txt: '小時資料', id: 'hour' },
-        // { txt: '分鐘資料', id: 'min' },
-        // { txt: '秒資料', id: 'second' },
-      ],
+      dataTypes: [{ txt: '小時資料', id: 'hour' }],
+      monitorGroupList: Array<MonitorGroup>(),
+      monitorGroup,
+      countyFilters,
+      county: '',
       form: {
         monitors: Array<any>(),
-        monitorTypes: Array<any>(),
+        monitorTypes: [],
         dataType: 'hour',
         range,
       },
@@ -113,22 +158,68 @@ export default Vue.extend({
   computed: {
     ...mapState('monitors', ['monitors']),
     ...mapGetters('monitors', ['mMap']),
+    canRecalculate(): boolean {
+      return this.form.monitors.length !== 0;
+    },
+    filteredMonitorGroupList(): Array<MonitorGroup> {
+      if (this.county === '') return this.monitorGroupList;
+      else {
+        return this.monitorGroupList.filter(
+          (value: MonitorGroup, index: number) => {
+            let prefix = '';
+            switch (this.county) {
+              case '基隆市':
+                prefix = 'K';
+                break;
+              case '屏東縣':
+                prefix = 'P';
+                break;
+              case '宜蘭縣':
+                prefix = 'Y';
+                break;
+            }
+
+            return value._id.startsWith(prefix);
+          },
+        );
+      }
+    },
+    filteredMonitors(): Array<any> {
+      if (this.county === '') return this.monitors;
+      return this.monitors.filter((monitor: any, index: number) => {
+        return monitor.county === this.county;
+      });
+    },
+  },
+  watch: {
+    monitorGroup(newValue: MonitorGroup) {
+      this.form.monitors = newValue.member;
+    },
   },
   async mounted() {
     await this.fetchMonitors();
-
-    for (const m of this.monitors) this.form.monitors.push(m._id);
+    await this.getMonitorGroups();
   },
   methods: {
     ...mapActions('monitors', ['fetchMonitors']),
+    ...mapMutations(['setLoading']),
+
     async recalculate() {
       const monitors = this.form.monitors.join(':');
       const url = `/Recalculate/${monitors}/${this.form.range[0]}/${this.form.range[1]}`;
 
-      const ret = await axios.get(url);
-      if (ret.data.ok) {
-        this.$bvModal.msgBoxOk('成功');
+      try {
+        const res = await axios.get(url);
+        if (res.data.ok) {
+          this.$bvModal.msgBoxOk('開始重新計算小時值');
+        }
+      } catch (err) {
+        throw new Error('failed to recalculate hour');
       }
+    },
+    async getMonitorGroups() {
+      const ret = await axios.get('/MonitorGroups');
+      this.monitorGroupList = ret.data;
     },
   },
 });

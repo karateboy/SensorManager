@@ -1,6 +1,5 @@
 package controllers
 
-import com.github.nscala_time.time.Imports
 import com.github.nscala_time.time.Imports._
 import models.ModelHelper._
 import models._
@@ -414,12 +413,17 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           sensorGroupFuture.+:(epaGroupFuture)
       })
 
-    val thisMonthReportFuture = mgListFuture map {
+    val thisMonthReportFuture: Future[
+      Seq[(MonitorGroup,
+        mutable.Map[DateTime,
+          mutable.Map[String, Double]],
+        DateTime)]] = mgListFuture map {
       mgList => getMonitorGroupListRecordMap(mt, mgList, reportDate)
     } flatMap (x => x)
 
-    def getLast18MonthSensorReport: Future[immutable.IndexedSeq[Seq[(MonitorGroup, mutable.Map[Imports.DateTime, mutable.Map[String, Double]], Imports.DateTime)]]] = {
-      val monitorGroupListFuture =
+    def getLast18MonthSensorReport: Future[IndexedSeq[
+      Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)]]] = {
+      val monitorGroupListFuture: Future[Seq[MonitorGroup]] =
         Future.sequence {
           county match {
             case "基隆市" =>
@@ -443,7 +447,10 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           }
         }
 
-      val resultFF =
+      val resultFF: Future[Future[immutable.IndexedSeq[
+        Seq[(MonitorGroup,
+          mutable.Map[DateTime,
+            mutable.Map[String, Double]], DateTime)]]]] =
         for (mgList <- monitorGroupListFuture) yield {
           Future.sequence {
             for (i <- 0 to 17) yield
@@ -465,7 +472,8 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     }
   }
 
-  def getMonitorGroupRecordList(mt: String, monitorGroup: MonitorGroup, start: DateTime) = {
+  def getMonitorGroupRecordList(mt: String, monitorGroup: MonitorGroup, start: DateTime):
+  Future[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)] = {
     val resultFuture = recordOp.getRecordListFuture(recordOp.HourCollection)(start, start + 1.month, monitorGroup.member)
     for (recordList <- resultFuture) yield {
       import scala.collection.mutable.Map
