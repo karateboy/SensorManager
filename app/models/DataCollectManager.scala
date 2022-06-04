@@ -756,10 +756,15 @@ class DataCollectManager @Inject()
       // It is tricky less than 90% is calculated based on beginnning of today.
       val sensorCountFuture = recordOp
         .getSensorCount(recordOp.MinCollection)("", "", "")
+      sensorCountFuture onFailure errorHandler("sensorCountFuture failed")
+
       for (ret: Seq[MonitorRecord] <- sensorCountFuture) {
         val targetMonitorIDSet = recordOp.getTargetMonitor("", "", "").toSet
+        Logger.info(s"targetMonitor #=${targetMonitorIDSet.size}")
         val connectedSet = ret.map(_._id).toSet
+        Logger.info(s"connectedSet=${connectedSet.size}")
         val disconnectedSet = targetMonitorIDSet -- connectedSet
+        Logger.info(s"disconnectedSet=${connectedSet.size}")
         errorReportOp.setDisconnectRecordTime(today, DateTime.now().getTime)
         for(m<-disconnectedSet)
           errorReportOp.addDisconnectedSensor(today, m)

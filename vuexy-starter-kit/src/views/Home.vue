@@ -493,10 +493,12 @@ export default Vue.extend({
     const sensorFilter = document.getElementById('sensorFilter');
     const mapFilter = document.getElementById('mapFilter');
     let ref = this.$refs.mapRef as any;
-    ref.$mapPromise.then((map: google.maps.Map) => {
-      map.controls[google.maps.ControlPosition.TOP_CENTER].push(sensorFilter);
-      map.controls[google.maps.ControlPosition.TOP_LEFT].push(mapFilter);
-    });
+    if (sensorFilter !== null && mapFilter !== null) {
+      ref.$mapPromise.then((map: google.maps.Map) => {
+        map.controls[google.maps.ControlPosition.TOP_CENTER].push(sensorFilter);
+        map.controls[google.maps.ControlPosition.TOP_LEFT].push(mapFilter);
+      });
+    }
 
     await this.fetchMonitors();
     await this.fetchMonitorTypes();
