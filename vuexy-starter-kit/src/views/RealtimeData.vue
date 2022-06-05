@@ -51,8 +51,15 @@
                   title="匯出 Excel"
                   width="24"
                   fluid
-                  @click="exportExcel" /></b-button
-            ></b-td>
+                  @click="exportExcel"
+              /></b-button>
+              <b-button
+                variant="outline-success"
+                class="ml-1"
+                @click="checkSensor"
+                >立刻檢測</b-button
+              >
+            </b-td>
           </b-tr>
         </b-tbody>
       </b-table-simple>
@@ -353,6 +360,18 @@ export default Vue.extend({
       else this.targetMonitorTypes = ['BATTERY'];
 
       this.$bvModal.show('historyTrendModal');
+    },
+    async checkSensor() {
+      const url = `/CheckSensor`;
+      try {
+        const ret = await axios.get(url);
+        if (ret.status === 200) this.$bvModal.msgBoxOk('成功');
+        else this.$bvModal.msgBoxOk(`錯誤${ret.statusText}`);
+      } catch (err) {
+        this.$bvModal.msgBoxOk(`錯誤 ${err}`);
+        throw new Error(`${err}`);
+      } finally {
+      }
     },
   },
 });

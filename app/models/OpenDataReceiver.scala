@@ -157,8 +157,8 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
         f onFailure (errorHandler())
         f onComplete ({
           case Success(ret) =>
-            if(ret.getUpserts().size() !=0)
-              Logger.debug(s"EPA ${ret.getUpserts().size()} records have been upserted.")
+            //if(ret.getUpserts().size() !=0)
+              //Logger.debug(s"EPA ${ret.getUpserts().size()} records have been upserted.")
           case Failure(ex) =>
             Logger.error("failed", ex)
         })

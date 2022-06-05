@@ -2,7 +2,7 @@ package models
 
 import akka.actor._
 import com.github.nscala_time.time.Imports._
-import models.DataCollectManager.SetCheckConstantTime
+import models.DataCollectManager.{CheckSensorStstus, SetCheckConstantTime}
 import models.ModelHelper._
 import play.api._
 import play.api.libs.concurrent.InjectedActorSupport
@@ -239,6 +239,10 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
       MtRecord(mt, minuteAvg._1, minuteAvg._2)
     }
   }
+
+  def checkSensor() = {
+    manager ! CheckSensorStstus
+  }
 }
 
 @Singleton
@@ -264,7 +268,7 @@ class DataCollectManager @Inject()
 
   val updateErrorReportTimer: Cancellable = {
     val localtime = LocalTime.now().withMillisOfDay(0)
-      .withHourOfDay(7).withMinuteOfHour(30) // 07:00
+      .withHourOfDay(7).withMinuteOfHour(30).withSecondOfMinute(0) // 07:00
     val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
     val duration = if (DateTime.now() < emailTime)
       new Duration(DateTime.now(), emailTime)
@@ -764,7 +768,7 @@ class DataCollectManager @Inject()
         val connectedSet = ret.map(_._id).toSet
         Logger.info(s"connectedSet=${connectedSet.size}")
         val disconnectedSet = targetMonitorIDSet -- connectedSet
-        Logger.info(s"disconnectedSet=${connectedSet.size}")
+        Logger.info(s"disconnectedSet=${disconnectedSet.size}")
         errorReportOp.setDisconnectRecordTime(today, DateTime.now().getTime)
         for(m<-disconnectedSet)
           errorReportOp.addDisconnectedSensor(today, m)

@@ -262,5 +262,9 @@ class Realtime @Inject()
         }
     }
 
+  def checkSensor()=Security.Authenticated {
+    dataCollectManagerOp.checkSensor
+    Ok(Json.obj("ok"->true))
+  }
   case class MonitorTypeStatus(desp: String, value: String, unit: String, instrument: String, status: String, classStr: Seq[String], order: Int)
 }

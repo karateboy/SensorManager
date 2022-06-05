@@ -5,6 +5,7 @@ import models.ModelHelper._
 import org.mongodb.scala._
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.bson.{BsonArray, BsonDateTime, BsonInt32}
+import org.mongodb.scala.result.DeleteResult
 import play.api._
 import play.api.libs.json.Json
 
@@ -158,8 +159,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     for (colName <- colNames) {
       val col = getCollection(colName)
       col.createIndex(Indexes.descending("monitor", "time"),
-        new IndexOptions().unique(true)).toFuture()
-      col.createIndex(Indexes.descending("time")).toFuture()
+        IndexOptions().unique(true)).toFuture()
     }
   }
 
@@ -306,7 +306,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val col = getCollection(colName)
 
     val f = col.find(and(equal("monitor", monitor), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
-      .sort(ascending("time")).toFuture()
+      .sort(ascending("time")).allowDiskUse(true).toFuture()
     val docs = waitReadyResult(f)
     val pairs =
       for {
@@ -334,7 +334,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val col = getCollection(colName)
 
     val f = col.find(and(equal("monitor", monitor), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
-      .sort(ascending("time")).toFuture()
+      .sort(ascending("time")).allowDiskUse(true).toFuture()
 
     f onFailure (errorHandler)
     f
@@ -348,7 +348,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val col = getCollection(colName)
 
     val f = col.find(and(in("monitor", monitors: _*), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
-      .sort(ascending("time")).toFuture()
+      .sort(ascending("time")).allowDiskUse(true).toFuture()
 
     f onFailure (errorHandler)
     f
@@ -361,7 +361,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
 
     val col = getCollection(colName)
     val f = col.find(and(equal("monitor", monitor), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
-      .sort(ascending("time")).toFuture()
+      .sort(ascending("time")).allowDiskUse(true).toFuture()
     for (docs <- f) yield {
       val pairs =
         for {
@@ -389,7 +389,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
 
     val col = getCollection(colName)
     col.find(and(equal("monitor", monitor), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
-      .limit(limit).sort(ascending("time")).toFuture()
+      .limit(limit).sort(ascending("time")).allowDiskUse(true).toFuture()
 
   }
 
@@ -441,7 +441,7 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       else
         Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, addPm25ValueStage, latestFilter, pm25Filter.get, projectStage)
 
-    col.aggregate(pipeline).toFuture()
+    col.aggregate(pipeline).allowDiskUse(true).toFuture()
   }
 
   def getLatestConstantSensor(colName: String)
@@ -470,10 +470,12 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Projections.include("time", "monitor", "id", "mtDataList", "location", "count", "pm25Max", "pm25Min")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, addPm25ValueStage, latestFilter, constantFilter, projectStage)).toFuture()
+    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage,
+      addPm25ValueStage, latestFilter, constantFilter, projectStage)).allowDiskUse(true).toFuture()
   }
 
-  def getTargetMonitor(county: String, district: String, sensorType: String) = {
+  def getTargetMonitor(county: String, district: String, sensorType: String): List[String] = {
+    Logger.info(s"monitor map #=${monitorOp.map.size}")
     monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
       .filter(m => m.enabled.getOrElse(true))
       .filter(m => {
@@ -521,7 +523,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Projections.include("time", "monitor", "id", "mtDataList", "location", "count")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, latestFilter, projectStage)).toFuture()
+    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, latestFilter, projectStage))
+      .allowDiskUse(true).toFuture()
   }
 
   def getLatestEpaStatus(colName: String) = {
@@ -545,7 +548,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorStage, latestFilter, removeIdStage)).toFuture()
+    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorStage, latestFilter, removeIdStage))
+      .allowDiskUse(true).toFuture()
   }
 
   def getSensorDisconnected(colName: String)
@@ -565,7 +569,8 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val removeIdStage = Aggregates.project(fields(Projections.include("time", "monitor", "id", "mtDataList", "location")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    val f = col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, latestFilter, removeIdStage)).toFuture()
+    val f = col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, latestFilter, removeIdStage))
+      .allowDiskUse(true).toFuture()
     f.transform(ret => {
       val targetSet: Set[String] = targetMonitors.toSet
       val connected = ret.map(_._id)
@@ -705,28 +710,15 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
       Projections.include("time", "monitor", "id", "mtDataList", "location", "count", "pm25Max", "pm25Min")))
     val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
     val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage, addPm25ValueStage, latestFilter, constantFilter, projectStage)).toFuture()
+    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addPm25DataStage,
+      addPm25ValueStage, latestFilter, constantFilter, projectStage))
+      .allowDiskUse(true).toFuture()
   }
 
-  def delete45dayAgoRecord(colName: String) = {
+  def delete45dayAgoRecord(colName: String): Future[DeleteResult] = {
     val date = DateTime.now().withMillisOfDay(0).minusDays(45).toDate()
     val f = getCollection(colName).deleteMany(Filters.lt("time", date)).toFuture()
     f onFailure (errorHandler)
     f
   }
-  /*
-  def updateMtRecord(colName: String)(mtName: String, updateList: Seq[(DateTime, Double)], monitor: String = monitorOp.SELF_ID) = {
-    import org.mongodb.scala.bson._
-    import org.mongodb.scala.model._
-    val col = getCollection(colName)
-    val seqF =
-      for (update <- updateList) yield {
-        val btime: BsonDateTime = update._1
-        col.updateOne(and(equal("time", btime)), and(Updates.set(mtName + ".v", update._2), Updates.setOnInsert(mtName + ".s", "010")), UpdateOptions().upsert(true)).toFuture()
-      }
-
-    import scala.concurrent._
-    Future.sequence(seqF)
-  } */
-
 }
