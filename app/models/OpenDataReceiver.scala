@@ -31,27 +31,30 @@ object OpenDataReceiver {
 
   implicit val epaRecordReads: Reads[EpaRecord] = {
     val builder = {
-      (JsPath \ "SiteName").read[String] and
-        (JsPath \ "County").read[String] and
-        (JsPath \ "PM10").read[String] and
-        (JsPath \ "PM2.5").read[String] and
-        (JsPath \ "PublishTime").read[String] and
-        (JsPath \ "Longitude").read[String] and
-        (JsPath \ "Latitude").read[String] and
-        (JsPath \ "SiteId").read[String]
+      (JsPath \ "SiteName".toLowerCase()).read[String] and
+        (JsPath \ "County".toLowerCase()).read[String] and
+        (JsPath \ "PM10".toLowerCase()).read[String] and
+        (JsPath \ "PM2.5".toLowerCase()).read[String] and
+        (JsPath \ "PublishTime".toLowerCase()).read[String] and
+        (JsPath \ "Longitude".toLowerCase()).read[String] and
+        (JsPath \ "Latitude".toLowerCase()).read[String] and
+        (JsPath \ "SiteId".toLowerCase()).read[String]
     }
     (builder) (EpaRecord.apply _)
   }
+
   case object GetEpaHourData
 }
 
 
-class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monitorOp: MonitorOp, recordOp: RecordOp)
+class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monitorOp: MonitorOp,
+                                 monitorTypeOp: MonitorTypeOp,
+                                 recordOp: RecordOp)
                                 () extends Actor with ActorLogging {
 
   import OpenDataReceiver._
 
-  val timer =  {
+  val timer = {
     import scala.concurrent.duration._
     context.system.scheduler.schedule(scala.concurrent.duration.Duration(1, SECONDS), scala.concurrent.duration.Duration(10, MINUTES), self, GetEpaCurrentData)
   }
@@ -64,12 +67,13 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
   Logger.info("Open Data receiver start...")
 
   import com.github.nscala_time.time.Imports._
+
   def receive = {
     case GetEpaCurrentData =>
       getCurrentData(100)
 
     case GetEpaHourData =>
-      for(epaLast <- sysConfig.getEpaLastDataTime()){
+      for (epaLast <- sysConfig.getEpaLastDataTime()) {
         val start = new DateTime(epaLast)
         val end = DateTime.now().withMillisOfDay(0).minusDays(1)
         if (start < end) {
@@ -88,16 +92,22 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
       val recordMap = Map.empty[String, Map[DateTime, Map[String, Double]]]
 
       def filter(dataNode: Node) = {
-        val monitorDateOpt = dataNode \ "MonitorDate"
-        val mDate = DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
-        start <= mDate && mDate < end
+        val monitorDateOpt = dataNode \ "MonitorDate".toUpperCase()
+        val mDate =
+          try {
+            DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
+          } catch {
+            case _: Exception =>
+              DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd"))
+          }
+        start <= mDate && mDate <= end
       }
 
       def processData(dataNode: Node) {
-        val siteId = dataNode \ "SiteId"
-        val siteName = dataNode \ "SiteName"
-        val itemId = dataNode \ "ItemId"
-        val monitorDateOpt = dataNode \ "MonitorDate"
+        val siteId = dataNode \ "SiteId".toUpperCase()
+        val siteName = dataNode \ "SiteName".toUpperCase()
+        val itemId = dataNode \ "ItemId".toUpperCase()
+        val monitorDateOpt = dataNode \ "MonitorDate".toUpperCase()
 
         try {
           //Filter interested EPA monitor
@@ -105,13 +115,20 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
             val epaId = Monitor.epaID(siteId.text.trim())
             monitorOp.ensureMonitor(epaId, siteName.text.trim(), Seq(MonitorType.PM10, MonitorType.PM25),
               Seq(MonitorTag.EPA))
+
+            monitorTypeOp.ensureMeasuring(MonitorType.PM25, "OpenData")
             val monitorType = MonitorType.PM25
-            val mDate = DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
+            val mDate = try {
+              DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
+            } catch {
+              case _: Exception =>
+                DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd"))
+            }
 
             val monitorNodeValueSeq =
               for (v <- 0 to 23) yield {
                 val monitorValue = try {
-                  Some((dataNode \ "MonitorValue%02d".format(v)).text.trim().toDouble)
+                  Some((dataNode \ "MonitorValue%02d".format(v).toUpperCase()).text.trim().toDouble)
                 } catch {
                   case x: Throwable =>
                     None
@@ -147,18 +164,18 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
           timeMaps = monitorMap._2
           dateTime <- timeMaps.keys.toList.sorted
         } yield {
-          val mtRecords = for(mtValue <- timeMaps(dateTime)) yield
+          val mtRecords = for (mtValue <- timeMaps(dateTime)) yield
             MtRecord(mtValue._1, mtValue._2, MonitorStatus.NormalStat)
           RecordList(dateTime.toDate, monitor, None, mtRecords.toSeq)
         }
 
-      if(recordLists.size != 0) {
+      if (recordLists.size != 0) {
         val f = recordOp.upsertManyRecord(recordLists.toList)(recordOp.HourCollection)
         f onFailure (errorHandler())
         f onComplete ({
           case Success(ret) =>
-            //if(ret.getUpserts().size() !=0)
-              //Logger.debug(s"EPA ${ret.getUpserts().size()} records have been upserted.")
+            if (ret.getUpserts().size() != 0)
+              Logger.debug(s"EPA ${ret.getUpserts().size()} records have been upserted.")
           case Failure(ex) =>
             Logger.error("failed", ex)
         })
@@ -168,7 +185,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
     }
 
     def getData(skip: Int) {
-      val url = s"https://data.epa.gov.tw/api/v1/aqx_p_15?format=xml&offset=${skip}&limit=${limit}&api_key=fa3fdec2-19b2-4108-a7f0-63ea3a9a776a"
+      val url = s"https://data.epa.gov.tw/api/v2/aqx_p_15?format=xml&offset=${skip}&limit=${limit}&api_key=1f4ca8f8-8af9-473d-852b-b8f2d575f26a"
       val future =
         wsClient.url(url).get().map {
           response =>
@@ -195,10 +212,9 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
   }
 
 
-
   def getCurrentData(limit: Int) = {
     import com.github.nscala_time.time.Imports._
-    val url = s"https://data.epa.gov.tw/api/v1/aqx_p_432?format=json&limit=${limit}&api_key=9be7b239-557b-4c10-9775-78cadfc555e9"
+    val url = s"https://data.epa.gov.tw/api/v2/aqx_p_432?format=json&limit=${limit}&api_key=1f4ca8f8-8af9-473d-852b-b8f2d575f26a"
 
     val f = wsClient.url(url).get()
     f onFailure (errorHandler)
@@ -222,6 +238,9 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
             monitorOp.ensureMonitor(epaId, record.SiteName, Seq(MonitorType.PM10, MonitorType.PM25),
               Seq(MonitorTag.EPA))
 
+            monitorTypeOp.ensureMeasuring(MonitorType.PM10, "OpenData")
+            monitorTypeOp.ensureMeasuring(MonitorType.PM25, "OpenData")
+
             val dt = DateTime.parse(time.trim(), DateTimeFormat.forPattern("YYYY/MM/dd HH:mm:ss"))
             if (latestRecordTime < dt)
               latestRecordTime = dt
@@ -231,7 +250,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
                 val mtValue = valueStr.toDouble
                 Some(MtRecord(mt, mtValue, MonitorStatus.NormalStat))
               } catch {
-                case _ : Throwable=>
+                case _: Throwable =>
                   Some(MtRecord(mt, 0, MonitorStatus.InvalidDataStat))
               }
             }
@@ -245,11 +264,11 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
             RecordList(dt.toDate, epaId, location, mtRecords)
         }
 
-        if(recordLists.length != 0){
+        if (recordLists.length != 0) {
           val f = recordOp.upsertManyRecord(recordLists)(recordOp.MinCollection)
           f onComplete ({
             case Success(ret) =>
-              if(ret.getUpserts.size() != 0)
+              if (ret.getUpserts.size() != 0)
                 Logger.debug(s"EPA current upsert ${ret.getUpserts.size()} records")
 
             case Failure(ex) =>
@@ -275,11 +294,10 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
 
   }
 
-  override def postStop =
-    {
-      timer.cancel()
-      timer2.cancel()
-    }
+  override def postStop = {
+    timer.cancel()
+    timer2.cancel()
+  }
 
 
   case class EpaResult(records: Seq[EpaRecord])

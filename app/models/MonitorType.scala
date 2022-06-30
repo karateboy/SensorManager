@@ -258,7 +258,6 @@ class MonitorTypeOp @Inject()(mongoDB: MongoDB, alarmOp: AlarmOp) {
 
   def ensureMeasuring(mt: String, instrumentID: String) {
     val mtCase = map(mt)
-    val test = Some(Seq.empty[Int])
 
     if(mtCase.measuringBy.isEmpty || !mtCase.measuringBy.get.contains(instrumentID)){
       val newMtCase = mtCase.addMeasuring(instrumentID, true)

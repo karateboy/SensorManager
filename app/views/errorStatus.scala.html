@@ -43,7 +43,9 @@
             @{m.sensorDetail.get.locationDesc}
         </td>
         <td style="width:138.429px">
-            <a href="https://maps.google.com?q=@{m.location.get(1)},@{m.location.get(0)}" target="_blank">google map連結</a>
+            @if(m.location.isDefined){
+                <a href="https://maps.google.com?q=@{m.location.get(1)},@{m.location.get(0)}" target="_blank">google map連結</a>
+            }
         </td>
     </tr>
     }

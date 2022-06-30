@@ -208,6 +208,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
       messageHandler(topic, new String(message.getPayload))
     } catch {
       case ex: Exception =>
+        Logger.info(s"msg=${new String(message.getPayload)}")
         Logger.error("failed to handleMessage", ex)
     }
 
@@ -232,8 +233,8 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
       message => {
         val mtData: Seq[Option[MtRecord]] =
           for (data <- message.data) yield {
-            val sensor = (data \ "sensor").get.validate[String].get
-            val value: Option[Double] = (data \ "value").get.validate[Double].fold(
+            val sensor = (data \ "sensor").getOrElse(JsString("")).validate[String].get
+            val value: Option[Double] = (data \ "value").getOrElse(JsString("")).validate[Double].fold(
               err => {
                 None
               },
