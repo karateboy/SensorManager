@@ -1,7 +1,9 @@
 package models
 
 import com.github.nscala_time.time.Imports._
+import com.github.tototoshi.csv.CSVReader
 import models.ModelHelper._
+import org.apache.commons.io.FileUtils
 import org.mongodb.scala._
 import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.bson.{BsonArray, BsonDateTime, BsonInt32}
@@ -9,10 +11,12 @@ import org.mongodb.scala.result.DeleteResult
 import play.api._
 import play.api.libs.json.Json
 
+import java.io.File
 import java.util.Date
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 import scala.language.postfixOps
+import scala.util.{Failure, Success}
 
 case class RecordListID(time: Date, monitor: String)
 
@@ -61,7 +65,7 @@ object RecordList {
   }
 }
 
-case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _id: RecordListID,
+case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, var _id: RecordListID,
                       location: Option[Seq[Double]]) {
   def getMtOrdered(mt: String) = {
     new Ordered[RecordList] {
@@ -88,7 +92,12 @@ case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, _i
 import javax.inject._
 
 @Singleton
-class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp, powerErrorReportOp: ErrorReportOp) {
+class RecordOp @Inject()(mongoDB: MongoDB,
+                         monitorTypeOp: MonitorTypeOp,
+                         monitorOp: MonitorOp,
+                         powerErrorReportOp: ErrorReportOp,
+                         mqttSensorOp: MqttSensorOp,
+                         environment: Environment) {
 
   import org.mongodb.scala.model._
   import play.api.libs.json._
@@ -110,18 +119,6 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
   import org.mongodb.scala.bson.codecs.Macros._
 
   val codecRegistry = fromRegistries(fromProviders(classOf[RecordList], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
-  /*
-  * val addPm25DataStage = Aggregates.addFields(Field("pm25Data",
-      Document("$first" ->
-        Document("$filter" -> Document(
-          "input" -> "$mtDataList",
-          "as" -> "mtData",
-          "cond" -> Document(
-            "$eq" -> Seq("$$mtData.mtName", "PM25")
-          )
-        )
-        ))))
-  * */
   val addPm25DataStage: Bson = {
     val filterDoc = Document("$filter" -> Document(
       "input" -> "$mtDataList",
@@ -720,5 +717,90 @@ class RecordOp @Inject()(mongoDB: MongoDB, monitorTypeOp: MonitorTypeOp, monitor
     val f = getCollection(colName).deleteMany(Filters.lt("time", date)).toFuture()
     f onFailure (errorHandler)
     f
+  }
+
+  // import CSV record if any file in importCSV
+  def importCSV(dataCollectManagerOp: DataCollectManagerOp): Unit ={
+    val mtMap = Map[String, String](
+      "pm2_5" -> MonitorType.PM25,
+      "pm10" -> MonitorType.PM10,
+      "humidity" -> MonitorType.HUMID,
+      "o3" -> MonitorType.O3,
+      "temperature"-> MonitorType.TEMP,
+      "voc"-> MonitorType.VOC,
+      "no2"-> MonitorType.NO2,
+      "h2s"-> MonitorType.H2S,
+      "nh3"-> MonitorType.NH3)
+
+    val sensorMap = waitReadyResult(mqttSensorOp.getFullSensorMap)
+    import collection.JavaConverters._
+    val files = FileUtils.listFiles(new File(environment.rootPath + "/importCSV"), Array("csv"), true)
+    Logger.info(s"total record csv #=${files.size()}")
+    for(file <- files.iterator().asScala){
+      val reader = CSVReader.open(file)
+      val optDocs =
+        for (record <- reader.allWithHeaders()) yield {
+          val id = record("id")
+          val time = DateTime.parse(record("time"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
+          val mtData =
+            for (mtKey <- record.keys.filter(key=>key!="id" && key != "time") if mtMap.contains(mtKey)) yield {
+              val mt = mtMap(mtKey)
+                  try{
+                    Some(MtRecord(mt, record(mtKey).toDouble, MonitorStatus.NormalStat))
+                  }catch{
+                    case _:Throwable=>
+                    None
+                }
+            }
+
+          val mtDataList: Seq[MtRecord] = mtData.flatten.toSeq
+          if (sensorMap.contains(id)) {
+            val sensor = sensorMap(id)
+            Some(RecordList(time.toDate, mtDataList,
+              sensor.monitor,
+              RecordListID(time.toDate, sensor.monitor),
+              location = None))
+          }else{
+            Logger.warn(s"sensorMap don't contain $id")
+            None
+          }
+        }
+      reader.close()
+      file.delete()
+      val docs = optDocs.flatten
+      Logger.info(s"Total ${docs.length} records to be upserted")
+      if(docs.nonEmpty){
+        val f = upsertManyRecord(docs = docs)(MinCollection)
+        f onFailure errorHandler
+        f onComplete{
+          case Success(_)=>
+            val start = new DateTime(docs.map(_.time).min)
+            val monitor = docs.map(_._id.monitor).head
+            for(current<-getPeriods(start, start.plusDays(1), 1.hour))
+              dataCollectManagerOp.recalculateHourData(monitor, current, false, true)(mtMap.keys.toList)
+          case Failure(exception)=>
+            Logger.error(s"failed to upsert ${file.getAbsolutePath} file", exception)
+        }
+        waitReadyResult(f)
+        Logger.info(s"${file.getAbsolutePath} successfully upserted")
+      }
+    }
+  }
+
+  def moveRecord(originalID:String, newID:String): Unit ={
+    def moveHelper(collectionName:String)={
+      val minF = getCollection(collectionName).find(Filters.equal("_id.monitor", originalID)).toFuture()
+      for(docs<-minF){
+        val newDocs = docs.map(doc=>{
+          val newwRecordListID = RecordListID(doc._id.time, newID)
+          doc._id = newwRecordListID
+          doc
+        })
+        upsertManyRecord(newDocs)(collectionName)
+        getCollection(collectionName).deleteMany(Filters.equal("_id.monitor", originalID)).toFuture()
+      }
+    }
+    moveHelper(MinCollection)
+    moveHelper(HourCollection)
   }
 }

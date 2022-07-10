@@ -23,7 +23,9 @@ case class Monitor(_id: String, desc: String, var monitorTypes: Seq[String], var
                    var county: Option[String] = None,
                    var district: Option[String] = None,
                    var sensorDetail: Option[SensorDetail] = None
-                  )
+                  ){
+  def getDisplayName = s"$shortCode($county$district)"
+}
 
 object Monitor {
   implicit val sdWrite = Json.writes[SensorDetail]

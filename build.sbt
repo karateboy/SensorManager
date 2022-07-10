@@ -1,6 +1,6 @@
 name := """SensorManager"""
 
-version := "1.1.79"
+version := "1.1.80"
 
 lazy val root = (project in file(".")).enablePlugins(PlayScala, LauncherJarPlugin)
 
@@ -31,6 +31,9 @@ libraryDependencies += "org.apache.poi" % "poi-ooxml" % "5.0.0"
 // https://mvnrepository.com/artifact/com.typesafe.play/play-mailer
 libraryDependencies += "com.typesafe.play" %% "play-mailer" % "5.0.0"
 
+// https://mvnrepository.com/artifact/commons-io/commons-io
+libraryDependencies += "commons-io" % "commons-io" % "2.11.0"
+
 routesGenerator := StaticRoutesGenerator
 
 mappings in Universal ++=
@@ -40,6 +43,10 @@ mappings in Universal ++=
 mappings in Universal ++=
 (baseDirectory.value / "import" * "*" get) map
     (x => x -> ("import/" + x.getName))
+
+mappings in Universal ++=
+  (baseDirectory.value / "importCSV" * "*" get) map
+    (x => x -> ("importCSV/" + x.getName))
 
 
 scalacOptions += "-feature"

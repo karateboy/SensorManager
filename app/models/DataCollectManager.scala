@@ -10,7 +10,7 @@ import play.api.libs.concurrent.InjectedActorSupport
 import javax.inject._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{Future, blocking}
 import scala.concurrent.duration.SECONDS
 import scala.language.postfixOps
 import scala.util.Success
@@ -247,7 +247,7 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
 
 @Singleton
 class DataCollectManager @Inject()
-(config: Configuration, system: ActorSystem, recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp,
+(config: Configuration, recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorOp: MonitorOp,
  dataCollectManagerOp: DataCollectManagerOp,
  instrumentTypeOp: InstrumentTypeOp,
  alarmOp: AlarmOp, instrumentOp: InstrumentOp,
@@ -263,7 +263,7 @@ class DataCollectManager @Inject()
     //Try to trigger at 30 sec
     val next30 = DateTime.now().withSecondOfMinute(30).plusMinutes(1)
     val postSeconds = new org.joda.time.Duration(DateTime.now, next30).getStandardSeconds
-    system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(1, MINUTES), self, CalculateData)
+    context.system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(1, MINUTES), self, CalculateData)
   }
 
   val updateErrorReportTimer: Cancellable = {
@@ -276,7 +276,7 @@ class DataCollectManager @Inject()
       new Duration(DateTime.now(), emailTime + 1.day)
 
     import scala.concurrent.duration._
-    system.scheduler.schedule(
+    context.system.scheduler.schedule(
       Duration(duration.getStandardSeconds + 1, SECONDS),
       Duration(1, DAYS), self, CheckSensorStstus)
   }
@@ -291,7 +291,7 @@ class DataCollectManager @Inject()
 
     Logger.info(s"setup to fire SendErrorReport ${duration.getStandardHours}:${duration.getStandardMinutes} latter")
     import scala.concurrent.duration._
-    system.scheduler.schedule(
+    context.system.scheduler.schedule(
       Duration(duration.getStandardSeconds + 1, SECONDS),
       Duration(1, DAYS), self, SendErrorReport)
   }
@@ -304,7 +304,7 @@ class DataCollectManager @Inject()
       new Duration(DateTime.now(), checkTime + 1.day)
 
     import scala.concurrent.duration._
-    checkConstantTimer = system.scheduler.schedule(
+    checkConstantTimer = context.system.scheduler.schedule(
       Duration(duration.getStandardSeconds + 1, SECONDS),
       Duration(1, DAYS), self, CheckConstantSensor)
   }
@@ -317,7 +317,7 @@ class DataCollectManager @Inject()
       new Duration(DateTime.now(), cleanupTime + 1.day)
 
     import scala.concurrent.duration._
-    system.scheduler.schedule(
+    context.system.scheduler.schedule(
       Duration(duration.getStandardSeconds + 1, SECONDS),
       Duration(1, DAYS), self, CleanupOldRecord)
   }
@@ -339,6 +339,13 @@ class DataCollectManager @Inject()
     }
     Logger.info("DataCollect manager started")
   }
+
+  Future{
+    blocking{
+      recordOp.importCSV(dataCollectManagerOp)
+    }
+  }
+
 
   def calculateAvgMap(mtMap: Map[String, Map[String, ListBuffer[(DateTime, Double)]]]) = {
     for {
@@ -432,7 +439,7 @@ class DataCollectManager @Inject()
           new Duration(DateTime.now(), calibrationTime + 1.day)
 
         import scala.concurrent.duration._
-        system.scheduler.schedule(
+        context.system.scheduler.schedule(
           Duration(duration.getStandardSeconds + 1, SECONDS),
           Duration(1, DAYS), self, AutoCalibration(inst._id))
       }
@@ -498,7 +505,7 @@ class DataCollectManager @Inject()
         new Duration(DateTime.now(), checkTime + 1.day)
 
       import scala.concurrent.duration._
-      checkConstantTimer = system.scheduler.schedule(
+      checkConstantTimer = context.system.scheduler.schedule(
         Duration(duration.getStandardSeconds + 1, SECONDS),
         Duration(1, DAYS), self, CheckConstantSensor)
 
@@ -719,7 +726,7 @@ class DataCollectManager @Inject()
       onceTimer map { t => t.cancel() }
       Logger.debug(s"ToggleTargetDO($instId, $bit)")
       self ! WriteTargetDO(instId, bit, true)
-      onceTimer = Some(system.scheduler.scheduleOnce(scala.concurrent.duration.Duration(seconds, SECONDS),
+      onceTimer = Some(context.system.scheduler.scheduleOnce(scala.concurrent.duration.Duration(seconds, SECONDS),
         self, WriteTargetDO(instId, bit, false)))
 
     case IsTargetConnected(instId) =>

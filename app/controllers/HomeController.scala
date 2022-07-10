@@ -29,6 +29,12 @@ class HomeController @Inject()(environment: play.api.Environment,
   import MonitorType.{mtRead, mtWrite}
   import groupOp.{read, write}
 
+  for(v<-sysConfig.getMoveRecord() if !v){
+    recordOp.moveRecord("352818662097327", "355001090067132")
+    sysConfig.setMoveRecord(true)
+    Logger.info("Record moving is on the way.")
+  }
+
   def newUser = Security.Authenticated(BodyParsers.parse.json) {
     implicit request =>
       val newUserParam = request.body.validate[User]

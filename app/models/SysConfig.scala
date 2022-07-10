@@ -7,6 +7,7 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import scala.language.implicitConversions
 import org.mongodb.scala.model._
 import org.mongodb.scala.bson._
+import org.mongodb.scala.result.UpdateResult
 
 import java.util.Date
 import javax.inject._
@@ -20,6 +21,7 @@ object SysConfig {
   val SensorGPS = "SensorGPS"
   val AlertEmailTaget = "AlertEmailTarget"
   val ConstantCheckTime = "ConstantCheckTime"
+  val MoveRecord = "MoveRecord"
 }
 @Singleton
 class SysConfig @Inject()(mongoDB: MongoDB){
@@ -32,7 +34,8 @@ class SysConfig @Inject()(mongoDB: MongoDB){
     EpaLastDataTime -> Document(valueKey -> DateTime.parse("2021-4-28").toDate),
     SensorGPS-> Document(valueKey->false),
     AlertEmailTaget -> Document(valueKey -> Seq("karateboy.tw@gmail.com")),
-    ConstantCheckTime->Document(valueKey -> "07:00")
+    ConstantCheckTime->Document(valueKey -> "07:00"),
+    MoveRecord->Document(valueKey->false)
   )
 
   def init() {
@@ -98,4 +101,7 @@ class SysConfig @Inject()(mongoDB: MongoDB){
 
   def setConstantCheckTime(localTime: LocalTime) = set(ConstantCheckTime, localTime.toString)
   def getConstantCheckTime() = get(ConstantCheckTime).map(v=>LocalTime.parse(v.asString().getValue))
+
+  def getMoveRecord(): Future[Boolean] = get(MoveRecord).map(_.asBoolean().getValue)
+  def setMoveRecord(v:Boolean): Future[UpdateResult] = set(MoveRecord, v)
 }

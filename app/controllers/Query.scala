@@ -268,9 +268,9 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
           }
 
         if (monitorTypes.length > 1) {
-          seqData(s"${monitorOp.map(m).desc}_${monitorTypeOp.map(mt).desp}", timeData)
+          seqData(s"${monitorOp.map(m).getDisplayName}_${monitorTypeOp.map(mt).desp}", timeData)
         } else {
-          seqData(s"${monitorOp.map(m).desc}_${monitorTypeOp.map(mt).desp}", timeData)
+          seqData(s"${monitorOp.map(m).getDisplayName}_${monitorTypeOp.map(mt).desp}", timeData)
         }
       }
     }
