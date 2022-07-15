@@ -76,7 +76,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
             fileType match {
               case SensorData =>
                 try {
-                  if(importSensorData("UTF-8") == 0)
+                  if (importSensorData("UTF-8") == 0)
                     importSensorData("BIG5")
                 } catch {
                   case ex: Throwable =>
@@ -100,7 +100,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
       self ! PoisonPill
   }
 
-  def importSensorData(encoding: String):Int = {
+  def importSensorData(encoding: String): Int = {
     Logger.info(s"Start import ${dataFile.getName}")
     val reader = CSVReader.open(dataFile, encoding)
     var count = 0
@@ -126,7 +126,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
 
     reader.close()
     Logger.info(s"Total $count records")
-    if(docs.nonEmpty){
+    if (docs.nonEmpty) {
       dataFile.delete()
       val f = recordOp.upsertManyRecord(docs = docs)(recordOp.HourCollection)
       f onFailure (errorHandler)
@@ -217,42 +217,63 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
     var finish = false
     var monitorSeq = Seq.empty[Monitor]
     do {
-      var row = sheet.getRow(rowN)
+      val row = sheet.getRow(rowN)
       if (row == null)
         finish = true
       else {
         try {
           val monitorID = row.getCell(0).getStringCellValue.trim
-          val shortCode = monitorID.reverse.take(4).reverse
-          val code = row.getCell(2).getStringCellValue
-          val enabled = row.getCell(3).getNumericCellValue != 0
-          val sensorType = row.getCell(4).getStringCellValue
-          val county = row.getCell(6).getStringCellValue
-          val district = row.getCell(7).getStringCellValue
-          val roadName = row.getCell(8).getStringCellValue
-          val locationDesc = {
-            val cell = row.getCell(9)
-            if (cell.getCellType == CellType.STRING)
-              cell.getStringCellValue
-            else
-              cell.getNumericCellValue.toString
+          val shortCodeOpt = for (v <- Option(monitorID.reverse.take(4))) yield v.reverse
+          val codeOpt = for (v <- Option(row.getCell(2))) yield v.getStringCellValue
+          val enabledOpt = try{
+            for (v <- Option(row.getCell(3))) yield v.getNumericCellValue != 0
+          }catch{
+            case _:Throwable=>
+              None
           }
-          val authority = row.getCell(10).getStringCellValue
-          val epaCode = {
-            val cell = row.getCell(11)
-            if (cell.getCellType == CellType.NUMERIC)
-              cell.getNumericCellValue.toLong.toString
-            else
-              cell.getStringCellValue
-          }
-          val target = row.getCell(12).getStringCellValue
-          val targetDetail = row.getCell(13).getStringCellValue
-          val height = row.getCell(14).getNumericCellValue
-          val year = row.getCell(15).getStringCellValue
-          val lng = row.getCell(16).getNumericCellValue
-          val lat = row.getCell(17).getNumericCellValue
+          val sensorTypeOpt = for (v <- Option(row.getCell(4))) yield v.getStringCellValue
+          val countyOpt = for (v <- Option(row.getCell(6))) yield v.getStringCellValue
+          val districtOpt = for (v <- Option(row.getCell(7))) yield v.getStringCellValue
+          val roadNameOpt = for (v <- Option(row.getCell(8))) yield v.getStringCellValue
+          val locationDescOpt =
+            for (cell <- Option(row.getCell(9))) yield
+              if (cell.getCellType == CellType.STRING)
+                cell.getStringCellValue
+              else
+                cell.getNumericCellValue.toString
 
-          def getDistance() = {
+          val authorityOpt = for (v <- Option(row.getCell(10))) yield v.getStringCellValue
+          val epaCodeOpt =
+            try {
+              for (cell <- Option(row.getCell(11))) yield
+                if (cell.getCellType == CellType.NUMERIC)
+                  cell.getNumericCellValue.toLong.toString
+                else
+                  cell.getStringCellValue
+            } catch {
+              case _: Throwable =>
+                None
+            }
+
+          val targetOpt = for(v<-Option(row.getCell(12))) yield v.getStringCellValue
+          val targetDetailOpt = for(v<-Option(row.getCell(13))) yield v.getStringCellValue
+          val heightOpt = for(v<-Option(row.getCell(14))) yield v.getNumericCellValue
+
+          val lngOpt = try {
+            for(v<-Option(row.getCell(16))) yield v.getNumericCellValue
+          } catch {
+            case _: Throwable =>
+              None
+          }
+
+          val latOpt = try {
+            for(v<-Option(row.getCell(17))) yield v.getNumericCellValue
+          } catch {
+            case _: Throwable =>
+              None
+          }
+
+          def getDistance(): Seq[Double] = {
             var ret = Seq.empty[Double]
             try {
               for (col <- 18 to 21) {
@@ -272,24 +293,30 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
             val defaultTags = Seq(MonitorTag.SENSOR)
             monitorOp.ensureMonitor(monitorID, monitorID, defaultMt, defaultTags)
           })
-          monitor.shortCode = Some(shortCode)
-          monitor.code = Some(code)
-          monitor.tags = Seq(MonitorTag.SENSOR, code.reverse.take(2).reverse)
-          monitor.enabled = Some(enabled)
-          monitor.county = Some(county)
-          monitor.district = Some(district.dropWhile(_ != '(').drop(1).takeWhile(_ != ')'))
-          monitor.location = Some(Seq(lng, lat))
-          monitor.location = Some(Seq(lng, lat))
-          monitor.location = Some(Seq(lng, lat))
+          monitor.shortCode = shortCodeOpt
+          monitor.code = codeOpt
+          monitor.tags = {
+            for (code <- codeOpt) yield
+              Seq(MonitorTag.SENSOR, code.reverse.take(2).reverse)
+          }.getOrElse(Seq.empty[String])
+
+          monitor.enabled = enabledOpt
+          monitor.county = countyOpt
+          monitor.district = for (district <- districtOpt) yield
+            district.dropWhile(_ != '(').drop(1).takeWhile(_ != ')')
+          monitor.location =
+            for (lng <- lngOpt; lat <- latOpt) yield
+              Seq(lng, lat)
+
           val detail = SensorDetail(
-            sensorType = sensorType,
-            roadName = roadName,
-            locationDesc = locationDesc,
-            authority = authority,
-            epaCode = epaCode,
-            target = target,
-            targetDetail = targetDetail,
-            height = height,
+            sensorType = sensorTypeOpt.getOrElse(""),
+            roadName = roadNameOpt.getOrElse(""),
+            locationDesc = locationDescOpt.getOrElse(""),
+            authority = authorityOpt.getOrElse(""),
+            epaCode = epaCodeOpt.getOrElse(""),
+            target = targetOpt.getOrElse(""),
+            targetDetail = targetDetailOpt.getOrElse(""),
+            height = heightOpt.getOrElse(0),
             distance = distance
           )
           monitor.sensorDetail = Some(detail)
@@ -323,6 +350,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
     if (!monitorGroups.isEmpty)
       monitorGroupOp.upsertMany(monitorGroups)
 
+    Logger.info(s"monitorSeq #=${monitorSeq.size}")
     val updateFuture = monitorOp.upsertMany(monitorSeq)
     updateFuture.onComplete({
       case Success(ret) =>

@@ -229,18 +229,6 @@ class RecordOp @Inject()(mongoDB: MongoDB,
     f
   }
 
-  def upsertManyRecord(docs: Seq[RecordList])(colName: String) = {
-    val col = getCollection(colName)
-    val writeModels = docs map {
-      doc =>
-        ReplaceOneModel(Filters.equal("_id", RecordListID(doc.time, doc.monitor)),
-          doc, ReplaceOptions().upsert(true))
-    }
-    val f = col.bulkWrite(writeModels, BulkWriteOptions().ordered(false)).toFuture()
-    f onFailure (errorHandler())
-    f
-  }
-
   def findAndUpdate(dt: DateTime, dataList: List[(String, (Double, String))])(colName: String) = {
     import org.mongodb.scala.bson._
     import org.mongodb.scala.model._
@@ -290,8 +278,6 @@ class RecordOp @Inject()(mongoDB: MongoDB,
     })
     f
   }
-
-  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
 
   def getID(time: Long, monitor: String) = Document("time" -> new BsonDateTime(time), "monitor" -> monitor)
 
@@ -471,30 +457,6 @@ class RecordOp @Inject()(mongoDB: MongoDB,
       addPm25ValueStage, latestFilter, constantFilter, projectStage)).allowDiskUse(true).toFuture()
   }
 
-  def getTargetMonitor(county: String, district: String, sensorType: String): List[String] = {
-    Logger.info(s"monitor map #=${monitorOp.map.size}")
-    monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
-      .filter(m => m.enabled.getOrElse(true))
-      .filter(m => {
-        if (county == "")
-          true
-        else
-          m.county == Some(county)
-      }).filter(m => {
-      if (district == "")
-        true
-      else
-        m.district == Some(district)
-    }).filter(m => {
-      if (sensorType == "")
-        true
-      else
-        m.tags.contains(sensorType)
-    }) map {
-      _._id
-    } toList
-  }
-
   def getSensorCount(colName: String)
                     (county: String, district: String, sensorType: String,
                      start: DateTime = DateTime.now()) = {
@@ -573,6 +535,30 @@ class RecordOp @Inject()(mongoDB: MongoDB,
       val connected = ret.map(_._id)
       targetSet -- connected
     }, ex => ex)
+  }
+
+  def getTargetMonitor(county: String, district: String, sensorType: String): List[String] = {
+    Logger.info(s"monitor map #=${monitorOp.map.size}")
+    monitorOp.map.values.filter(m => m.tags.contains(MonitorTag.SENSOR))
+      .filter(m => m.enabled.getOrElse(true))
+      .filter(m => {
+        if (county == "")
+          true
+        else
+          m.county == Some(county)
+      }).filter(m => {
+      if (district == "")
+        true
+      else
+        m.district == Some(district)
+    }).filter(m => {
+      if (sensorType == "")
+        true
+      else
+        m.tags.contains(sensorType)
+    }) map {
+      _._id
+    } toList
   }
 
   def getLastestSensorSummary(colName: String) = {
@@ -720,37 +706,38 @@ class RecordOp @Inject()(mongoDB: MongoDB,
   }
 
   // import CSV record if any file in importCSV
-  def importCSV(dataCollectManagerOp: DataCollectManagerOp): Unit ={
+  def importCSV(dataCollectManagerOp: DataCollectManagerOp): Unit = {
     val mtMap = Map[String, String](
       "pm2_5" -> MonitorType.PM25,
       "pm10" -> MonitorType.PM10,
       "humidity" -> MonitorType.HUMID,
       "o3" -> MonitorType.O3,
-      "temperature"-> MonitorType.TEMP,
-      "voc"-> MonitorType.VOC,
-      "no2"-> MonitorType.NO2,
-      "h2s"-> MonitorType.H2S,
-      "nh3"-> MonitorType.NH3)
+      "temperature" -> MonitorType.TEMP,
+      "voc" -> MonitorType.VOC,
+      "no2" -> MonitorType.NO2,
+      "h2s" -> MonitorType.H2S,
+      "nh3" -> MonitorType.NH3)
 
     val sensorMap = waitReadyResult(mqttSensorOp.getFullSensorMap)
     import collection.JavaConverters._
     val files = FileUtils.listFiles(new File(environment.rootPath + "/importCSV"), Array("csv"), true)
     Logger.info(s"total record csv #=${files.size()}")
-    for(file <- files.iterator().asScala){
+
+    for (file <- files.iterator().asScala) {
       val reader = CSVReader.open(file)
       val optDocs =
         for (record <- reader.allWithHeaders()) yield {
           val id = record("id")
           val time = DateTime.parse(record("time"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
           val mtData =
-            for (mtKey <- record.keys.filter(key=>key!="id" && key != "time") if mtMap.contains(mtKey)) yield {
+            for (mtKey <- record.keys.filter(key => key != "id" && key != "time") if mtMap.contains(mtKey)) yield {
               val mt = mtMap(mtKey)
-                  try{
-                    Some(MtRecord(mt, record(mtKey).toDouble, MonitorStatus.NormalStat))
-                  }catch{
-                    case _:Throwable=>
-                    None
-                }
+              try {
+                Some(MtRecord(mt, record(mtKey).toDouble, MonitorStatus.NormalStat))
+              } catch {
+                case _: Throwable =>
+                  None
+              }
             }
 
           val mtDataList: Seq[MtRecord] = mtData.flatten.toSeq
@@ -760,7 +747,7 @@ class RecordOp @Inject()(mongoDB: MongoDB,
               sensor.monitor,
               RecordListID(time.toDate, sensor.monitor),
               location = None))
-          }else{
+          } else {
             Logger.warn(s"sensorMap don't contain $id")
             None
           }
@@ -769,16 +756,16 @@ class RecordOp @Inject()(mongoDB: MongoDB,
       file.delete()
       val docs = optDocs.flatten
       Logger.info(s"Total ${docs.length} records to be upserted")
-      if(docs.nonEmpty){
+      if (docs.nonEmpty) {
         val f = upsertManyRecord(docs = docs)(MinCollection)
         f onFailure errorHandler
-        f onComplete{
-          case Success(_)=>
+        f onComplete {
+          case Success(_) =>
             val start = new DateTime(docs.map(_.time).min)
             val monitor = docs.map(_._id.monitor).head
-            for(current<-getPeriods(start, start.plusDays(1), 1.hour))
+            for (current <- getPeriods(start, start.plusDays(1), 1.hour))
               dataCollectManagerOp.recalculateHourData(monitor, current, false, true)(mtMap.keys.toList)
-          case Failure(exception)=>
+          case Failure(exception) =>
             Logger.error(s"failed to upsert ${file.getAbsolutePath} file", exception)
         }
         waitReadyResult(f)
@@ -787,11 +774,11 @@ class RecordOp @Inject()(mongoDB: MongoDB,
     }
   }
 
-  def moveRecord(originalID:String, newID:String): Unit ={
-    def moveHelper(collectionName:String)={
+  def moveRecord(originalID: String, newID: String): Unit = {
+    def moveHelper(collectionName: String) = {
       val minF = getCollection(collectionName).find(Filters.equal("_id.monitor", originalID)).toFuture()
-      for(docs<-minF){
-        val newDocs = docs.map(doc=>{
+      for (docs <- minF if docs.nonEmpty) {
+        val newDocs = docs.map(doc => {
           val newwRecordListID = RecordListID(doc._id.time, newID)
           doc._id = newwRecordListID
           doc
@@ -800,7 +787,22 @@ class RecordOp @Inject()(mongoDB: MongoDB,
         getCollection(collectionName).deleteMany(Filters.equal("_id.monitor", originalID)).toFuture()
       }
     }
+
     moveHelper(MinCollection)
     moveHelper(HourCollection)
   }
+
+  def upsertManyRecord(docs: Seq[RecordList])(colName: String) = {
+    val col = getCollection(colName)
+    val writeModels = docs map {
+      doc =>
+        ReplaceOneModel(Filters.equal("_id", RecordListID(doc.time, doc.monitor)),
+          doc, ReplaceOptions().upsert(true))
+    }
+    val f = col.bulkWrite(writeModels, BulkWriteOptions().ordered(false)).toFuture()
+    f onFailure (errorHandler())
+    f
+  }
+
+  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
 }

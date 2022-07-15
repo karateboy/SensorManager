@@ -182,7 +182,7 @@ class MonitorOp @Inject()(mongoDB: MongoDB, config: Configuration) {
     val pairs = monitors map { m => m._id -> m }
     map = map ++ pairs
     val f = collection.bulkWrite(updateModels).toFuture()
-    f onFailure (errorHandler)
+    f onFailure errorHandler
     f
   }
 
