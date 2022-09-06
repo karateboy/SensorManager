@@ -775,16 +775,20 @@ class RecordOp @Inject()(mongoDB: MongoDB,
   }
 
   def moveRecord(originalID: String, newID: String): Unit = {
+    Logger.info(s"moving $originalID records to $newID")
     def moveHelper(collectionName: String) = {
-      val minF = getCollection(collectionName).find(Filters.equal("_id.monitor", originalID)).toFuture()
+      val theCollection = getCollection(collectionName)
+      val minF = theCollection.find(Filters.equal("_id.monitor", originalID)).toFuture()
       for (docs <- minF if docs.nonEmpty) {
-        val newDocs = docs.map(doc => {
-          val newwRecordListID = RecordListID(doc._id.time, newID)
-          doc._id = newwRecordListID
-          doc
-        })
-        upsertManyRecord(newDocs)(collectionName)
-        getCollection(collectionName).deleteMany(Filters.equal("_id.monitor", originalID)).toFuture()
+        val newDocs = docs.map(doc => RecordList(doc._id.time, newID, doc.mtDataList))
+        val f = insertManyRecord(newDocs)(collectionName)
+        f onComplete {
+          case Success(_) =>
+            Logger.info(s"Successfully move $originalID  ${docs.length} records to $newID")
+            theCollection.deleteMany(Filters.equal("_id.monitor", originalID)).toFuture()
+          case Failure(ex)=>
+            Logger.error("failed to upsertNewRecords", ex)
+        }
       }
     }
 
@@ -800,7 +804,7 @@ class RecordOp @Inject()(mongoDB: MongoDB,
           doc, ReplaceOptions().upsert(true))
     }
     val f = col.bulkWrite(writeModels, BulkWriteOptions().ordered(false)).toFuture()
-    f onFailure (errorHandler())
+    f onFailure errorHandler()
     f
   }
 

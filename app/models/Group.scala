@@ -1,20 +1,21 @@
 package models
 
-import com.mongodb.client.model.FindOneAndReplaceOptions
 import models.ModelHelper._
 import org.bson.codecs.configuration.CodecRegistries.{fromProviders, fromRegistries}
 import org.mongodb.scala.MongoClient.DEFAULT_CODEC_REGISTRY
 import org.mongodb.scala.bson.codecs.Macros._
-import org.mongodb.scala.model.{Filters, InsertOneOptions, Updates}
+import org.mongodb.scala.model.{Filters, Updates}
 import play.api.libs.json.Json
 
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.language.implicitConversions
 
 
-case class Ability(action:String, subject:String)
-case class Group(_id: String, name: String, monitors:Seq[String], monitorTypes: Seq[String],
-                 admin:Boolean, abilities: Seq[Ability])
+case class Ability(action: String, subject: String)
+
+case class Group(_id: String, name: String, monitors: Seq[String], monitorTypes: Seq[String],
+                 admin: Boolean, abilities: Seq[Ability])
 
 import javax.inject._
 
@@ -43,7 +44,7 @@ class GroupOp @Inject()(mongoDB: MongoDB, monitorOp: MonitorOp) {
   val SUBJECT_DATA = "Data"
   val SUBJECT_ALARM = "Alarm"
 
-  val defaultGroup : Seq[Group] =
+  val defaultGroup: Seq[Group] =
     Seq(
       Group(_id = PLATFORM_ADMIN, "平台管理團隊", Seq.empty[String], Seq.empty[String],
         true, Seq(Ability(ACTION_MANAGE, SUBJECT_ALL))),
@@ -54,7 +55,7 @@ class GroupOp @Inject()(mongoDB: MongoDB, monitorOp: MonitorOp) {
     )
 
   def init() {
-    for(colNames <- mongoDB.database.listCollectionNames().toFuture()){
+    for (colNames <- mongoDB.database.listCollectionNames().toFuture()) {
       if (!colNames.contains(ColName)) {
         val f = mongoDB.database.createCollection(ColName).toFuture()
         f.onFailure(errorHandler)
@@ -62,18 +63,19 @@ class GroupOp @Inject()(mongoDB: MongoDB, monitorOp: MonitorOp) {
     }
     createDefaultGroup
   }
-  def upgrade(): Unit ={
-    val updates = Updates.combine(Updates.set("monitors", Seq.empty[String]), Updates.set("monitorTypes", Seq.empty[String]))
-    collection.updateMany(Filters.not(Filters.exists("monitors")), updates).toFuture()
+
+  def createDefaultGroup = {
+    for (group <- defaultGroup) yield {
+      val f = collection.insertOne(group).toFuture()
+      f
+    }
   }
 
   init
 
-  def createDefaultGroup = {
-    for(group <- defaultGroup) yield {
-      val f = collection.insertOne(group).toFuture()
-      f
-    }
+  def upgrade(): Unit = {
+    val updates = Updates.combine(Updates.set("monitors", Seq.empty[String]), Updates.set("monitorTypes", Seq.empty[String]))
+    collection.updateMany(Filters.not(Filters.exists("monitors")), updates).toFuture()
   }
 
   def newGroup(group: Group) = {
@@ -99,10 +101,22 @@ class GroupOp @Inject()(mongoDB: MongoDB, monitorOp: MonitorOp) {
       errorHandler
     }
     val group = waitReadyResult(f)
-    if(group != null)
+    if (group != null)
       Some(group)
     else
       None
+  }
+
+  def getGroupByIdAsync(_id: String): Future[Option[Group]] = {
+    val f = collection.find(equal("_id", _id)).toFuture()
+    f.onFailure {
+      errorHandler
+    }
+    for (rets <- f) yield
+      if (rets.nonEmpty)
+        Some(rets(0))
+      else
+        None
   }
 
   def getAllGroups() = {

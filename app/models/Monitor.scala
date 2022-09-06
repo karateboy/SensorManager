@@ -24,10 +24,16 @@ case class Monitor(_id: String, desc: String, var monitorTypes: Seq[String], var
                    var district: Option[String] = None,
                    var sensorDetail: Option[SensorDetail] = None
                   ){
-  def getDisplayName = if(shortCode.nonEmpty && county.nonEmpty && district.nonEmpty)
-    s"${shortCode.get}(${county.get}${district.get})"
-  else
-    desc
+  def getDisplayName = {
+    if(shortCode.nonEmpty && county.nonEmpty && district.nonEmpty)
+      s"${shortCode.get}(${county.get}${district.get})"
+    else if(shortCode.nonEmpty && county.nonEmpty)
+      s"${shortCode.get}(${county.get})"
+    else if(shortCode.nonEmpty)
+      s"${shortCode.get}"
+    else
+      desc
+  }
 }
 
 object Monitor {

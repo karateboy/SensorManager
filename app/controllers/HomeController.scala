@@ -29,6 +29,7 @@ class HomeController @Inject()(environment: play.api.Environment,
   import MonitorType.{mtRead, mtWrite}
   import groupOp.{read, write}
 
+
   def newUser = Security.Authenticated(BodyParsers.parse.json) {
     implicit request =>
       val newUserParam = request.body.validate[User]

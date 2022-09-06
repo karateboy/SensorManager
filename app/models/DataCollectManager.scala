@@ -340,13 +340,6 @@ class DataCollectManager @Inject()
     Logger.info("DataCollect manager started")
   }
 
-  Future{
-    blocking{
-      recordOp.importCSV(dataCollectManagerOp)
-    }
-  }
-
-
   def calculateAvgMap(mtMap: Map[String, Map[String, ListBuffer[(DateTime, Double)]]]) = {
     for {
       mt <- mtMap.keys

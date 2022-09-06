@@ -1,5 +1,8 @@
 <template>
   <div>
+    <b-alert variant="primary" dismissible show fade
+      ><h1>趨勢圖可用滑鼠拖曳放大區域</h1></b-alert
+    >
     <b-card>
       <b-form @submit.prevent>
         <b-row>
@@ -360,7 +363,7 @@ export default Vue.extend({
           const panning: Highcharts.ChartPanningOptions = {};
           ret.chart = {
             type: this.form.chartType,
-            zoomType: 'x',
+            zoomType: 'xy',
             panning,
             panKey: 'shift',
             alignTicks: false,
