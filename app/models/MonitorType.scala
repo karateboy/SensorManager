@@ -83,9 +83,6 @@ object MonitorType {
   val PM10 = "PM10"
   val LAT = "LAT"
   val LNG = "LNG"
-  val DOOR = "DOOR"
-  val SMOKE = "SMOKE"
-  val FLOW = "FLOW"
   val SO2 = "SO2"
   val NOx = "NOx"
   val NO2 = "NO2"
@@ -105,6 +102,8 @@ object MonitorType {
   val VOC = "VOC"
   val H2S = "H2S"
   val BATTERY = "BATTERY"
+  val DBA = "DBA"
+  val DBZ = "DBZ"
 }
 import javax.inject._
 
@@ -154,6 +153,8 @@ class MonitorTypeOp @Inject()(mongoDB: MongoDB, alarmOp: AlarmOp) {
     rangeType("O2", "氧氣 ", "%", 1),
     rangeType(VOC, desp="VOC", "", 0),
     rangeType(H2S, desp="H2S", "", 0),
+    rangeType(DBA, "dBA", "dB", 1),
+    rangeType(DBZ, "dBZ", "dB", 1),
     /////////////////////////////////////////////////////
     signalType("SPRAY", "灑水"),
     signalType(BATTERY, "使用電池")
@@ -203,7 +204,7 @@ class MonitorTypeOp @Inject()(mongoDB: MongoDB, alarmOp: AlarmOp) {
             mt.defaultUpdate, UpdateOptions().upsert(true))
         }
 
-      val f = collection.bulkWrite(updateModels.toList, BulkWriteOptions().ordered(false)).toFuture()
+      val f = collection.bulkWrite(updateModels, BulkWriteOptions().ordered(false)).toFuture()
 
       f.onFailure(errorHandler)
       f.onComplete { x =>
@@ -241,6 +242,22 @@ class MonitorTypeOp @Inject()(mongoDB: MongoDB, alarmOp: AlarmOp) {
   }
 
   def exist(mt: MonitorType) = map.contains(mt._id)
+
+  def ensure(id: String): Unit = {
+    synchronized {
+      if (!map.contains(id)) {
+        val mt = rangeType(id, id, "??", 2)
+        mt.measuringBy = Some(List.empty[String])
+        upsertMonitorType(mt)
+      } else {
+        val mtCase = map(id)
+        if (mtCase.measuringBy.isEmpty) {
+          mtCase.measuringBy = Some(List.empty[String])
+          upsertMonitorType(mtCase)
+        }
+      }
+    }
+  }
 
   def getRawMonitorType(mt: String) =
     (rawMonitorTypeID(mt.toString()))

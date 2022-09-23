@@ -619,6 +619,8 @@ class HomeController @Inject()(environment: play.api.Environment,
         val (fileType, filePath) = fileTypeStr match {
           case "sensor" =>
             (DataImporter.SensorData, Files.createTempFile("sensor", ".csv"))
+          case "sensorRaw" =>
+            (DataImporter.SensorRawData, Files.createTempFile("sensorRaw", ".csv"))
           case "epa" =>
             (DataImporter.EpaData, Files.createTempFile("epa", ".csv"))
           case "monitor" =>

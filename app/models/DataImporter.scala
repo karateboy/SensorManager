@@ -10,6 +10,7 @@ import org.joda.time.LocalDateTime
 import play.api._
 
 import java.io.File
+import java.util.Locale
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, blocking}
 import scala.util.{Failure, Success}
@@ -52,6 +53,8 @@ object DataImporter {
 
   final case object SensorData extends FileType
 
+  final case object SensorRawData extends FileType
+
   final case object EpaData extends FileType
 
   final case object MonitorData extends FileType
@@ -81,6 +84,13 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
                 } catch {
                   case ex: Throwable =>
                     Logger.error("failed to import sensor data", ex)
+                }
+              case SensorRawData =>
+                try {
+                  importSensorRawData("UTF-8")
+                } catch {
+                  case ex: Throwable =>
+                    Logger.error("failed to import sensor raw data", ex)
                 }
 
               case EpaData =>
@@ -129,6 +139,65 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
     if (docs.nonEmpty) {
       dataFile.delete()
       val f = recordOp.upsertManyRecord(docs = docs)(recordOp.HourCollection)
+      f onFailure (errorHandler)
+      f onComplete ({
+        case Success(result) =>
+          Logger.info(s"Import ${dataFile.getName} complete. ${result.getUpserts.size()} records upserted.")
+          self ! Complete
+        case Failure(exception) =>
+          Logger.error("Failed to import data", exception)
+          self ! Complete
+      })
+    }
+    docs.size
+  }
+
+  def importSensorRawData(encoding: String): Int = {
+    Logger.info(s"Start import sensor raw ${dataFile.getName}")
+    val reader = CSVReader.open(dataFile, encoding)
+    var count = 0
+    val mtMap = Map[String, String](
+      "pm2_5" -> MonitorType.PM25,
+      "pm10" -> MonitorType.PM10,
+      "humidity" -> MonitorType.HUMID,
+      "o3" -> MonitorType.O3,
+      "temperature" -> MonitorType.TEMP,
+      "voc" -> MonitorType.VOC,
+      "no2" -> MonitorType.NO2,
+      "h2s" -> MonitorType.H2S,
+      "nh3" -> MonitorType.NH3)
+
+    val docOpts =
+      for (record <- reader.allWithHeaders()) yield
+        try {
+          val deviceID = record("id").toDouble.formatted("%.0f")
+          val time = try {
+            LocalDateTime.parse(record("time"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss")).toDate
+          } catch {
+            case _: IllegalArgumentException =>
+              LocalDateTime.parse(record("time"), DateTimeFormat.forPattern("YYYY/MM/dd HH:mm")).toDate
+          }
+
+          val mtRecords =
+            for {mt <- mtMap.keys.toList
+                 value <- record.get(mt)
+                 } yield
+              MtRecord(mtName = mt, value.toDouble, MonitorStatus.NormalStat)
+
+          count = count + 1
+          Some(RecordList(time = time, monitor = deviceID,
+            mtDataList = mtRecords))
+        } catch {
+          case _: Throwable =>
+            None
+        }
+    val docs = docOpts.flatten
+
+    reader.close()
+    Logger.info(s"Total $count records")
+    if (docs.nonEmpty) {
+      dataFile.delete()
+      val f = recordOp.upsertManyRecord(docs = docs)(recordOp.MinCollection)
       f onFailure (errorHandler)
       f onComplete ({
         case Success(result) =>
@@ -225,10 +294,10 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
           val monitorID = row.getCell(0).getStringCellValue.trim
           val shortCodeOpt = for (v <- Option(monitorID.reverse.take(4))) yield v.reverse
           val codeOpt = for (v <- Option(row.getCell(2))) yield v.getStringCellValue
-          val enabledOpt = try{
+          val enabledOpt = try {
             for (v <- Option(row.getCell(3))) yield v.getNumericCellValue != 0
-          }catch{
-            case _:Throwable=>
+          } catch {
+            case _: Throwable =>
               None
           }
           val sensorTypeOpt = for (v <- Option(row.getCell(4))) yield v.getStringCellValue
@@ -255,19 +324,19 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
                 None
             }
 
-          val targetOpt = for(v<-Option(row.getCell(12))) yield v.getStringCellValue
-          val targetDetailOpt = for(v<-Option(row.getCell(13))) yield v.getStringCellValue
-          val heightOpt = for(v<-Option(row.getCell(14))) yield v.getNumericCellValue
+          val targetOpt = for (v <- Option(row.getCell(12))) yield v.getStringCellValue
+          val targetDetailOpt = for (v <- Option(row.getCell(13))) yield v.getStringCellValue
+          val heightOpt = for (v <- Option(row.getCell(14))) yield v.getNumericCellValue
 
           val lngOpt = try {
-            for(v<-Option(row.getCell(16))) yield v.getNumericCellValue
+            for (v <- Option(row.getCell(16))) yield v.getNumericCellValue
           } catch {
             case _: Throwable =>
               None
           }
 
           val latOpt = try {
-            for(v<-Option(row.getCell(17))) yield v.getNumericCellValue
+            for (v <- Option(row.getCell(17))) yield v.getNumericCellValue
           } catch {
             case _: Throwable =>
               None

@@ -86,6 +86,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
 
   import MqttCollector2._
 
+
   val payload =
     """{"id":"861108035994663",
       |"desc":"柏昇SAQ-200",
@@ -224,7 +225,9 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
       "voc"-> MonitorType.VOC,
       "no2"-> MonitorType.NO2,
       "h2s"-> MonitorType.H2S,
-      "nh3"-> MonitorType.NH3)
+      "nh3"-> MonitorType.NH3,
+      "sound_dba" -> MonitorType.DBA,
+      "sound_dbz" -> MonitorType.DBZ)
     val ret = Json.parse(payload).validate[Message]
     ret.fold(err => {
       Logger.error(payload)
@@ -242,8 +245,10 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
             )
             for {mt <- mtMap.get(sensor)
                  v <- value
-                 } yield
+                 } yield {
+              monitorTypeOp.ensure(mt)
               MtRecord(mt, v, MonitorStatus.NormalStat)
+            }
           }
 
         var mtDataList: Seq[MtRecord] = mtData.flatten

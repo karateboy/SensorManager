@@ -71,6 +71,7 @@ export default Vue.extend({
       fileType: '',
       fileTypeList: [
         { text: '感測器', value: 'sensor' },
+        { text: '感測器原始資料', value: 'sensorRaw' },
         { text: '環保署測站', value: 'epa' },
       ],
       form,
