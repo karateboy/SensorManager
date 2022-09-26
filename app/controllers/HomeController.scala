@@ -19,7 +19,7 @@ class HomeController @Inject()(environment: play.api.Environment,
                                userOp: UserOp, instrumentOp: InstrumentOp, dataCollectManagerOp: DataCollectManagerOp,
                                monitorTypeOp: MonitorTypeOp, query: Query, monitorOp: MonitorOp, groupOp: GroupOp,
                                instrumentTypeOp: InstrumentTypeOp, monitorStatusOp: MonitorStatusOp, actorSystem: ActorSystem,
-                               recordOp: RecordOp, sysConfig: SysConfig, monitorGroupOp: MonitorGroupOp,
+                               recordOp: RecordOp, sysConfig: SysConfig, monitorGroupOp: MonitorGroupOp, sensorOp: MqttSensorOp,
                                errorReportOp: ErrorReportOp, emailTargetOp: EmailTargetOp) extends Controller {
 
   val epaReportPath: String = environment.rootPath + "/importEPA/"
@@ -629,6 +629,7 @@ class HomeController @Inject()(environment: play.api.Environment,
         val file = dataFile.ref.moveTo(filePath.toFile, true)
 
         val actorName = DataImporter.start(monitorOp = monitorOp, recordOp = recordOp, monitorGroupOp = monitorGroupOp,
+          sensorOp = sensorOp,
           dataFile = file, fileType = fileType)(actorSystem)
         Ok(Json.obj("actorName" -> actorName))
       }

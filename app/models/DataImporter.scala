@@ -6,7 +6,7 @@ import com.github.tototoshi.csv.CSVReader
 import models.DataImporter.FileType
 import models.ModelHelper.errorHandler
 import org.apache.poi.ss.usermodel.{CellType, WorkbookFactory}
-import org.joda.time.LocalDateTime
+import org.joda.time.{DateTime, LocalDateTime}
 import play.api._
 
 import java.io.File
@@ -20,11 +20,11 @@ object DataImporter {
   var n = 0
   private var actorRefMap = Map.empty[String, ActorRef]
 
-  def start(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp,
+  def start(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp, sensorOp: MqttSensorOp,
             dataFile: File, fileType: FileType)(implicit actorSystem: ActorSystem) = {
     val name = getName
     val actorRef = actorSystem.actorOf(DataImporter.props(monitorOp = monitorOp,
-      recordOp = recordOp, monitorGroupOp = monitorGroupOp,
+      recordOp = recordOp, monitorGroupOp = monitorGroupOp, sensorOp = sensorOp,
       dataFile = dataFile, fileType), name)
     actorRefMap = actorRefMap + (name -> actorRef)
     name
@@ -35,9 +35,9 @@ object DataImporter {
     s"dataImporter${n}"
   }
 
-  def props(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp,
+  def props(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp, sensorOp: MqttSensorOp,
             dataFile: File, fileType: FileType) =
-    Props(classOf[DataImporter], monitorOp, recordOp, monitorGroupOp, dataFile, fileType)
+    Props(classOf[DataImporter], monitorOp, recordOp, monitorGroupOp, sensorOp, dataFile, fileType)
 
   def finish(actorName: String) = {
     actorRefMap = actorRefMap.filter(p => {
@@ -64,7 +64,7 @@ object DataImporter {
   case object Complete
 }
 
-class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp,
+class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp, sensorOp: MqttSensorOp,
                    dataFile: File, fileType: FileType) extends Actor {
 
   import DataImporter._
@@ -152,8 +152,9 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
     docs.size
   }
 
-  def importSensorRawData(encoding: String): Int = {
+  def importSensorRawData(encoding: String) = {
     Logger.info(s"Start import sensor raw ${dataFile.getName}")
+    val sensorMapF = sensorOp.getFullSensorMap
     val reader = CSVReader.open(dataFile, encoding)
     var count = 0
     val mtMap = Map[String, String](
@@ -182,9 +183,10 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
             for {mt <- mtMap.keys.toList
                  value <- record.get(mt)
                  } yield
-              MtRecord(mtName = mt, value.toDouble, MonitorStatus.NormalStat)
+              MtRecord(mtName = mtMap(mt), value.toDouble, MonitorStatus.NormalStat)
 
           count = count + 1
+
           Some(RecordList(time = time, monitor = deviceID,
             mtDataList = mtRecords))
         } catch {
@@ -197,6 +199,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
     Logger.info(s"Total $count records")
     if (docs.nonEmpty) {
       dataFile.delete()
+      Logger.info(docs(0).toString)
       val f = recordOp.upsertManyRecord(docs = docs)(recordOp.MinCollection)
       f onFailure (errorHandler)
       f onComplete ({
