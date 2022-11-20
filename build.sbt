@@ -51,6 +51,6 @@ mappings in Universal ++=
 
 scalacOptions += "-feature"
 
-resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
+//resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
 
 routesGenerator := InjectedRoutesGenerator
