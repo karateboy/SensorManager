@@ -422,7 +422,7 @@ export default Vue.extend({
         }
         highcharts.chart('chart_container', ret);
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       } finally {
         this.setLoading({ loading: false });
       }

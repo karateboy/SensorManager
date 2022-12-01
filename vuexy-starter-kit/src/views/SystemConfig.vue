@@ -201,7 +201,7 @@ export default Vue.extend({
         const res = await axios.get('/AlertEmailTargets');
         this.emails = res.data;
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     newEmail() {
@@ -240,7 +240,7 @@ export default Vue.extend({
         const res = await axios.get('/TestAllAlertEmail');
         if (res.status === 200) this.$bvModal.msgBoxOk('成功');
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     async getConstantCheckTime() {
@@ -248,7 +248,7 @@ export default Vue.extend({
         const res = await axios.get('/ConstantCheckTime');
         this.disconnectCheckTime = res.data;
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     async saveConstantCheckTime() {
@@ -259,7 +259,7 @@ export default Vue.extend({
         });
         if (res.status === 200) this.$bvModal.msgBoxOk('成功');
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
   },

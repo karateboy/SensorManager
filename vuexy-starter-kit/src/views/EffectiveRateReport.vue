@@ -4,61 +4,23 @@
       <b-form @submit.prevent>
         <b-row>
           <b-col cols="12">
-            <b-form-group
-              label="查詢區間"
-              label-for="dataRange"
-              label-cols-md="3"
-            >
-              <date-picker
-                id="dataRange"
-                v-model="form.range"
-                :range="true"
-                type="date"
-                format="YYYY-MM-DD"
-                value-type="timestamp"
-                :show-second="false"
-              />
-              <b-button
-                variant="gradient-primary"
-                class="ml-1"
-                size="md"
-                @click="setToday"
-                >今天</b-button
-              >
-              <b-button
-                variant="gradient-primary"
-                class="ml-1"
-                size="md"
-                @click="setLast2Days"
-                >前兩天</b-button
-              >
-              <b-button
-                variant="gradient-primary"
-                class="ml-1"
-                size="md"
-                @click="set3DayBefore"
-                >前三天</b-button
-              >
+            <b-form-group label="查詢區間" label-for="dataRange" label-cols-md="3">
+              <date-picker id="dataRange" v-model="form.range" :range="true" type="date" format="YYYY-MM-DD"
+                value-type="timestamp" :show-second="false" />
+              <b-button variant="gradient-primary" class="ml-1" size="md" @click="setToday">今天</b-button>
+              <b-button variant="gradient-primary" class="ml-1" size="md" @click="setLast2Days">前兩天</b-button>
+              <b-button variant="gradient-primary" class="ml-1" size="md" @click="set3DayBefore">前三天</b-button>
             </b-form-group>
           </b-col>
         </b-row>
         <b-row>
           <!-- submit and reset -->
           <b-col offset-md="3">
-            <b-button
-              v-ripple.400="'rgba(255, 255, 255, 0.15)'"
-              type="submit"
-              variant="primary"
-              class="mr-1"
-              @click="query"
-            >
+            <b-button v-ripple.400="'rgba(255, 255, 255, 0.15)'" type="submit" variant="primary" class="mr-1"
+              @click="query">
               查詢
             </b-button>
-            <b-button
-              v-ripple.400="'rgba(186, 191, 199, 0.15)'"
-              type="reset"
-              variant="outline-secondary"
-            >
+            <b-button v-ripple.400="'rgba(186, 191, 199, 0.15)'" type="reset" variant="outline-secondary">
               取消
             </b-button>
           </b-col>
@@ -77,65 +39,38 @@
           </b-tr>
           <b-tbody>
             <b-tr>
-              <b-td
-                ><v-select
-                  v-model="sensorStatusParam.county"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="countyFilters"
-              /></b-td>
-              <b-td
-                ><v-select
-                  v-model="sensorStatusParam.district"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="districtFilters"
-              /></b-td>
-              <b-td
-                ><v-select
-                  v-model="sensorStatusParam.sensorType"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="sensorTypes"
-              /></b-td>
-              <b-td
-                ><v-select
-                  v-model="errorStatus"
-                  label="txt"
-                  :reduce="entry => entry.value"
-                  :options="errorFilters"
-                  multiple
-              /></b-td>
-              <b-td class="text-center"
-                ><b-button
-                  variant="outline-success"
-                  size="sm"
-                  @click="exportExcel"
-                  ><b-img
-                    v-b-tooltip.hover
-                    src="../assets/excel_export.svg"
-                    title="匯出 Excel"
-                    width="24"
-                    fluid /></b-button
-              ></b-td>
+              <b-td>
+                <v-select v-model="sensorStatusParam.county" label="txt" :reduce="entry => entry.value"
+                  :options="countyFilters" />
+              </b-td>
+              <b-td>
+                <v-select v-model="sensorStatusParam.district" label="txt" :reduce="entry => entry.value"
+                  :options="districtFilters" />
+              </b-td>
+              <b-td>
+                <v-select v-model="sensorStatusParam.sensorType" label="txt" :reduce="entry => entry.value"
+                  :options="sensorTypes" />
+              </b-td>
+              <b-td>
+                <v-select v-model="errorStatus" label="txt" :reduce="entry => entry.value" :options="errorFilters"
+                  multiple />
+              </b-td>
+              <b-td class="text-center">
+                <b-button variant="outline-success" size="sm" @click="exportExcel">
+                  <b-img v-b-tooltip.hover src="../assets/excel_export.svg" title="匯出 Excel" width="24" fluid />
+                </b-button>
+              </b-td>
             </b-tr>
           </b-tbody>
         </b-table-simple>
       </div>
       <b-table striped hover :fields="fields" :items="errorSensorList">
         <template #cell(inspection)="row">
-          <b-select
-            v-model="row.item.inspection"
-            :options="getInspections(row.item)"
-            @change="saveInspection(row.item)"
-          />
+          <b-select v-model="row.item.inspection" :options="getInspections(row.item)"
+            @change="saveInspection(row.item)" />
         </template>
         <template #cell(action)="row">
-          <b-select
-            v-model="row.item.action"
-            :options="getActions(row.item)"
-            @change="saveAction(row.item)"
-          />
+          <b-select v-model="row.item.action" :options="getActions(row.item)" @change="saveAction(row.item)" />
         </template>
       </b-table>
     </b-card>
@@ -355,7 +290,7 @@ export default Vue.extend({
         );
         this.errorReports = ret.data as Array<ErrorReport>;
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     getErrorSensorList(errorReport: ErrorReport): Array<Sensor> {
@@ -485,7 +420,7 @@ export default Vue.extend({
           await axios.post(`/ErrorReport/inspection/${item.date}`, action);
         }
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     async saveAction(item: Sensor) {
@@ -499,7 +434,7 @@ export default Vue.extend({
           await axios.post(`/ErrorReport/action/${item.date}`, action);
         }
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     getInspections(sensor: Sensor): Array<string> {
@@ -535,4 +470,6 @@ export default Vue.extend({
   },
 });
 </script>
-<style></style>
+<style>
+
+</style>

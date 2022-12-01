@@ -613,7 +613,7 @@ export default Vue.extend({
         let ret = this.disconnectCheckTime.split(':');
         this.disconnectCheckTime = `${ret[0]}:${ret[1]}`;
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     handleErrorStatusChange(

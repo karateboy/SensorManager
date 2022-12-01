@@ -2,6 +2,7 @@ package models
 
 import com.github.nscala_time.time.Imports._
 import com.github.tototoshi.csv.CSVReader
+import com.mongodb.bulk.BulkWriteResult
 import models.ModelHelper._
 import org.apache.commons.io.FileUtils
 import org.mongodb.scala._
@@ -14,7 +15,7 @@ import play.api.libs.json.Json
 import java.io.File
 import java.util.Date
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.{Future, Promise}
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
@@ -459,7 +460,7 @@ class RecordOp @Inject()(mongoDB: MongoDB,
 
   def getSensorCount(colName: String)
                     (county: String, district: String, sensorType: String,
-                     start: DateTime = DateTime.now()) = {
+                     start: DateTime = DateTime.now()): Future[Seq[MonitorRecord]] = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
@@ -545,12 +546,12 @@ class RecordOp @Inject()(mongoDB: MongoDB,
         if (county == "")
           true
         else
-          m.county == Some(county)
+          m.county.contains(county)
       }).filter(m => {
       if (district == "")
         true
       else
-        m.district == Some(district)
+        m.district.contains(district)
     }).filter(m => {
       if (sensorType == "")
         true
@@ -776,7 +777,8 @@ class RecordOp @Inject()(mongoDB: MongoDB,
 
   def moveRecord(originalID: String, newID: String): Unit = {
     Logger.info(s"moving $originalID records to $newID")
-    def moveHelper(collectionName: String) = {
+
+    def moveHelper(collectionName: String): Unit = {
       val theCollection = getCollection(collectionName)
       val minF = theCollection.find(Filters.equal("_id.monitor", originalID)).toFuture()
       for (docs <- minF if docs.nonEmpty) {
@@ -786,7 +788,7 @@ class RecordOp @Inject()(mongoDB: MongoDB,
           case Success(_) =>
             Logger.info(s"Successfully move $originalID  ${docs.length} records to $newID")
             theCollection.deleteMany(Filters.equal("_id.monitor", originalID)).toFuture()
-          case Failure(ex)=>
+          case Failure(ex) =>
             Logger.error("failed to upsertNewRecords", ex)
         }
       }
@@ -796,7 +798,7 @@ class RecordOp @Inject()(mongoDB: MongoDB,
     moveHelper(HourCollection)
   }
 
-  def upsertManyRecord(docs: Seq[RecordList])(colName: String) = {
+  def upsertManyRecord(docs: Seq[RecordList])(colName: String): Future[BulkWriteResult] = {
     val col = getCollection(colName)
     val writeModels = docs map {
       doc =>
@@ -808,5 +810,60 @@ class RecordOp @Inject()(mongoDB: MongoDB,
     f
   }
 
-  def getCollection(colName: String) = mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
+  def updateMtRecords(docs: Seq[RecordList])(colName: String): Future[BulkWriteResult] = {
+    val col = getCollection(colName)
+    val writeModels = docs flatMap {
+      recordList => {
+        recordList.mtDataList map {
+          mtData => {
+            val dt = new DateTime(recordList.time)
+            val start = dt.toDate
+            val end = dt.plusMinutes(1).toDate
+            val filter = Filters.and(Filters.gte("time", start),
+              Filters.lt("time", end),
+              Filters.equal("mtDataList.mtName", mtData.mtName))
+            val updates = Updates.set("mtDataList.$[].value", mtData.value)
+            UpdateOneModel(filter, updates)
+          }
+        }
+      }
+    }
+    val p = Promise[BulkWriteResult]
+    val f = p.future
+    col.bulkWrite(writeModels, BulkWriteOptions().ordered(false)).subscribe(
+      (doOnNext: BulkWriteResult) =>
+        Logger.info(s"${doOnNext.getModifiedCount} updated"),
+      (ex: Throwable) => p.failure(ex),
+      () => p.success(BulkWriteResult.unacknowledged()))
+    f onFailure errorHandler()
+    f
+  }
+
+  def removeOneMtDataRecord(docs: Seq[RecordList])(colName: String): Future[BulkWriteResult] = {
+    val col = getCollection(colName)
+    val writeModels = docs map {
+      recordList => {
+        val dt = new DateTime(recordList.time)
+        val start = dt.toDate
+        val end = dt.plusMinutes(1).toDate
+        val filter = Filters.and(Filters.gte("time", start),
+          Filters.equal("monitor", recordList.monitor),
+          Filters.lt("time", end),
+          Filters.size("mtDataList", 1)
+        )
+        DeleteOneModel(filter)
+      }
+    }
+    val p = Promise[BulkWriteResult]
+    col.bulkWrite(writeModels, BulkWriteOptions().ordered(false)).subscribe(
+      (doOnNext: BulkWriteResult) =>
+        Logger.info(s"${doOnNext.getModifiedCount} deleted"),
+      (ex: Throwable) => p.failure(ex)
+      ,
+      () => p.success(BulkWriteResult.unacknowledged()))
+    p.future
+  }
+
+  def getCollection(colName: String): MongoCollection[RecordList] =
+    mongoDB.database.getCollection[RecordList](colName).withCodecRegistry(codecRegistry)
 }

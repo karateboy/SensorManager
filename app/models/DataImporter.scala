@@ -30,22 +30,22 @@ object DataImporter {
     name
   }
 
-  def getName = {
+  def getName: String = {
     n = n + 1
     s"dataImporter${n}"
   }
 
   def props(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp, sensorOp: MqttSensorOp,
-            dataFile: File, fileType: FileType) =
-    Props(classOf[DataImporter], monitorOp, recordOp, monitorGroupOp, sensorOp, dataFile, fileType)
+            dataFile: File, fileType: FileType): Props =
+    Props(new DataImporter(monitorOp, recordOp, monitorGroupOp, sensorOp, dataFile, fileType))
 
-  def finish(actorName: String) = {
+  def finish(actorName: String): Unit = {
     actorRefMap = actorRefMap.filter(p => {
       p._1 != actorName
     })
   }
 
-  def isFinished(actorName: String) = {
+  def isFinished(actorName: String): Boolean = {
     !actorRefMap.contains(actorName)
   }
 
@@ -54,6 +54,8 @@ object DataImporter {
   final case object SensorData extends FileType
 
   final case object SensorRawData extends FileType
+
+  final case object UpdateSensorData extends FileType
 
   final case object EpaData extends FileType
 
@@ -71,7 +73,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
 
   self ! Import
 
-  def receive = {
+  def receive: Receive = {
     case Import =>
       Future {
         blocking {
@@ -92,7 +94,13 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
                   case ex: Throwable =>
                     Logger.error("failed to import sensor raw data", ex)
                 }
-
+              case UpdateSensorData =>
+                try {
+                  importSensorRawData("UTF-8", updateOnly = true)
+                } catch {
+                  case ex: Throwable =>
+                    Logger.error("failed to update sensor raw data", ex)
+                }
               case EpaData =>
                 importEpaData()
 
@@ -152,31 +160,32 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
     docs.size
   }
 
-  def importSensorRawData(encoding: String) = {
+  def importSensorRawData(encoding: String, updateOnly: Boolean = false): Int = {
     Logger.info(s"Start import sensor raw ${dataFile.getName}")
     val sensorMapF = sensorOp.getFullSensorMap
     val reader = CSVReader.open(dataFile, encoding)
     var count = 0
-    val mtMap = Map[String, String](
-      "pm2_5" -> MonitorType.PM25,
-      "pm10" -> MonitorType.PM10,
-      "humidity" -> MonitorType.HUMID,
-      "o3" -> MonitorType.O3,
-      "temperature" -> MonitorType.TEMP,
-      "voc" -> MonitorType.VOC,
-      "no2" -> MonitorType.NO2,
-      "h2s" -> MonitorType.H2S,
-      "nh3" -> MonitorType.NH3)
+    val mtMap: Map[String, String] =
+      Map[String, String](
+        "pm2_5" -> MonitorType.PM25,
+        "pm10" -> MonitorType.PM10,
+        "humidity" -> MonitorType.HUMID,
+        "o3" -> MonitorType.O3,
+        "temperature" -> MonitorType.TEMP,
+        "voc" -> MonitorType.VOC,
+        "no2" -> MonitorType.NO2,
+        "h2s" -> MonitorType.H2S,
+        "nh3" -> MonitorType.NH3)
 
     val docOpts =
       for (record <- reader.allWithHeaders()) yield
         try {
           val deviceID = record("id").toDouble.formatted("%.0f")
           val time = try {
-            LocalDateTime.parse(record("time"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss")).toDate
+            DateTime.parse(record("time"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss")).toDate
           } catch {
             case _: IllegalArgumentException =>
-              LocalDateTime.parse(record("time"), DateTimeFormat.forPattern("YYYY/MM/dd HH:mm")).toDate
+              DateTime.parse(record("time"), DateTimeFormat.forPattern("YYYY/MM/dd HH:mm")).toDate
           }
 
           val mtRecords =
@@ -199,22 +208,35 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
     Logger.info(s"Total $count records")
     if (docs.nonEmpty) {
       dataFile.delete()
-      Logger.info(docs(0).toString)
-      val f = recordOp.upsertManyRecord(docs = docs)(recordOp.MinCollection)
-      f onFailure (errorHandler)
-      f onComplete ({
+      Logger.info(docs.head.toString)
+      val f = if (updateOnly) {
+        recordOp.removeOneMtDataRecord(docs=docs)(recordOp.MinCollection).andThen({
+          case Success(_) =>
+            Logger.info("one mt record has been removed.")
+            recordOp.updateMtRecords(docs = docs)(recordOp.MinCollection)
+          case Failure(ex) =>
+            Logger.error("failed to remove one mt record", ex)
+            throw ex
+        })
+      } else {
+        recordOp.upsertManyRecord(docs = docs)(recordOp.MinCollection)
+      }
+
+      f onFailure errorHandler
+      f onComplete {
         case Success(result) =>
           Logger.info(s"Import ${dataFile.getName} complete. ${result.getUpserts.size()} records upserted.")
           self ! Complete
         case Failure(exception) =>
           Logger.error("Failed to import data", exception)
           self ! Complete
-      })
+      }
     }
     docs.size
   }
 
-  def importEpaData() = {
+
+  def importEpaData(): Unit = {
     Logger.info(s"Start import ${dataFile.getName}")
     val reader = CSVReader.open(dataFile, "Big5")
     val docs =

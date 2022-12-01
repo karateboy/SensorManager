@@ -332,7 +332,7 @@ export default Vue.extend({
         }
         this.rows = ret.data.rows;
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       } finally {
         this.setLoading({ loading: false });
       }

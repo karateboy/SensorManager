@@ -353,7 +353,7 @@ export default Vue.extend({
         };
         highcharts.chart('chart_container', chartOption);
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       } finally {
         this.setLoading({ loading: false });
       }

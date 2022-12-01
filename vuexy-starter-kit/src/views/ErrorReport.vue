@@ -354,7 +354,7 @@ export default Vue.extend({
         );
         this.errorReports = ret.data as Array<ErrorReport>;
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     getErrorSensorList(errorReport: ErrorReport): Array<Sensor> {
@@ -535,7 +535,7 @@ export default Vue.extend({
           await axios.post(`/ErrorReport/inspection/${item.date}`, action);
         }
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     async saveAction(item: Sensor) {
@@ -549,7 +549,7 @@ export default Vue.extend({
           await axios.post(`/ErrorReport/action/${item.date}`, action);
         }
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     getInspections(sensor: Sensor): Array<string> {

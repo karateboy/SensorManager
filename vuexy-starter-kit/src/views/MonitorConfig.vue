@@ -574,7 +574,7 @@ export default Vue.extend({
         this.getMonitorGroups();
         this.$bvModal.msgBoxOk('成功');
       } catch (err) {
-        throw new Error(err);
+        throw new Error(`${err}`);
       }
     },
     rollback() {
@@ -676,7 +676,7 @@ export default Vue.extend({
           } else
             this.$bvModal.msgBoxOk('刪除失敗', { headerBgVariant: 'danger' });
         } catch (err) {
-          throw new Error(err);
+          throw new Error(`${err}`);
         }
       }
     },

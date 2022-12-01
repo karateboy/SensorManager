@@ -31,7 +31,7 @@ const actions: ActionTree<MonitorState, RootState> = {
         commit('setMonitors', res.data);
       }
     } catch (err) {
-      throw new Error(err);
+      throw new Error(`${err}`);
     }
   },
   async getMonitorGroups({ commit }): Promise<void> {
@@ -41,7 +41,7 @@ const actions: ActionTree<MonitorState, RootState> = {
         commit('setMonitorGroupList', res.data);
       }
     } catch (err) {
-      throw new Error(err);
+      throw new Error(`${err}`);
     }
   },
 };
