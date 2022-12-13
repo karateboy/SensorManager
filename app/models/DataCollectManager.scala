@@ -800,7 +800,7 @@ class DataCollectManager @Inject()
       }
 
     case CleanupOldRecord =>
-      //recordOp.delete45dayAgoRecord(recordOp.MinCollection)
+      recordOp.delete45dayAgoRecord(recordOp.MinCollection)
 
     case GetLatestData =>
       //Filter out older than 6 second
