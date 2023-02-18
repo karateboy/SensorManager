@@ -634,7 +634,7 @@ class HomeController @Inject()(environment: play.api.Environment,
 
         val actorName = DataImporter.start(monitorOp = monitorOp, recordOp = recordOp, monitorGroupOp = monitorGroupOp,
           sensorOp = sensorOp,
-          dataFile = file, fileType = fileType)(actorSystem)
+          dataFile = file, fileType = fileType, dataCollectManagerOp = dataCollectManagerOp)(actorSystem)
         Ok(Json.obj("actorName" -> actorName))
       }
   }
@@ -739,6 +739,7 @@ class HomeController @Inject()(environment: play.api.Environment,
     errorReportOp.sendEmail(Seq(EmailTarget(email, Seq(""))))
     Ok("ok")
   }
+
   def testAllAlertEmail = Security.Authenticated {
     Logger.info(s"send test email to all")
     dataCollectManagerOp.sendErrorReport()
@@ -747,10 +748,11 @@ class HomeController @Inject()(environment: play.api.Environment,
 
   def getConstantCheckTime() = Security.Authenticated.async {
     val f = sysConfig.getConstantCheckTime()
-    for(v<-f) yield {
+    for (v <- f) yield {
       Ok(v.toString)
     }
   }
+
   def saveConstantCheckTime() = Security.Authenticated(BodyParsers.parse.json) {
     implicit request =>
       implicit val reads = Json.reads[EditData]

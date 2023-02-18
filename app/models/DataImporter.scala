@@ -1,16 +1,17 @@
 package models
 
 import akka.actor._
-import com.github.nscala_time.time.Imports.DateTimeFormat
+import com.github.nscala_time.time.Imports.{DateTimeFormat, richInt}
 import com.github.tototoshi.csv.CSVReader
 import models.DataImporter.FileType
-import models.ModelHelper.errorHandler
+import models.ModelHelper.{errorHandler, getPeriods}
 import org.apache.poi.ss.usermodel.{CellType, WorkbookFactory}
-import org.joda.time.{DateTime, LocalDateTime}
+import org.joda.time.{DateTime, LocalDateTime, Period}
 import play.api._
 
 import java.io.File
 import java.util.Locale
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.{Future, blocking}
 import scala.util.{Failure, Success}
@@ -21,11 +22,11 @@ object DataImporter {
   private var actorRefMap = Map.empty[String, ActorRef]
 
   def start(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp, sensorOp: MqttSensorOp,
-            dataFile: File, fileType: FileType)(implicit actorSystem: ActorSystem) = {
+            dataFile: File, fileType: FileType, dataCollectManagerOp: DataCollectManagerOp)(implicit actorSystem: ActorSystem) = {
     val name = getName
     val actorRef = actorSystem.actorOf(DataImporter.props(monitorOp = monitorOp,
       recordOp = recordOp, monitorGroupOp = monitorGroupOp, sensorOp = sensorOp,
-      dataFile = dataFile, fileType), name)
+      dataFile = dataFile, fileType, dataCollectManagerOp = dataCollectManagerOp), name)
     actorRefMap = actorRefMap + (name -> actorRef)
     name
   }
@@ -36,8 +37,8 @@ object DataImporter {
   }
 
   def props(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp, sensorOp: MqttSensorOp,
-            dataFile: File, fileType: FileType): Props =
-    Props(new DataImporter(monitorOp, recordOp, monitorGroupOp, sensorOp, dataFile, fileType))
+            dataFile: File, fileType: FileType, dataCollectManagerOp: DataCollectManagerOp): Props =
+    Props(new DataImporter(monitorOp, recordOp, monitorGroupOp, sensorOp, dataFile, fileType, dataCollectManagerOp))
 
   def finish(actorName: String): Unit = {
     actorRefMap = actorRefMap.filter(p => {
@@ -67,7 +68,7 @@ object DataImporter {
 }
 
 class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: MonitorGroupOp, sensorOp: MqttSensorOp,
-                   dataFile: File, fileType: FileType) extends Actor {
+                   dataFile: File, fileType: FileType, dataCollectManagerOp: DataCollectManagerOp) extends Actor {
 
   import DataImporter._
 
@@ -203,29 +204,25 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
             None
         }
     val docs = docOpts.flatten
-
     reader.close()
     Logger.info(s"Total $count records")
     if (docs.nonEmpty) {
       dataFile.delete()
-      Logger.info(docs.head.toString)
-      val f = if (updateOnly) {
-        recordOp.removeOneMtDataRecord(docs=docs)(recordOp.MinCollection).andThen({
-          case Success(_) =>
-            Logger.info("one mt record has been removed.")
-            recordOp.updateMtRecords(docs = docs)(recordOp.MinCollection)
-          case Failure(ex) =>
-            Logger.error("failed to remove one mt record", ex)
-            throw ex
-        })
-      } else {
-        recordOp.upsertManyRecord(docs = docs)(recordOp.MinCollection)
-      }
+      val f = recordOp.upsertManyRecord(docs = docs)(recordOp.MinCollection)
 
       f onFailure errorHandler
       f onComplete {
         case Success(result) =>
-          Logger.info(s"Import ${dataFile.getName} complete. ${result.getUpserts.size()} records upserted.")
+          Logger.info(s"Import ${dataFile.getName} complete.")
+          val start = new DateTime(docs.map(_._id.time).min)
+          val end = new DateTime(docs.map(_._id.time).max).plusHours(1)
+          val monitors = mutable.Set.empty[String]
+          docs.foreach(recordList=>monitors.add(recordList.monitor))
+          for {
+            monitor <- monitors
+            current <- getPeriods(start, end, new Period(1, 0,0,0))}
+            dataCollectManagerOp.recalculateHourData(monitor, current, forward = false, alwaysValid = true)(mtMap.keys.toList)
+
           self ! Complete
         case Failure(exception) =>
           Logger.error("Failed to import data", exception)

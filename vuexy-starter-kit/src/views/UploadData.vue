@@ -5,22 +5,39 @@
         <b-row>
           <b-col>
             <b-form-group v-slot="{ ariaDescribedby }" label="資料種類">
-              <b-form-radio-group id="file-type-group" v-model="fileType" :options="fileTypeList"
-                :aria-describedby="ariaDescribedby" name="file-type-options"></b-form-radio-group>
+              <b-form-radio-group
+                id="file-type-group"
+                v-model="fileType"
+                :options="fileTypeList"
+                :aria-describedby="ariaDescribedby"
+                name="file-type-options"
+              ></b-form-radio-group>
             </b-form-group>
           </b-col>
         </b-row>
         <b-row>
           <b-col>
-            <b-form-file v-model="form.uploadFile" :state="Boolean(form.uploadFile)" accept=".csv" browse-text="..."
-              placeholder="選擇上傳檔案..." drop-placeholder="拖曳檔案至此..."></b-form-file>
+            <b-form-file
+              v-model="form.uploadFile"
+              :state="Boolean(form.uploadFile)"
+              accept=".csv"
+              browse-text="..."
+              placeholder="選擇上傳檔案..."
+              drop-placeholder="拖曳檔案至此..."
+            ></b-form-file>
           </b-col>
         </b-row>
         <br />
         <b-row>
           <b-col offset-md="3">
-            <b-button v-ripple.400="'rgba(255, 255, 255, 0.15)'" type="submit" variant="primary" class="mr-1"
-              :disabled="!Boolean(form.uploadFile)" @click="upload">
+            <b-button
+              v-ripple.400="'rgba(255, 255, 255, 0.15)'"
+              type="submit"
+              variant="primary"
+              class="mr-1"
+              :disabled="!Boolean(form.uploadFile)"
+              @click="upload"
+            >
               上傳
             </b-button>
           </b-col>
@@ -85,21 +102,15 @@ export default Vue.extend({
           this.timer = setTimeout(this.checkFinished, 1000);
         } else {
           this.setLoading({ loading: false });
-          this.$bvModal.msgBoxOk(
-            `上傳失敗 ${res.status} - ${res.statusText}`,
-            {
-              headerBgVariant: 'danger',
-            },
-          );
+          this.$bvModal.msgBoxOk(`上傳失敗 ${res.status} - ${res.statusText}`, {
+            headerBgVariant: 'danger',
+          });
         }
       } catch (err) {
         this.setLoading({ loading: false });
-        this.$bvModal.msgBoxOk(
-            `上傳失敗 ${err}`,
-            {
-              headerBgVariant: 'danger',
-            },
-          );
+        this.$bvModal.msgBoxOk(`上傳失敗 ${err}`, {
+          headerBgVariant: 'danger',
+        });
       }
     },
     async checkFinished() {
