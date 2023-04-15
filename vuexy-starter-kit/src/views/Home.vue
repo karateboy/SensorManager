@@ -560,9 +560,15 @@ export default Vue.extend({
       this.sensorStatus = ret.data;
     },
     async getEpaStatus(): Promise<void> {
-      const ret = await axios.get('/RealtimeEPA');
-      this.updateTime = moment();
-      this.epaStatus = ret.data;
+      try {
+        const res = await axios.get('/RealtimeEPA');
+        if (res.status === 200) {
+          this.updateTime = moment();
+          this.epaStatus = res.data;
+        }
+      } catch (err) {
+        console.error(`err`);
+      }
     },
     async getDisconnected(): Promise<void> {
       const params = {

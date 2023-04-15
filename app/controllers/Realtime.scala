@@ -104,7 +104,7 @@ class Realtime @Inject()
   def epaStatus() = Security.Authenticated.async {
     implicit request =>
       import recordOp.monitorRecordWrite
-      val f = recordOp.getLatestEpaStatus(TableType.mapCollection(TableType.min))
+      val f = recordOp.getLatestEpaStatus(TableType.mapCollection(TableType.hour))
       for (recordList <- f) yield {
         recordList.foreach(r => {
           monitorOp.populateMonitorRecord(r, true)

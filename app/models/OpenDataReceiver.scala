@@ -218,7 +218,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
     val url = s"https://data.epa.gov.tw/api/v2/aqx_p_432?format=json&limit=${limit}&api_key=1f4ca8f8-8af9-473d-852b-b8f2d575f26a"
 
     val f = wsClient.url(url).get()
-    f onFailure (errorHandler)
+    f onFailure errorHandler
 
     for (ret <- f) yield {
       var latestRecordTime = DateTime.now() - 1.day
