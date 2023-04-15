@@ -135,7 +135,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
           }
           val value = record("VALUE(小時平均值)").toDouble
           count = count + 1
-          Some(RecordList(time = time, monitor = deviceID,
+          Some(RecordList.factory(time = time, monitor = deviceID,
             mtDataList = Seq(MtRecord(mtName = MonitorType.PM25, value, MonitorStatus.NormalStat))))
         } catch {
           case ex: Throwable =>
@@ -197,7 +197,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
 
           count = count + 1
 
-          Some(RecordList(time = time, monitor = deviceID,
+          Some(RecordList.factory(time = time, monitor = deviceID,
             mtDataList = mtRecords))
         } catch {
           case _: Throwable =>
@@ -217,7 +217,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
           val start = new DateTime(docs.map(_._id.time).min)
           val end = new DateTime(docs.map(_._id.time).max).plusHours(1)
           val monitors = mutable.Set.empty[String]
-          docs.foreach(recordList=>monitors.add(recordList.monitor))
+          docs.foreach(recordList=>monitors.add(recordList._id.monitor))
           for {
             monitor <- monitors
             current <- getPeriods(start, end, new Period(1, 0,0,0))}
@@ -253,10 +253,10 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
 
         try {
           val value = record("資料").toDouble
-          RecordList(time = time, monitor = monitorOpt.get._1, mtDataList = Seq(MtRecord(mtName = MonitorType.PM25, value, MonitorStatus.NormalStat)))
+          RecordList.factory(time = time, monitor = monitorOpt.get._1, mtDataList = Seq(MtRecord(mtName = MonitorType.PM25, value, MonitorStatus.NormalStat)))
         } catch {
           case _: java.lang.NumberFormatException =>
-            RecordList(time = time, monitor = monitorOpt.get._1, mtDataList = Seq.empty[MtRecord])
+            RecordList.factory(time = time, monitor = monitorOpt.get._1, mtDataList = Seq.empty[MtRecord])
         }
       }
     reader.close()

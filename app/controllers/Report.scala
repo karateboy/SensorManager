@@ -478,13 +478,13 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     for (recordList <- resultFuture) yield {
       import scala.collection.mutable.Map
       val timeMtMonitorMap = Map.empty[DateTime, Map[String, Double]]
-      recordList map {
+      recordList foreach {
         r =>
-          val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
-          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Double])
+          val stripedTime = new DateTime(r._id.time).withSecondOfMinute(0).withMillisOfSecond(0)
+          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, mutable.Map.empty[String, Double])
           if (r.mtMap.contains(mt)) {
             val mtRecord = r.mtMap(mt)
-            monitorMap.update(r.monitor, mtRecord.value)
+            monitorMap.update(r._id.monitor, mtRecord.value)
           }
       }
       (monitorGroup, timeMtMonitorMap, start)
@@ -529,13 +529,13 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     for (recordList <- resultFuture) yield {
       import scala.collection.mutable.Map
       val timeMtMonitorMap = Map.empty[DateTime, Map[String, Double]]
-      recordList map {
+      recordList foreach {
         r =>
-          val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
-          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Double])
+          val stripedTime = new DateTime(r._id.time).withSecondOfMinute(0).withMillisOfSecond(0)
+          val monitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, mutable.Map.empty[String, Double])
           if (r.mtMap.contains(mt)) {
             val mtRecord = r.mtMap(mt)
-            monitorMap.update(r.monitor, mtRecord.value)
+            monitorMap.update(r._id.monitor, mtRecord.value)
           }
       }
       (monitorGroup, timeMtMonitorMap, start)

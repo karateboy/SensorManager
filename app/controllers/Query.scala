@@ -9,6 +9,7 @@ import play.api.libs.json.{Json, _}
 import play.api.mvc._
 
 import javax.inject._
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -415,7 +416,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
         val timeMtMonitorMap = Map.empty[DateTime, Map[String, Map[String, CellData]]]
         recordList map {
           r =>
-            val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
+            val stripedTime = new DateTime(r._id.time).withSecondOfMinute(0).withMillisOfSecond(0)
             val mtMonitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Map[String, CellData]])
             for (mt <- monitorTypes.toSeq) {
               val monitorMap = mtMonitorMap.getOrElseUpdate(mt, Map.empty[String, CellData])
@@ -426,7 +427,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
               } else
                 emtpyCell
 
-              monitorMap.update(r.monitor, cellData)
+              monitorMap.update(r._id.monitor, cellData)
             }
         }
         val timeList = timeMtMonitorMap.keys.toList.sorted
@@ -469,14 +470,14 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
         val recordList = allRecordlist.fold(Seq.empty[RecordList])((a, b) => {
           a ++ b
         })
-        import scala.collection.mutable.Map
-        val timeMtMonitorMap = Map.empty[DateTime, Map[String, Map[String, CellData]]]
-        recordList map {
+
+        val timeMtMonitorMap = mutable.Map.empty[DateTime, mutable.Map[String, mutable.Map[String, CellData]]]
+        recordList foreach {
           r =>
-            val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
-            val mtMonitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Map[String, CellData]])
+            val stripedTime = new DateTime(r._id.time).withSecondOfMinute(0).withMillisOfSecond(0)
+            val mtMonitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, mutable.Map.empty[String, mutable.Map[String, CellData]])
             for (mt <- monitorTypes.toSeq) {
-              val monitorMap = mtMonitorMap.getOrElseUpdate(mt, Map.empty[String, CellData])
+              val monitorMap = mtMonitorMap.getOrElseUpdate(mt, mutable.Map.empty[String, CellData])
               val cellData = if (r.mtMap.contains(mt)) {
                 val mtRecord = r.mtMap(mt)
                 CellData(monitorTypeOp.format(mt, Some(mtRecord.value)),
@@ -484,7 +485,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
               } else
                 emtpyCell
 
-              monitorMap.update(r.monitor, cellData)
+              monitorMap.update(r._id.monitor, cellData)
             }
         }
         val timeList = timeMtMonitorMap.keys.toList.sorted

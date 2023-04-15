@@ -285,10 +285,10 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
           }
         }
 
-        def newRecord(monitor: String) = {
+        def newRecord(monitor: String): Unit = {
           val recordList = {
             val location = Some(Seq(message.lon, message.lat))
-            RecordList(time.toDate, mtDataList, monitor, RecordListID(time.toDate, monitor), location = location)
+            RecordList(mtDataList, RecordListID(time.toDate, monitor), location = location)
           }
           val f = recordOp.upsertRecord(recordList)(recordOp.MinCollection)
           f.onFailure(ModelHelper.errorHandler)

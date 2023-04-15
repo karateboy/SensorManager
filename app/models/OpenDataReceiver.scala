@@ -2,7 +2,7 @@ package models
 
 import akka.actor.{Actor, ActorLogging}
 import models.ModelHelper.errorHandler
-import play.api.Logger
+import play.api.{Configuration, Logger}
 import play.api.libs.functional.syntax.toFunctionalBuilderOps
 import play.api.libs.json.{JsError, JsPath, Json, Reads}
 import play.api.libs.ws.WSClient
@@ -10,6 +10,7 @@ import play.api.libs.ws.WSClient
 import javax.inject.Inject
 import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.util.{Failure, Success}
 import scala.xml.Elem
 
@@ -50,7 +51,8 @@ object OpenDataReceiver {
 
 class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monitorOp: MonitorOp,
                                  monitorTypeOp: MonitorTypeOp,
-                                 recordOp: RecordOp)
+                                 recordOp: RecordOp,
+                                 configuration: Configuration)
                                 () extends Actor with ActorLogging {
 
   import OpenDataReceiver._
@@ -77,141 +79,55 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
       for (epaLast <- sysConfig.getEpaLastDataTime()) {
         val start = new DateTime(epaLast).withTimeAtStartOfDay().minusDays(7)
         val end = DateTime.now().withTimeAtStartOfDay()
-        if (start < end) {
-          getEpaHourData(start, end)
-        }
+        if (start < end)
+          fetchEpaHourData(start, end)
       }
   }
 
-  private def getEpaHourData(start: DateTime, end: DateTime): Unit = {
-    Logger.debug(s"get EPA data start=${start.toString()} end=${end.toString()}")
-    val limit = 500
+  private def fetchEpaHourData(start: DateTime, end: DateTime): Option[Future[Boolean]] = {
+    val upstreamOpt: Option[String] = {
+      val ret =
+        for {config <- configuration.getConfig("openData")
+             enable <- config.getBoolean("enable") if enable
+             } yield
+          config.getString("upstream")
 
-    def parser(node: Elem) = {
-      import scala.collection.mutable.Map
-      import scala.xml.Node
-      val recordMap = mutable.Map.empty[String, mutable.Map[DateTime, mutable.Map[String, Double]]]
-
-      def filter(dataNode: Node) = {
-        val monitorDateOpt = dataNode \ "MonitorDate".toUpperCase()
-        val mDate =
-          try {
-            DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
-          } catch {
-            case _: Exception =>
-              DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd"))
-          }
-        start <= mDate && mDate <= end
-      }
-
-      def processData(dataNode: Node) {
-        val siteId = dataNode \ "SiteId".toUpperCase()
-        val siteName = dataNode \ "SiteName".toUpperCase()
-        val itemId = dataNode \ "ItemId".toUpperCase()
-        val monitorDateOpt = dataNode \ "MonitorDate".toUpperCase()
-
-        try {
-          //Filter interested EPA monitor
-          if (itemId.text.trim().toInt == 33) {
-            val epaId = Monitor.epaID(siteId.text.trim())
-            monitorOp.ensureMonitor(epaId, siteName.text.trim(), Seq(MonitorType.PM10, MonitorType.PM25),
-              Seq(MonitorTag.EPA))
-
-            monitorTypeOp.ensureMeasuring(MonitorType.PM25, "OpenData")
-            val monitorType = MonitorType.PM25
-            val mDate = try {
-              DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss"))
-            } catch {
-              case _: Exception =>
-                DateTime.parse(s"${monitorDateOpt.text.trim()}", DateTimeFormat.forPattern("YYYY-MM-dd"))
-            }
-
-            val monitorNodeValueSeq =
-              for (v <- 0 to 23) yield {
-                val monitorValue = try {
-                  Some((dataNode \ "MonitorValue%02d".format(v).toUpperCase()).text.trim().toDouble)
-                } catch {
-                  case x: Throwable =>
-                    None
-                }
-                (mDate + v.hour, monitorValue)
-              }
-
-            val timeMap = recordMap.getOrElseUpdate(epaId, mutable.Map.empty[DateTime, mutable.Map[String, Double]])
-            for {(mDate, mtValueOpt) <- monitorNodeValueSeq} {
-              val mtMap = timeMap.getOrElseUpdate(mDate, mutable.Map.empty[String, Double])
-              for (mtValue <- mtValueOpt)
-                mtMap.put(monitorType, mtValue)
-            }
-          }
-        } catch {
-          case x: Throwable =>
-            Logger.error("failed", x)
-        }
-      }
-
-      val data = node \ "data"
-
-      val qualifiedData = data.filter(filter)
-
-      qualifiedData.foreach {
-        processData
-      }
-
-      val recordLists =
-        for {
-          monitorMap <- recordMap
-          monitor = monitorMap._1
-          timeMaps = monitorMap._2
-          dateTime <- timeMaps.keys.toList.sorted
-        } yield {
-          val mtRecords = for (mtValue <- timeMaps(dateTime)) yield
-            MtRecord(mtValue._1, mtValue._2, MonitorStatus.NormalStat)
-          RecordList(dateTime.toDate, monitor, None, mtRecords.toSeq)
-        }
-
-      if (recordLists.nonEmpty) {
-        val f = recordOp.upsertManyRecord(recordLists.toList)(recordOp.HourCollection)
-        f onFailure (errorHandler())
-        f onComplete ({
-          case Success(ret) =>
-            if (ret.getUpserts.size() != 0)
-              Logger.debug(s"EPA ${ret.getUpserts.size()} records have been upserted.")
-          case Failure(ex) =>
-            Logger.error("failed", ex)
-        })
-      }
-
-      qualifiedData.size
+      ret.flatten
     }
 
-    def getData(skip: Int) {
-      val url = s"https://data.epa.gov.tw/api/v2/aqx_p_15?format=xml&offset=${skip}&limit=${limit}&api_key=1f4ca8f8-8af9-473d-852b-b8f2d575f26a"
-      val future =
-        wsClient.url(url).get().map {
-          response =>
-            try {
-              parser(response.xml)
-            } catch {
-              case ex: Exception =>
-                Logger.error(ex.toString())
-                throw ex
+    if (upstreamOpt.isEmpty) {
+      Logger.error("openData did not config upstream!")
+      Some(Future.successful(true))
+    }else{
+      for (upstream <- upstreamOpt) yield {
+        val epaMonitors = monitorOp.map.values.filter(m=>m.tags.contains(MonitorTag.EPA))
+        val startNum = start.getMillis
+        val endNum = end.getMillis
+        val epaMonitorsIDs = epaMonitors.map(m=>s"Epa${m._id.drop(3)}").mkString(":")
+        val f = wsClient.url(s"$upstream/HourRecord/$epaMonitorsIDs/$startNum/$endNum").get()
+        f onFailure errorHandler
+        for (response <- f) yield {
+          implicit val r3: Reads[RecordListID] = Json.reads[RecordListID]
+          implicit val r2: Reads[MtRecord] = Json.reads[MtRecord]
+
+          val ret = response.json.validate[Seq[RecordList]]
+          ret.fold(
+            err => {
+              Logger.error(JsError.toJson(err).toString())
+              false
+            },
+            recordLists => {
+              Logger.info(s"Total ${recordLists.size} records fetched.")
+              recordOp.upsertManyRecords(recordOp.HourCollection)(recordLists)
+              true
             }
+          )
         }
-      future onFailure (errorHandler())
-      future onSuccess ({
-        case ret: Int =>
-          if (ret < limit) {
-            Logger.info(s"Import EPA ${start.toString()} to ${end} complete")
-            sysConfig.setEpaLastDataTime(end.toDate)
-          } else
-            getData(skip + limit)
-      })
+      }
     }
 
-    getData(0)
+
   }
-
 
   def getCurrentData(limit: Int) = {
     import com.github.nscala_time.time.Imports._
@@ -262,7 +178,7 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
             ).flatten
 
             val location = Some(Seq(lng.toDouble, lat.toDouble))
-            RecordList(dt.toDate, epaId, location, mtRecords)
+            RecordList(mtRecords, RecordListID(dt.toDate, epaId), location)
         }
 
         if (recordLists.nonEmpty) {
@@ -295,12 +211,12 @@ class OpenDataReceiver @Inject()(sysConfig: SysConfig, wsClient: WSClient, monit
 
   }
 
-  override def postStop = {
+  override def postStop: Unit = {
     timer.cancel()
     timer2.cancel()
   }
 
 
-  case class EpaResult(records: Seq[EpaRecord])
+  private case class EpaResult(records: Seq[EpaRecord])
 
 }
