@@ -331,7 +331,7 @@ class RecordOp @Inject()(mongoDB: MongoDB,
 
     val col = getCollection(colName)
 
-    val f = col.find(and(in("monitor", monitors: _*), gte("time", startTime.toDate()), lt("time", endTime.toDate())))
+    val f = col.find(and(in("monitor", monitors: _*), gte("time", startTime.toDate), lt("time", endTime.toDate)))
       .sort(ascending("time")).allowDiskUse(true).toFuture()
 
     f onFailure (errorHandler)

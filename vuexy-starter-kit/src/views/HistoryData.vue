@@ -104,6 +104,13 @@
                 @click="set3DayBefore"
                 >前三天</b-button
               >
+              <b-button
+                variant="gradient-primary"
+                class="ml-1"
+                size="md"
+                @click="downloadCSV"
+                >下載CSV檔案</b-button
+              >
             </b-form-group>
           </b-col>
           <!-- submit and reset -->
@@ -372,6 +379,14 @@ export default Vue.extend({
       }
 
       return ret;
+    },
+    async downloadCSV() {
+      const baseUrl =
+        process.env.NODE_ENV === 'development' ? 'http://localhost:9000/' : '';
+      const monitors = this.form.monitors.join(':');
+      const monitorTypes = this.form.monitorTypes.join(':');
+      const url = `${baseUrl}/HistoryReport/csv/${monitors}/${monitorTypes}/${this.form.dataType}/${this.form.range[0]}/${this.form.range[1]}`;
+      window.open(url);
     },
   },
 });

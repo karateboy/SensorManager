@@ -59,7 +59,7 @@
     "vue2-datepicker": "^3.8.2",
     "vuedraggable": "2.24.3",
     "vuex": "^3.6.2",
-    "xlsx": "^0.18.5"
+    "xlsx": "^0.18.5"  
   },
   "devDependencies": {
     "@types/google.maps": "^3.45.6",

@@ -1,7 +1,8 @@
 package controllers
 
 object OutputType extends Enumeration {
-  val html = Value("html")
-  val pdf = Value("pdf")
-  val excel = Value("excel")
+  val html: OutputType.Value = Value("html")
+  val pdf: OutputType.Value = Value("pdf")
+  val excel: OutputType.Value = Value("excel")
+  val csv: OutputType.Value = Value("csv")
 }

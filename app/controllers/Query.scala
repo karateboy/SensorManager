@@ -1,14 +1,17 @@
 package controllers
 
 import com.github.nscala_time.time.Imports._
+import com.github.tototoshi.csv.CSVWriter
 import controllers.Highchart._
 import models.ModelHelper.windAvg
 import models._
 import play.api._
-import play.api.libs.json.{Json, _}
+import play.api.libs.json._
 import play.api.mvc._
 
+import java.nio.file.{Files, Paths, StandardCopyOption}
 import javax.inject._
+import scala.collection.mutable
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
 
@@ -394,11 +397,12 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
   }
 
   def historyData(monitorStr: String, monitorTypeStr: String, tabTypeStr: String,
-                  startNum: Long, endNum: Long) = Security.Authenticated.async {
+                  startNum: Long, endNum: Long, outputTypeStr: String) = Security.Authenticated.async {
     implicit request =>
       val monitors = monitorStr.split(":")
       val monitorTypes = monitorTypeStr.split(':')
       val tabType = TableType.withName(tabTypeStr)
+      val outputType = OutputType.withName(outputTypeStr)
       val (start, end) =
         if (tabType == TableType.hour) {
           val orignal_start = new DateTime(startNum)
@@ -409,47 +413,77 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
         }
 
       val resultFuture = recordOp.getRecordListFuture(TableType.mapCollection(tabType))(start, end, monitors)
-      val emtpyCell = CellData("-", Seq.empty[String])
-      for (recordList <- resultFuture) yield {
-        import scala.collection.mutable.Map
-        val timeMtMonitorMap = Map.empty[DateTime, Map[String, Map[String, CellData]]]
-        recordList map {
-          r =>
-            val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
-            val mtMonitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, Map.empty[String, Map[String, CellData]])
-            for (mt <- monitorTypes.toSeq) {
-              val monitorMap = mtMonitorMap.getOrElseUpdate(mt, Map.empty[String, CellData])
-              val cellData = if (r.mtMap.contains(mt)) {
-                val mtRecord = r.mtMap(mt)
-                CellData(monitorTypeOp.format(mt, Some(mtRecord.value)),
-                  monitorTypeOp.getCssClassStr(mtRecord), Some(mtRecord.status))
-              } else
-                emtpyCell
 
-              monitorMap.update(r.monitor, cellData)
+      val emptyCell = CellData("-", Seq.empty[String])
+      for (recordLists <- resultFuture) yield {
+        outputType match {
+          case OutputType.html =>
+            val timeMtMonitorMap = mutable.Map.empty[DateTime, mutable.Map[String, mutable.Map[String, CellData]]]
+            recordLists foreach {
+              r =>
+                val stripedTime = new DateTime(r.time).withSecondOfMinute(0).withMillisOfSecond(0)
+                val mtMonitorMap = timeMtMonitorMap.getOrElseUpdate(stripedTime, mutable.Map.empty[String, mutable.Map[String, CellData]])
+                for (mt <- monitorTypes.toSeq) {
+                  val monitorMap = mtMonitorMap.getOrElseUpdate(mt, mutable.Map.empty[String, CellData])
+                  val cellData = if (r.mtMap.contains(mt)) {
+                    val mtRecord = r.mtMap(mt)
+                    CellData(monitorTypeOp.format(mt, Some(mtRecord.value)),
+                      monitorTypeOp.getCssClassStr(mtRecord), Some(mtRecord.status))
+                  } else
+                    emptyCell
+
+                  monitorMap.update(r.monitor, cellData)
+                }
             }
-        }
-        val timeList = timeMtMonitorMap.keys.toList.sorted
-        val timeRows: Seq[RowData] = for (time <- timeList) yield {
-          val mtMonitorMap = timeMtMonitorMap(time)
-          var cellDataList = Seq.empty[CellData]
-          for {
-            mt <- monitorTypes
-            m <- monitors
-          } {
-            val monitorMap = mtMonitorMap(mt)
-            if (monitorMap.contains(m))
-              cellDataList = cellDataList :+ (mtMonitorMap(mt)(m))
-            else
-              cellDataList = cellDataList :+ (emtpyCell)
-          }
-          RowData(time.getMillis, cellDataList)
+            val timeList = timeMtMonitorMap.keys.toList.sorted
+            val timeRows: Seq[RowData] = for (time <- timeList) yield {
+              val mtMonitorMap = timeMtMonitorMap(time)
+              var cellDataList = Seq.empty[CellData]
+              for {
+                mt <- monitorTypes
+                m <- monitors
+              } {
+                val monitorMap = mtMonitorMap(mt)
+                if (monitorMap.contains(m))
+                  cellDataList = cellDataList :+ (mtMonitorMap(mt)(m))
+                else
+                  cellDataList = cellDataList :+ (emptyCell)
+              }
+              RowData(time.getMillis, cellDataList)
+            }
+
+            val columnNames = monitorTypes.toSeq map {
+              monitorTypeOp.map(_).desp
+            }
+            Ok(Json.toJson(DataTab(columnNames, timeRows)))
+
+          case OutputType.csv =>
+            val reportFilePath = Files.createTempFile("temp", ".csv");
+
+            val writer = CSVWriter.open(reportFilePath.toFile)
+            val header = Seq("ID", "時間") ++ monitorTypes.toSeq.map { monitorTypeOp.map(_).desp }
+            writer.writeRow(header)
+            for(recordList<-recordLists){
+              val dateTime = new DateTime(recordList._id.time)
+              val row = Seq(recordList.monitor, dateTime.toString("YYYY-MM-dd HH:mm:ss")) ++
+                monitorTypes.toSeq.map { mt =>
+                  if (recordList.mtMap.contains(mt)) {
+                    val mtRecord = recordList.mtMap(mt)
+                    monitorTypeOp.format(mt, Some(mtRecord.value))
+                  } else
+                    ""
+                }
+              writer.writeRow(row)
+            }
+            writer.close()
+            Ok.sendFile(reportFilePath.toFile, fileName = _ =>
+              "歷史資料.csv",
+              onClose = () => { Files.delete(reportFilePath) }
+            )
+          case _ =>
+            BadRequest(s"Unknown output type ${outputType}")
         }
 
-        val columnNames = monitorTypes.toSeq map {
-          monitorTypeOp.map(_).desp
-        }
-        Ok(Json.toJson(DataTab(columnNames, timeRows)))
       }
   }
 
@@ -585,7 +619,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
     }
   }
 
-  def getErrorReports(startN: Long, endN:Long) = Security.Authenticated.async {
+  def getErrorReports(startN: Long, endN: Long) = Security.Authenticated.async {
     val end = new DateTime(endN).withMillisOfDay(0)
     val start = new DateTime(startN).withMillisOfDay(0)
     for (reports <- errorReportOp.get(start.toDate, end.toDate)) yield {
