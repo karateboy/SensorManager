@@ -104,6 +104,7 @@ POST     /SystemConfig/:key                                                     
 #Upload
 POST    /ImportData/:fileType                                                     controllers.HomeController.importData(fileType)
 GET     /UploadProgress/:actorName                                                controllers.HomeController.getUploadProgress(actorName)
+GET     /ExportData/monitor                                                       controllers.HomeController.exportMonitor()
 #JSON
 GET      /MonitorType                                                             controllers.HomeController.monitorTypeList
 GET      /MonitorTypes/active                                                     controllers.HomeController.activeMonitorTypeList

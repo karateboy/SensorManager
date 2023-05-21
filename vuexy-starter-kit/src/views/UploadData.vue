@@ -27,6 +27,25 @@
             ></b-form-file>
           </b-col>
         </b-row>
+        <b-row>
+          <b-col>
+            <b-img
+              v-if="fileType === 'sensor'"
+              src="../assets/images/importSensorFormat.png"
+            />
+            <div
+              v-else-if="
+                fileType === 'sensorRaw' || fileType === 'updateSensorRaw'
+              "
+            >
+              <h3 class="center">來自廣域單一測項或完整測項的資料</h3>
+            </div>
+            <div v-else-if="fileType === 'epa'">
+              <h3 class="center">來自環保署感測器測項資料</h3>
+              <b-img src="../assets/images/importEpaSensorFormat.png" />
+            </div>
+          </b-col>
+        </b-row>
         <br />
         <b-row>
           <b-col offset-md="3">

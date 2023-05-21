@@ -388,7 +388,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
           monitor.code = codeOpt
           monitor.tags = {
             for (code <- codeOpt) yield
-              Seq(MonitorTag.SENSOR, code.reverse.take(2).reverse)
+              Seq(MonitorTag.SENSOR, code.takeRight(2))
           }.getOrElse(Seq.empty[String])
 
           monitor.enabled = enabledOpt

@@ -20,7 +20,8 @@ class HomeController @Inject()(environment: play.api.Environment,
                                monitorTypeOp: MonitorTypeOp, query: Query, monitorOp: MonitorOp, groupOp: GroupOp,
                                instrumentTypeOp: InstrumentTypeOp, monitorStatusOp: MonitorStatusOp, actorSystem: ActorSystem,
                                recordOp: RecordOp, sysConfig: SysConfig, monitorGroupOp: MonitorGroupOp, sensorOp: MqttSensorOp,
-                               errorReportOp: ErrorReportOp, emailTargetOp: EmailTargetOp) extends Controller {
+                               errorReportOp: ErrorReportOp, emailTargetOp: EmailTargetOp,
+                               excelUtility: ExcelUtility) extends Controller {
 
   val epaReportPath: String = environment.rootPath + "/importEPA/"
 
@@ -637,6 +638,18 @@ class HomeController @Inject()(environment: play.api.Environment,
           dataFile = file, fileType = fileType, dataCollectManagerOp = dataCollectManagerOp)(actorSystem)
         Ok(Json.obj("actorName" -> actorName))
       }
+  }
+
+  def exportMonitor(): Action[AnyContent] = Security.Authenticated.async {
+    import java.nio.file.Files
+    for(monitorGroups <- monitorGroupOp.getList()) yield {
+      val excelFile = excelUtility.exportMonitor(monitorGroups)
+      Ok.sendFile(excelFile, fileName = _ =>
+        "測點清單.xlsx",
+        onClose = () => {
+          Files.deleteIfExists(excelFile.toPath)
+        })
+    }
   }
 
   def getUploadProgress(actorName: String) = Security.Authenticated {

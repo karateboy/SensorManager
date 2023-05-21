@@ -499,4 +499,60 @@ class ExcelUtility @Inject()
 
     new File(reportFilePath.toAbsolutePath().toString())
   }
+
+  def exportMonitor(monitorGroups : Seq[MonitorGroup]):File = {
+    val (reportFilePath, pkg, wb) = prepareTemplate("monitorExport.xlsx")
+
+    val sheet = wb.getSheetAt(0)
+    val headerRow = sheet.getRow(0)
+    for((group, idx)<-monitorGroups.zipWithIndex) {
+      val headerCell = headerRow.createCell(22 + idx)
+      headerCell.setCellValue(group._id)
+      sheet.autoSizeColumn(22 + idx)
+    }
+
+    val monitorIds = monitorOp.map.keys.toSeq.sorted
+    for((monitorId, idx)<-monitorIds.zipWithIndex){
+      val monitorRow = sheet.createRow(idx + 1)
+      monitorRow.createCell(0).setCellValue(monitorId)
+      monitorRow.createCell(1).setCellValue(monitorId.takeRight(4))
+      monitorRow.createCell(2).setCellValue(monitorOp.map(monitorId).code.getOrElse(""))
+      for(enable<-monitorOp.map(monitorId).enabled if enable)
+        monitorRow.createCell(3).setCellValue(1)
+
+      monitorRow.createCell(4).setCellValue(monitorOp.map(monitorId).sensorDetail.map(_.sensorType).getOrElse(""))
+      monitorRow.createCell(5).setCellValue(monitorOp.map(monitorId).code.map(_.takeRight(2)).getOrElse(""))
+      monitorRow.createCell(6).setCellValue(monitorOp.map(monitorId).county.getOrElse(""))
+      monitorRow.createCell(7).setCellValue(monitorOp.map(monitorId).district.getOrElse(""))
+      for(sensorDetail<-monitorOp.map(monitorId).sensorDetail){
+        monitorRow.createCell(8).setCellValue(sensorDetail.roadName)
+        monitorRow.createCell(9).setCellValue(sensorDetail.locationDesc)
+        monitorRow.createCell(10).setCellValue(sensorDetail.authority)
+        monitorRow.createCell(11).setCellValue(sensorDetail.epaCode)
+        monitorRow.createCell(12).setCellValue(sensorDetail.target)
+        monitorRow.createCell(13).setCellValue(sensorDetail.targetDetail)
+        monitorRow.createCell(14).setCellValue(sensorDetail.height)
+      }
+
+      monitorRow.createCell(15).setCellValue("")
+      for(location<-monitorOp.map(monitorId).location) {
+        monitorRow.createCell(16).setCellValue(location.head)
+        monitorRow.createCell(17).setCellValue(location.last)
+      }
+      for(distance<-monitorOp.map(monitorId).sensorDetail.map(_.distance)) {
+        for((dist, idx)<-distance.zipWithIndex) {
+          monitorRow.createCell(18 + idx).setCellValue(dist)
+        }
+      }
+      //export group
+      for ((group, idx) <- monitorGroups.zipWithIndex) {
+        val mgCell = monitorRow.createCell(22 + idx)
+        if(group.member.contains(monitorId))
+          mgCell.setCellValue(1)
+        else
+          mgCell.setCellValue("")
+      }
+    }
+    finishExcel(reportFilePath, pkg, wb)
+  }
 }

@@ -1,5 +1,5 @@
 /* eslint-disable */
-const XLSX = require('xlsx');
+import { writeFile, utils } from 'xlsx';
 
 function auto_width(ws, data) {
     /*set worksheet max width per col*/
@@ -44,13 +44,13 @@ function fixdata(data) {
 // get head from excel file,return array
 function get_header_row(sheet) {
     const headers = []
-    const range = XLSX.utils.decode_range(sheet['!ref'])
+    const range = utils.decode_range(sheet['!ref'])
     let C
     const R = range.s.r /* start in the first row */
     for (C = range.s.c; C <= range.e.c; ++C) { /* walk every column in the range */
-        var cell = sheet[XLSX.utils.encode_cell({ c: C, r: R })] /* find the cell in the first row */
+        var cell = sheet[utils.encode_cell({ c: C, r: R })] /* find the cell in the first row */
         var hdr = 'UNKNOWN ' + C // <-- replace with your desired default
-        if (cell && cell.t) hdr = XLSX.utils.format_cell(cell)
+        if (cell && cell.t) hdr = utils.format_cell(cell)
         headers.push(hdr)
     }
     return headers
@@ -58,8 +58,8 @@ function get_header_row(sheet) {
 
 export const export_table_to_excel = (id, filename) => {
     const table = document.getElementById(id);
-    const wb = XLSX.utils.table_to_book(table);
-    XLSX.writeFile(wb, filename);
+    const wb = utils.table_to_book(table);
+    writeFile(wb, filename);
 
     /* the second way */
     // const table = document.getElementById(id);
@@ -70,38 +70,38 @@ export const export_table_to_excel = (id, filename) => {
 }
 
 export const export_json_to_excel = ({ data, key, title, filename, autoWidth }) => {
-    const wb = XLSX.utils.book_new();
+    const wb = utils.book_new();
     data.unshift(title);
-    const ws = XLSX.utils.json_to_sheet(data, { header: key, skipHeader: true });
+    const ws = utils.json_to_sheet(data, { header: key, skipHeader: true });
     if (autoWidth) {
         const arr = json_to_array(key, data);
         auto_width(ws, arr);
     }
-    XLSX.utils.book_append_sheet(wb, ws, filename);
-    XLSX.writeFile(wb, filename + '.xlsx');
+    utils.book_append_sheet(wb, ws, filename);
+    writeFile(wb, filename + '.xlsx');
 }
 
 export const export_array_to_excel = ({ key, data, title, filename, autoWidth }) => {
-    const wb = XLSX.utils.book_new();
+    const wb = utils.book_new();
     const arr = json_to_array(key, data);
     arr.unshift(title);
-    const ws = XLSX.utils.aoa_to_sheet(arr);
+    const ws = utils.aoa_to_sheet(arr);
     if (autoWidth) {
         auto_width(ws, arr);
     }
-    XLSX.utils.book_append_sheet(wb, ws, filename);
-    XLSX.writeFile(wb, filename + '.xlsx');
+    utils.book_append_sheet(wb, ws, filename);
+    writeFile(wb, filename + '.xlsx');
 }
 
 export const read = (data, type) => {
     /* if type == 'base64' must fix data first */
     // const fixedData = fixdata(data)
     // const workbook = XLSX.read(btoa(fixedData), { type: 'base64' })
-    const workbook = XLSX.read(data, { type: type });
+    const workbook = read(data, { type: type });
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
     const header = get_header_row(worksheet);
-    const results = XLSX.utils.sheet_to_json(worksheet);
+    const results = utils.sheet_to_json(worksheet);
     return { header, results };
 }
 

@@ -62,7 +62,7 @@
                   class="mr-2"
                   variant="outline-success"
                   size="sm"
-                  @click="exportExcel"
+                  @click="downloadExcel"
                 >
                   <b-img src="../assets/excel_export.svg" width="24" fluid />
                 </b-button>
@@ -622,6 +622,12 @@ export default Vue.extend({
         filename,
       };
       excel.export_array_to_excel(params);
+    },
+    downloadExcel() {
+      const baseUrl =
+        process.env.NODE_ENV === 'development' ? 'http://localhost:9000/' : '';
+      const url = `${baseUrl}ExportData/monitor`;
+      window.open(url);
     },
     upload() {
       this.$bvModal.hide('modal-import-excel');
