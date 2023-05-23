@@ -226,6 +226,7 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
       "no2"-> MonitorType.NO2,
       "h2s"-> MonitorType.H2S,
       "nh3"-> MonitorType.NH3,
+      "co" -> MonitorType.CO,
       "sound_dba" -> MonitorType.DBA,
       "sound_dbz" -> MonitorType.DBZ)
     val ret = Json.parse(payload).validate[Message]
