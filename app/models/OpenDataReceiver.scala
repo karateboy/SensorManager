@@ -75,6 +75,7 @@ class OpenDataReceiver @Inject()(monitorTypeOp: MonitorTypeOp, monitorOp: Monito
           val recordLists = recordList2s.map(r => RecordList(time = r._id.time, monitor = r._id.monitor.toLowerCase, mtDataList = r.mtDataList))
           Logger.info(s"Total ${recordLists.size} records fetched.")
           recordOp.upsertManyRecord(recordLists)(recordOp.HourCollection)
+          recordOp.upsertManyRecord(recordLists)(recordOp.MinCollection)
           true
         }
       )

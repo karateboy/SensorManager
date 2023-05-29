@@ -48,7 +48,7 @@ mappings in Universal ++=
   (baseDirectory.value / "importCSV" * "*" get) map
     (x => x -> ("importCSV/" + x.getName))
 
-
+mappings in Universal ++= Seq((baseDirectory.value / "cleanup.bat", "cleanup.bat"))
 scalacOptions += "-feature"
 
 //resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
