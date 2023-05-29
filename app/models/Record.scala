@@ -407,7 +407,7 @@ class RecordOp @Inject()(mongoDB: MongoDB,
     val targetMonitors = getTargetMonitor(county, district, sensorType)
     val monitorFilter = Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
-    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusMinutes(10).toDate)))
+    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusMinutes(90).toDate)))
 
     val addPm25ValueStage = Aggregates.addFields(Field("pm25", "$pm25Data.value"))
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),

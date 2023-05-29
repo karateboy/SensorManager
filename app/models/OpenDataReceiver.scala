@@ -35,7 +35,7 @@ class OpenDataReceiver @Inject()(monitorTypeOp: MonitorTypeOp, monitorOp: Monito
     case GetEpaHourData =>
       for {startDate <- sysConfig.getEpaLastDataTime()
            start = new DateTime(startDate).minusDays(7).withTimeAtStartOfDay()
-           end = DateTime.now().withTimeAtStartOfDay()
+           end = DateTime.tomorrow().withTimeAtStartOfDay()
            } {
 
         Logger.info(s"Get EpaData ${start.toString("yyyy-MM-d")} => ${end.toString("yyyy-MM-d")}")
