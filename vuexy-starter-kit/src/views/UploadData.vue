@@ -90,8 +90,7 @@ export default Vue.extend({
       fileType: '',
       fileTypeList: [
         { text: '感測器', value: 'sensor' },
-        { text: '感測器原始資料(完整測項)', value: 'sensorRaw' },
-        { text: '更新感測器資料(僅有更新測項)', value: 'updateSensorRaw' },
+        { text: '感測器原始資料(完整/部分測項)', value: 'sensorRaw' },
         { text: '環保署測站', value: 'epa' },
       ],
       form,
