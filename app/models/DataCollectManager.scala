@@ -784,10 +784,13 @@ class DataCollectManager @Inject()
 
     case CheckConstantSensor =>
       val today = DateTime.now().withMillisOfDay(0)
-      val f: Future[Seq[MonitorRecord]] = recordOp.getLast30MinConstantSensor(recordOp.MinCollection)
+      val f1: Future[Seq[MonitorRecord]] = recordOp.getLast30MinPm25ConstantSensor(recordOp.MinCollection)
+      val f2 = recordOp.getLast30MinMtConstantSensor(recordOp.MinCollection, "h2s")
       errorReportOp.setConstantRecordTime(today, DateTime.now().getTime)
+      val f = Future.sequence(Seq(f1, f2))
       for (ret <- f) {
-        for (m <- ret) {
+        val constantSensors = ret.flatten
+        for (m <- constantSensors) {
           errorReportOp.addConstantSensor(today, m._id);
         }
       }
