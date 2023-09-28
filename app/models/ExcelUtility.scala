@@ -19,7 +19,7 @@ class ExcelUtility @Inject()
   val docRoot: String = environment.rootPath + "/report_template/"
 
   implicit class PoweredSheet(sheet:Sheet){
-    def getOrCreateRow(rowIndex: Int) = {
+    def getOrCreateRow(rowIndex: Int): Row = {
       if (sheet.getRow(rowIndex) != null)
         sheet.getRow(rowIndex)
       else
@@ -28,7 +28,7 @@ class ExcelUtility @Inject()
   }
 
   implicit class PoweredRow(row:Row){
-    def getOrCreateCell(cellIndex: Int) = {
+    def getOrCreateCell(cellIndex: Int): Cell = {
       if(row.getCell(cellIndex) != null)
         row.getCell(cellIndex)
       else
@@ -49,13 +49,13 @@ class ExcelUtility @Inject()
     style.setFont(font)
     style.setDataFormat(format.getFormat(format_str))
     style.setBorderBottom(BorderStyle.THIN);
-    style.setBottomBorderColor(IndexedColors.BLACK.getIndex());
+    style.setBottomBorderColor(IndexedColors.BLACK.getIndex);
     style.setBorderLeft(BorderStyle.THIN);
-    style.setLeftBorderColor(IndexedColors.BLACK.getIndex());
+    style.setLeftBorderColor(IndexedColors.BLACK.getIndex);
     style.setBorderRight(BorderStyle.THIN);
-    style.setRightBorderColor(IndexedColors.BLACK.getIndex());
+    style.setRightBorderColor(IndexedColors.BLACK.getIndex);
     style.setBorderTop(BorderStyle.THIN);
-    style.setTopBorderColor(IndexedColors.BLACK.getIndex());
+    style.setTopBorderColor(IndexedColors.BLACK.getIndex);
     style
   }
 
@@ -64,9 +64,9 @@ class ExcelUtility @Inject()
     exportChartData(chart, precArray, showSec)
   }
 
-  def exportChartData(chart: HighchartData, precArray: Array[Int], showSec: Boolean) = {
+  def exportChartData(chart: HighchartData, precArray: Array[Int], showSec: Boolean): File = {
     val (reportFilePath, pkg, wb) = prepareTemplate("chart_export.xlsx")
-    val evaluator = wb.getCreationHelper().createFormulaEvaluator()
+    val evaluator = wb.getCreationHelper.createFormulaEvaluator()
     val format = wb.createDataFormat();
 
     val sheet = wb.getSheetAt(0)
@@ -222,7 +222,7 @@ class ExcelUtility @Inject()
   }
 
   def getDecayReport(county:String, thisMonthRecord: Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)],
-                     historyRecordList: Seq[Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)]]) = {
+                     historyRecordList: Seq[Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)]]): File = {
     val (reportFilePath, pkg, wb) = county match{
       case "基隆市"=>
         prepareTemplate("decayReportKL.xlsx")
@@ -284,19 +284,19 @@ class ExcelUtility @Inject()
     } //end of sheet1
 
 
-    def fillMonthlyReport(sheetIdx: Int, historyRecordList: Seq[Seq[SensorMonthReport]]) = {
-      implicit val sheet = wb.getSheetAt(sheetIdx)
+    def fillMonthlyReport(sheetIdx: Int, historyRecordList: Seq[Seq[SensorMonthReport]]): Unit = {
+      implicit val sheet: XSSFSheet = wb.getSheetAt(sheetIdx)
 
       for ((sensorReport, monthIdx) <- historyRecordList.zipWithIndex) {
         val report200 = sensorReport(0)
         val report210 = sensorReport(1)
         val row = sheet.getOrCreateRow(5 + monthIdx)
 
-        def fillTab(report: SensorMonthReport, colOffset: Int) {
+        def fillTab(report: SensorMonthReport, colOffset: Int): Unit = {
           val year = report.start.getYear - 1911
           val month = report.start.getMonthOfYear
 
-          def fillCell(v: Option[Double], cell: Cell) {
+          def fillCell(v: Option[Double], cell: Cell): Unit = {
             if (v.isDefined)
               cell.setCellValue(v.get)
             else
@@ -307,9 +307,9 @@ class ExcelUtility @Inject()
           fillCell(report.max, row.getOrCreateCell(1 + colOffset))
           fillCell(report.min, row.getOrCreateCell(2 + colOffset))
           fillCell(report.median, row.getOrCreateCell(3 + colOffset))
-          fillCell(report.biasMax, row.getOrCreateCell(4 + colOffset))
-          fillCell(report.biasMin, row.getOrCreateCell(5 + colOffset))
-          fillCell(report.biasMedian, row.getOrCreateCell(6 + colOffset))
+          fillCell(report.errorMax, row.getOrCreateCell(4 + colOffset))
+          fillCell(report.errorMin, row.getOrCreateCell(5 + colOffset))
+          fillCell(report.errorMedian, row.getOrCreateCell(6 + colOffset))
           fillCell(report.rr, row.getOrCreateCell(7 + colOffset))
         }
 
@@ -318,29 +318,29 @@ class ExcelUtility @Inject()
       }
     }
 
-    def getMonitorGroupReport(last18month: Seq[Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)]]) = {
+    def getMonitorGroupReport(last18month: Seq[Seq[(MonitorGroup, mutable.Map[DateTime, mutable.Map[String, Double]], DateTime)]]): Seq[Seq[SensorMonthReport]] = {
       for (recordTuple <- last18month) yield {
         for ((epaIdx, mgIdx) <- Seq((0, 1), (0, 2))) yield {
           val start = recordTuple(epaIdx)._3
           val timeSeq = getPeriods(start, start + 1.month, 1.hour)
 
           def records(idx: Int): Seq[Seq[Option[Double]]] = {
-            val (mg, timeRecordMap, start) = recordTuple(idx)
+            val (mg, timeRecordMap, _) = recordTuple(idx)
             for {time <- timeSeq} yield {
               if (timeRecordMap.contains(time)) {
                 val recordMap = timeRecordMap(time)
                 mg.member map {
-                  recordMap.get(_)
+                  recordMap.get
                 }
               } else
                 Seq.empty[Option[Double]]
             }
           }
 
-          val biasRecord = {
+          val errorRecords = {
             val (epaMG, epaTimeRecordMap, _) = recordTuple(epaIdx)
             val (mg, timeRecordMap, _) = recordTuple(mgIdx)
-            val epaID = epaMG.member(0)
+            val epaID = epaMG.member.head
             for {time <- timeSeq} yield {
               if (timeRecordMap.contains(time) && epaTimeRecordMap.contains(time) &&
                 epaTimeRecordMap(time).contains(epaID) &&
@@ -350,38 +350,32 @@ class ExcelUtility @Inject()
                 val epaValue = epaTimeRecordMap(time)(epaID)
                 mg.member map { sensor =>
                   for (v <- recordMap.get(sensor)) yield
-                    (v - epaValue) / epaValue
+                    Math.abs(v - epaValue) / epaValue
                 }
               } else
                 Seq.empty[Option[Double]]
             }
           }
 
-          val (min, max, median) = {
-            val sensorRecords = records(mgIdx)
-            val flattenRecords: Seq[Double] = sensorRecords flatMap { x => x flatMap (a => a) }
+          def getMinMaxMedian(data:Seq[Seq[Option[Double]]]): (Option[Double], Option[Double], Option[Double]) = {
+            val flattenRecords: Seq[Double] = data flatMap { x => x.flatten }
             val sorted = flattenRecords.sorted
-            if (sorted.length != 0) {
+            if (sorted.nonEmpty) {
               (Some(sorted.head), Some(sorted.reverse.head), Some(sorted(sorted.length / 2)))
             } else {
               (None, None, None)
             }
           }
-          val (biasMin, biasMax, biasMedian) = {
-            val flattenRecords = biasRecord flatMap { x => x flatMap (a => a) }
-            val sorted = flattenRecords.sorted
-            if (sorted.length != 0) {
-              (Some(sorted.head), Some(sorted.reverse.head), Some(sorted(sorted.length / 2)))
-            } else {
-              (None, None, None)
-            }
-          }
+
+          val (min, max, median) = getMinMaxMedian(records(mgIdx))
+          val (errorMin, errorMax, errorMedian) = getMinMaxMedian(errorRecords)
+
           val rr: Option[Double] = {
             val rrRecord: Seq[Seq[Option[(Double, Double, Double, Double, Double)]]] = {
               val (_, epaTimeRecordMap, _) = recordTuple(epaIdx)
-              val (mg, timeRecordMap, start) = recordTuple(mgIdx)
+              val (mg, timeRecordMap, _) = recordTuple(mgIdx)
               for {time <- timeSeq} yield {
-                if (timeRecordMap.contains(time) && epaTimeRecordMap.contains(time) && epaTimeRecordMap(time).size != 0) {
+                if (timeRecordMap.contains(time) && epaTimeRecordMap.contains(time) && epaTimeRecordMap(time).nonEmpty) {
                   val recordMap = timeRecordMap(time)
                   val epaValue = epaTimeRecordMap(time).values.head
                   mg.member map { sensor =>
@@ -393,7 +387,7 @@ class ExcelUtility @Inject()
               }
             }
 
-            val flattenRecords: Seq[(Double, Double, Double, Double, Double)] = rrRecord flatMap { x => x flatMap (a => a) }
+            val flattenRecords: Seq[(Double, Double, Double, Double, Double)] = rrRecord flatMap { x => x.flatten }
             val n = flattenRecords.length
             if (n == 0) {
               None
@@ -415,14 +409,14 @@ class ExcelUtility @Inject()
                 _._5
               } sum
               val r = (n * sumXY - sumX * sumY) /
-                (Math.sqrt((n * sumXX -
+                Math.sqrt((n * sumXX -
                   sumX * sumX) * (n * sumYY -
-                  sumY * sumY)))
+                  sumY * sumY))
               Some(r * r)
             }
           }
 
-          SensorMonthReport(start, min, max, median, biasMin, biasMax, biasMedian, rr)
+          SensorMonthReport(start, min, max, median, errorMin, errorMax, errorMedian, rr)
         }
       }
     }
@@ -491,13 +485,13 @@ class ExcelUtility @Inject()
     (reportFilePath, pkg, wb)
   }
 
-  def finishExcel(reportFilePath: Path, pkg: OPCPackage, wb: XSSFWorkbook) = {
+  private def finishExcel(reportFilePath: Path, pkg: OPCPackage, wb: XSSFWorkbook): File = {
     val out = new FileOutputStream(reportFilePath.toAbsolutePath().toString());
     wb.write(out);
     out.close();
     pkg.close();
 
-    new File(reportFilePath.toAbsolutePath().toString())
+    new File(reportFilePath.toAbsolutePath.toString)
   }
 
   def exportMonitor(monitorGroups : Seq[MonitorGroup]):File = {

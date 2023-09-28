@@ -46,7 +46,7 @@ case class GroupSummary(name: String, totalCount: CountByCounty,
 case class DisconnectSummary(name: String, kl: Int, pt: Int, yl: Int, rest: Int)
 
 case class SensorMonthReport(start: DateTime, min: Option[Double], max: Option[Double], median: Option[Double],
-                             biasMin: Option[Double], biasMax: Option[Double], biasMedian: Option[Double], rr: Option[Double])
+                             errorMin: Option[Double], errorMax: Option[Double], errorMedian: Option[Double], rr: Option[Double])
 
 object RecordList {
   def apply(time: Date, monitor: String, mtDataList: Seq[MtRecord]): RecordList = {
