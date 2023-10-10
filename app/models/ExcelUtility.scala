@@ -247,7 +247,7 @@ class ExcelUtility @Inject()
       }
 
       var groupOffset = 0
-      for ((sensorGroup, recordMap, start) <- sensorGroupResults) {
+      for ((sensorGroup, recordMap, _) <- sensorGroupResults) {
         for ((monitor, idx) <- sensorGroup.member.zipWithIndex) {
           val cellIdx = idx + 1 + groupOffset
           if (!skipMonitorGroupRow)
