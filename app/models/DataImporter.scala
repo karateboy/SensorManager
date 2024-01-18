@@ -181,7 +181,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
     val docOpts =
       for (record <- reader.allWithHeaders()) yield
         try {
-          val deviceID = record("id").toDouble.formatted("%.0f")
+          val deviceID = record("id").trim
           val time = try {
             DateTime.parse(record("time"), DateTimeFormat.forPattern("YYYY-MM-dd HH:mm:ss")).toDate
           } catch {
@@ -438,7 +438,7 @@ class DataImporter(monitorOp: MonitorOp, recordOp: RecordOp, monitorGroupOp: Mon
     wb.close()
     dataFile.delete()
 
-    if (!monitorGroups.isEmpty)
+    if (monitorGroups.nonEmpty)
       monitorGroupOp.upsertMany(monitorGroups)
 
     Logger.info(s"monitorSeq #=${monitorSeq.size}")
