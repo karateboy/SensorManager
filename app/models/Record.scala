@@ -129,7 +129,7 @@ class RecordOp @Inject()(mongoDB: MongoDB,
         "$eq" -> Seq("$$mtData.mtName", mt)
       )))
     val bsonArray = BsonArray(filterDoc.toBsonDocument, new BsonInt32(0))
-    Aggregates.addFields(Field("pm25Data",
+    Aggregates.addFields(Field(s"${mt.toLowerCase}Data",
       Document("$arrayElemAt" -> bsonArray)))
   }
 
@@ -638,7 +638,7 @@ class RecordOp @Inject()(mongoDB: MongoDB,
     }
   }
 
-  def getLast30MinPm25ConstantSensor(colName: String): Future[Seq[MonitorRecord]] = {
+  def getLast30MinPm25ConstantSensor(colName: String, current:DateTime): Future[Seq[MonitorRecord]] = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
@@ -652,7 +652,8 @@ class RecordOp @Inject()(mongoDB: MongoDB,
       Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
-    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusMinutes(30).toDate)))
+    val timeFrameFilter = Aggregates.filter(Filters.and(
+      Filters.gt("time", current.minusMinutes(30).toDate), Filters.lt("time", current.toDate)))
 
     val addPm25ValueStage = Aggregates.addFields(Field("pm25", "$pm25Data.value"))
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
@@ -672,7 +673,8 @@ class RecordOp @Inject()(mongoDB: MongoDB,
       .allowDiskUse(true).toFuture()
   }
 
-  def getLast30MinMtConstantSensor(colName: String, mt:String): Future[Seq[MonitorRecord]] = {
+  case class ConstantSensor(_id:String)
+  def getLast30MinMtConstantSensor(colName: String, mt:String, current:DateTime): Future[Seq[ConstantSensor]] = {
     import org.mongodb.scala.model.Projections._
     import org.mongodb.scala.model.Sorts._
 
@@ -682,32 +684,34 @@ class RecordOp @Inject()(mongoDB: MongoDB,
       _._id
     } toList
 
+    val mtLower = mt.toLowerCase()
+
     val monitorFilter =
       Aggregates.filter(Filters.in("monitor", targetMonitors: _*))
 
     val sortFilter = Aggregates.sort(orderBy(descending("time"), descending("monitor")))
-    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", DateTime.now.minusMinutes(30).toDate)))
+    val timeFrameFilter = Aggregates.filter(Filters.and(Filters.gt("time", current.minusMinutes(30).toDate),
+      Filters.lt("time", current.toDate)))
 
-    val addMtValueStage = Aggregates.addFields(Field(mt.toLowerCase, s"$$${mt.toLowerCase()}Data.value"))
+    val addMtValueStage = Aggregates.addFields(Field(mtLower, s"$$${mtLower}Data.value"))
     val latestFilter = Aggregates.group(id = "$monitor", Accumulators.first("time", "$time"),
-      Accumulators.first("mtDataList", "$mtDataList"), Accumulators.first("location", "$location"),
       Accumulators.sum("count", 1),
-      Accumulators.max(s"${mt}Max", s"$$$mt"),
-      Accumulators.min(s"${mt}Min", s"$$$mt"))
+      Accumulators.max("max", s"$$$mtLower"),
+      Accumulators.min("min", s"$$$mtLower"))
     val constantFilter = Aggregates.filter(Filters.and(Filters.gte("count", 8),
-      Filters.expr(Document("$eq" -> Seq(s"$$${mt}Max", s"$$${mt}Min")))
+      Filters.expr(Document("$eq" -> Seq("max", "min")))
     ))
     val projectStage = Aggregates.project(fields(
-      Projections.include("time", "monitor", "id", "mtDataList", "location", "count", s"${mt}Max", s"${mt}Min")))
-    val codecRegistry = fromRegistries(fromProviders(classOf[MonitorRecord], classOf[MtRecord], classOf[RecordListID]), DEFAULT_CODEC_REGISTRY)
-    val col = mongoDB.database.getCollection[MonitorRecord](colName).withCodecRegistry(codecRegistry)
-    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addMtDataStage(mt.toUpperCase),
+      Projections.include("time", "monitor", "id")))
+    val codecRegistry = fromRegistries(fromProviders(classOf[ConstantSensor]), DEFAULT_CODEC_REGISTRY)
+    val col = mongoDB.database.getCollection[ConstantSensor](colName).withCodecRegistry(codecRegistry)
+    col.aggregate(Seq(sortFilter, timeFrameFilter, monitorFilter, addMtDataStage(mt),
         addMtValueStage, latestFilter, constantFilter, projectStage))
       .allowDiskUse(true).toFuture()
   }
 
   def delete45dayAgoRecord(colName: String): Future[DeleteResult] = {
-    val date = DateTime.now().withMillisOfDay(0).minusDays(45).toDate()
+    val date = DateTime.now().withMillisOfDay(0).minusDays(45).toDate
     val f = getCollection(colName).deleteMany(Filters.lt("time", date)).toFuture()
     f onFailure (errorHandler)
     f

@@ -34,7 +34,8 @@ case class MonthlyHourReport(columnNames: Seq[String], rows: Seq[RowData], statR
 
 @Singleton
 class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: Query, monitorGroupOp: MonitorGroupOp,
-                       excelUtility: ExcelUtility) extends Controller {
+                       excelUtility: ExcelUtility, dataCollectManagerOp: DataCollectManagerOp,
+                       errorReportOp: ErrorReportOp) extends Controller {
   implicit val w3 = Json.writes[CellData]
   implicit val w2 = Json.writes[StatRow]
   implicit val w1 = Json.writes[RowData]
@@ -612,13 +613,12 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     }
   }
 
-
-  def getMonitorGroupRecordListFuture(monitorGroup: MonitorGroup, reportDate: DateTime) = {
-    val listF =
-      for (monitor <- monitorGroup.member) yield {
-        recordOp.getMonitorRecordListFuture(recordOp.HourCollection)(reportDate, reportDate + 1.month, monitor)
-      }
-    Future.sequence(listF)
+  def recheckErrorReport(year:Int, month:Int, day:Int) = Security.Authenticated.async {
+    val date = new DateTime(year, month, day, 0, 0)
+    Logger.info(s"Recheck error report for ${date.toString("YYYY/MM/dd")}")
+    for(_ <-errorReportOp.deleteReport(date.toDate)) yield{
+      dataCollectManagerOp.recheckConstantSensor(date.toDate)
+      Ok("")
+    }
   }
-
 }

@@ -3,139 +3,137 @@
 # ~~~~
 
 # Home page
-GET      /                                                                     controllers.Assets.at(path="/public/dist", file="index.html")
-GET      /dist/                                                                 controllers.Assets.at(path="/public/dist", file="index.html")
+GET           /                                                                                controllers.Assets.at(path="/public/dist", file="index.html")
+GET           /dist/                                                                           controllers.Assets.at(path="/public/dist", file="index.html")
 # Map static resources from the /public folder to the /assets URL path
-GET      /static/*file                                                         controllers.Assets.versioned(path="/public/static", file: Asset)
-GET      /html/*file                                                           controllers.Assets.at(path="/public/html", file)
-GET      /dist/*file                                                           controllers.Assets.at(path="/public/dist", file)
+GET           /static/*file                                                                    controllers.Assets.versioned(path="/public/static", file: Asset)
+GET           /html/*file                                                                      controllers.Assets.at(path="/public/html", file)
+GET           /dist/*file                                                                      controllers.Assets.at(path="/public/dist", file)
 
 
-GET      /logout                                                                  controllers.Login.logout
-POST     /login                                                                   controllers.Login.authenticate
-GET      /login                                                                   controllers.Login.isLogin
+GET           /logout                                                                          controllers.Login.logout
+POST          /login                                                                           controllers.Login.authenticate
+GET           /login                                                                           controllers.Login.isLogin
 
-POST     /User                                                                    controllers.HomeController.newUser
-GET      /User                                                                    controllers.HomeController.getUserInfo
-GET      /Users                                                                   controllers.HomeController.getAllUsers
-PUT      /User/:id                                                                controllers.HomeController.updateUser(id)
-DELETE   /User/:id                                                                controllers.HomeController.deleteUser(id)	
+POST          /User                                                                            controllers.HomeController.newUser
+GET           /User                                                                            controllers.HomeController.getUserInfo
+GET           /Users                                                                           controllers.HomeController.getAllUsers
+PUT           /User/:id                                                                        controllers.HomeController.updateUser(id)
+DELETE        /User/:id                                                                        controllers.HomeController.deleteUser(id)
 
-POST     /Group                                                                   controllers.HomeController.newGroup
-GET      /Groups                                                                  controllers.HomeController.getAllGroups
-PUT      /Group/:id                                                               controllers.HomeController.updateGroup(id)
-DELETE   /Group/:id                                                               controllers.HomeController.deleteGroup(id)
+POST          /Group                                                                           controllers.HomeController.newGroup
+GET           /Groups                                                                          controllers.HomeController.getAllGroups
+PUT           /Group/:id                                                                       controllers.HomeController.updateGroup(id)
+DELETE        /Group/:id                                                                       controllers.HomeController.deleteGroup(id)
 
-GET      /HistoryTrend/:monitor/:monitorType/:reportUnit/:statusFilter/:start/:end         controllers.Query.historyTrendChart(monitor, monitorType, reportUnit, statusFilter, start:Long, end:Long, outputTypeStr="html")
-GET      /HistoryTrend/excel/:monitorType/:reportUnit/:statusFilter/:start/:end            controllers.Query.historyTrendChart(monitor, monitorType, reportUnit, statusFilter, start:Long, end:Long, outputTypeStr="excel")
+GET           /HistoryTrend/:monitor/:monitorType/:reportUnit/:statusFilter/:start/:end        controllers.Query.historyTrendChart(monitor, monitorType, reportUnit, statusFilter, start:Long, end:Long, outputTypeStr="html")
+GET           /HistoryTrend/excel/:monitorType/:reportUnit/:statusFilter/:start/:end           controllers.Query.historyTrendChart(monitor, monitorType, reportUnit, statusFilter, start:Long, end:Long, outputTypeStr="excel")
 
-GET      /HistoryReport/:monitor/:monitorType/:tabType/:start/:end                controllers.Query.historyData(monitor, monitorType, tabType, start: Long, end: Long, outputType="html")
-GET      /HistoryReport/csv/:monitor/:monitorType/:tabType/:start/:end            controllers.Query.historyData(monitor, monitorType, tabType, start: Long, end: Long, outputType="csv")
-GET      /LatestData/:monitor/:monitorType/:tabType                               controllers.Query.latestData(monitor, monitorType, tabType)
-GET      /RealtimeEPA                                                             controllers.Realtime.epaStatus()
-GET      /RealtimeSensor                                                          controllers.Realtime.sensorStatus(pm25Threshold, county, district, sensorType)
-GET      /RealtimeDisconnectedSensor                                              controllers.Realtime.sensorDisconnected(county, district, sensorType)
-GET      /RealtimeConstantValueSensor                                             controllers.Realtime.sensorConstant(county, district, sensorType)
-GET      /Lt95Sensor                                                              controllers.Realtime.lessThan95sensor(county, district, sensorType)
-GET      /PowerUsageErrorSensor                                                   controllers.Realtime.getPowerUsageErrorSensor(county, district, sensorType)
-GET      /NoPowerInfoSensor                                                       controllers.Realtime.getNoErrorCodeSensors(county, district, sensorType)
-GET      /SensorSummary                                                           controllers.Realtime.sensorSummary
-GET      /CheckSensor                                                             controllers.Realtime.checkSensor
+GET           /HistoryReport/:monitor/:monitorType/:tabType/:start/:end                        controllers.Query.historyData(monitor, monitorType, tabType, start: Long, end: Long, outputType="html")
+GET           /HistoryReport/csv/:monitor/:monitorType/:tabType/:start/:end                    controllers.Query.historyData(monitor, monitorType, tabType, start: Long, end: Long, outputType="csv")
+GET           /LatestData/:monitor/:monitorType/:tabType                                       controllers.Query.latestData(monitor, monitorType, tabType)
+GET           /RealtimeEPA                                                                     controllers.Realtime.epaStatus()
+GET           /RealtimeSensor                                                                  controllers.Realtime.sensorStatus(pm25Threshold, county, district, sensorType)
+GET           /RealtimeDisconnectedSensor                                                      controllers.Realtime.sensorDisconnected(county, district, sensorType)
+GET           /RealtimeConstantValueSensor                                                     controllers.Realtime.sensorConstant(county, district, sensorType)
+GET           /Lt95Sensor                                                                      controllers.Realtime.lessThan95sensor(county, district, sensorType)
+GET           /PowerUsageErrorSensor                                                           controllers.Realtime.getPowerUsageErrorSensor(county, district, sensorType)
+GET           /NoPowerInfoSensor                                                               controllers.Realtime.getNoErrorCodeSensors(county, district, sensorType)
+GET           /SensorSummary                                                                   controllers.Realtime.sensorSummary
+GET           /CheckSensor                                                                     controllers.Realtime.checkSensor
 
-GET      /CalibrationReport/:start/:end                                           controllers.Query.calibrationReport(start:Long, end:Long)
+GET           /CalibrationReport/:start/:end                                                   controllers.Query.calibrationReport(start:Long, end:Long)
 
-GET      /AlarmReport/:level/:start/:end                                          controllers.Query.alarmReport(level:Int, start:Long, end:Long)
-GET      /ErrorReport/:date                                                       controllers.Query.getErrorReport(date:Long)
-GET      /ErrorReport/:start/:end                                                 controllers.Query.getErrorReports(start:Long, end:Long)
-POST     /ErrorReport/action/:date                                                controllers.Query.updateErrorReportAction(date:Long)
-POST     /ErrorReport/inspection/:date                                            controllers.Query.updateErrorReportInspection(date:Long)
+GET           /AlarmReport/:level/:start/:end                                                  controllers.Query.alarmReport(level:Int, start:Long, end:Long)
+GET           /ErrorReport/:date                                                               controllers.Query.getErrorReport(date:Long)
+GET           /ErrorReport/:start/:end                                                         controllers.Query.getErrorReports(start:Long, end:Long)
+POST          /ErrorReport/action/:date                                                        controllers.Query.updateErrorReportAction(date:Long)
+POST          /ErrorReport/inspection/:date                                                    controllers.Query.updateErrorReportInspection(date:Long)
 
-POST     /SaveMonitorTypeConfig                                                   controllers.HomeController.saveMonitorTypeConfig
+POST          /SaveMonitorTypeConfig                                                           controllers.HomeController.saveMonitorTypeConfig
 
-GET      /InstrumentTypes                                                         controllers.HomeController.getInstrumentTypes
-GET      /InstrumentType/:id                                                      controllers.HomeController.getInstrumentType(id)
-
-
-GET      /InstrumentInfos                                                         controllers.HomeController.getInstrumentInfoList()
-POST     /Instrument                                                              controllers.HomeController.newInstrument
-GET      /Instruments                                                             controllers.HomeController.getInstrumentList
-GET      /Instruments/DO                                                          controllers.HomeController.getDoInstrumentList
-GET      /Instrument/:id                                                          controllers.HomeController.getInstrument(id)
-DELETE   /Instrument/:ids                                                         controllers.HomeController.removeInstrument(ids)
+GET           /InstrumentTypes                                                                 controllers.HomeController.getInstrumentTypes
+GET           /InstrumentType/:id                                                              controllers.HomeController.getInstrumentType(id)
 
 
-
-PUT      /DeactivateInstrument/:ids                                               controllers.HomeController.deactivateInstrument(ids)
-PUT      /ActivateInstrument/:ids                                                 controllers.HomeController.activateInstrument(ids)
-PUT      /ToggleMaintainInstrument/:ids                                           controllers.HomeController.toggleMaintainInstrument(ids)
-PUT      /CalibrateInstrumentZero/:ids                                            controllers.HomeController.calibrateInstrument(ids, zeroCalibration="true")
-PUT      /CalibrateInstrumentSpan/:ids                                            controllers.HomeController.calibrateInstrument(ids, zeroCalibration="false")
-PUT      /CalibrateInstrument/:ids                                                controllers.HomeController.calibrateInstrumentFull(ids)
-PUT      /ResetInstrument/:ids                                                    controllers.HomeController.resetInstrument(ids)
-PUT      /WriteDO/:ids                                                            controllers.HomeController.writeDO(ids)
-GET      /ExecuteSeq/:ids/:seq                                                    controllers.HomeController.getExecuteSeq(ids, seq:Int)
-PUT      /ExecuteSeq/:ids/:seq                                                    controllers.HomeController.executeSeq(ids, seq:Int)
+GET           /InstrumentInfos                                                                 controllers.HomeController.getInstrumentInfoList()
+POST          /Instrument                                                                      controllers.HomeController.newInstrument
+GET           /Instruments                                                                     controllers.HomeController.getInstrumentList
+GET           /Instruments/DO                                                                  controllers.HomeController.getDoInstrumentList
+GET           /Instrument/:id                                                                  controllers.HomeController.getInstrument(id)
+DELETE        /Instrument/:ids                                                                 controllers.HomeController.removeInstrument(ids)
 
 
-GET      /InstrumentStatusReport/:id/:start/:end                                  controllers.Query.instrumentStatusReport(id, start:Long, end:Long)
-GET      /ManualAuditHistory/:start/:end                                          controllers.Query.manualAuditHistoryReport(start:Long, end:Long)
+
+PUT           /DeactivateInstrument/:ids                                                       controllers.HomeController.deactivateInstrument(ids)
+PUT           /ActivateInstrument/:ids                                                         controllers.HomeController.activateInstrument(ids)
+PUT           /ToggleMaintainInstrument/:ids                                                   controllers.HomeController.toggleMaintainInstrument(ids)
+PUT           /CalibrateInstrumentZero/:ids                                                    controllers.HomeController.calibrateInstrument(ids, zeroCalibration="true")
+PUT           /CalibrateInstrumentSpan/:ids                                                    controllers.HomeController.calibrateInstrument(ids, zeroCalibration="false")
+PUT           /CalibrateInstrument/:ids                                                        controllers.HomeController.calibrateInstrumentFull(ids)
+PUT           /ResetInstrument/:ids                                                            controllers.HomeController.resetInstrument(ids)
+PUT           /WriteDO/:ids                                                                    controllers.HomeController.writeDO(ids)
+GET           /ExecuteSeq/:ids/:seq                                                            controllers.HomeController.getExecuteSeq(ids, seq:Int)
+PUT           /ExecuteSeq/:ids/:seq                                                            controllers.HomeController.executeSeq(ids, seq:Int)
+
+
+GET           /InstrumentStatusReport/:id/:start/:end                                          controllers.Query.instrumentStatusReport(id, start:Long, end:Long)
+GET           /ManualAuditHistory/:start/:end                                                  controllers.Query.manualAuditHistoryReport(start:Long, end:Long)
 
 #Data Management
 
-GET      /Recalculate/:monitors/:start/:end                                       controllers.HomeController.recalculateHour(monitors, start:Long, end:Long)
-GET      /Upload/:tab/:start/:end                                                 controllers.HomeController.uploadData(tab, start, end)
+GET           /Recalculate/:monitors/:start/:end                                               controllers.HomeController.recalculateHour(monitors, start:Long, end:Long)
+GET           /Upload/:tab/:start/:end                                                         controllers.HomeController.uploadData(tab, start, end)
 
 #Realtime
-GET      /MonitorTypeStatusList                                                   controllers.Realtime.MonitorTypeStatusList()
+GET           /MonitorTypeStatusList                                                           controllers.Realtime.MonitorTypeStatusList()
 
 #Report
-GET      /monitorReport/:reportType/:monitor/:reportDate                          controllers.Report.getMonitorReport(monitor, reportType, reportDate:Long, outputTypeStr="html")
-GET      /PDF/monitorReport/:reportType/:reportDate                               controllers.Report.getMonitorReport(monitor, reportType, reportDate:Long, outputTypeStr="pdf")
-GET      /Excel/monitorReport/:reportType/:reportDate                             controllers.Report.getMonitorReport(monitor, reportType, reportDate:Long, outputTypeStr="excel")
+GET           /monitorReport/:reportType/:monitor/:reportDate                                  controllers.Report.getMonitorReport(monitor, reportType, reportDate:Long, outputTypeStr="html")
+GET           /PDF/monitorReport/:reportType/:reportDate                                       controllers.Report.getMonitorReport(monitor, reportType, reportDate:Long, outputTypeStr="pdf")
+GET           /Excel/monitorReport/:reportType/:reportDate                                     controllers.Report.getMonitorReport(monitor, reportType, reportDate:Long, outputTypeStr="excel")
 
-GET      /MonthlyHourReport/:monitor/:monitorType/:reportDate                     controllers.Report.monthlyHourReport(monitor, monitorType, reportDate:Long, outputTypeStr="html")
+GET           /MonthlyHourReport/:monitor/:monitorType/:reportDate                             controllers.Report.monthlyHourReport(monitor, monitorType, reportDate:Long, outputTypeStr="html")
 
-GET      /DecayReport/:county/:reportDate                                         controllers.Report.decayReport(county, reportDate:Long)
-GET      /OutstandingReport/:county/:reportDate                                   controllers.Report.outstandingReport(county, reportDate:Long)
-GET      /OutstandingReport/JSON/:monitorGroup/:reportDate                        controllers.Report.outstandingReportJson2(monitorGroup, reportDate:Long)
+GET           /DecayReport/:county/:reportDate                                                 controllers.Report.decayReport(county, reportDate:Long)
+GET           /OutstandingReport/:county/:reportDate                                           controllers.Report.outstandingReport(county, reportDate:Long)
+GET           /OutstandingReport/JSON/:monitorGroup/:reportDate                                controllers.Report.outstandingReportJson2(monitorGroup, reportDate:Long)
 
-GET      /SystemConfig/:key                                                       controllers.HomeController.getSystemConfig(key)
-POST     /SystemConfig/:key                                                       controllers.HomeController.setSystemConfig(key)
+GET           /SystemConfig/:key                                                               controllers.HomeController.getSystemConfig(key)
+POST          /SystemConfig/:key                                                               controllers.HomeController.setSystemConfig(key)
 #Upload
-POST    /ImportData/:fileType                                                     controllers.HomeController.importData(fileType)
-GET     /UploadProgress/:actorName                                                controllers.HomeController.getUploadProgress(actorName)
-GET     /ExportData/monitor                                                       controllers.HomeController.exportMonitor()
+POST          /ImportData/:fileType                                                            controllers.HomeController.importData(fileType)
+GET           /UploadProgress/:actorName                                                       controllers.HomeController.getUploadProgress(actorName)
+GET           /ExportData/monitor                                                              controllers.HomeController.exportMonitor()
 #JSON
-GET      /MonitorType                                                             controllers.HomeController.monitorTypeList
-GET      /MonitorTypes/active                                                     controllers.HomeController.activeMonitorTypeList
-POST     /MonitorType/:id                                                         controllers.HomeController.upsertMonitorType(id)
-PUT      /MonitorType/:id                                                         controllers.HomeController.upsertMonitorType(id)
-GET      /SignalTypes                                                             controllers.HomeController.signalTypeList
-GET      /SignalValues                                                            controllers.HomeController.signalValues
+GET           /MonitorType                                                                     controllers.HomeController.monitorTypeList
+GET           /MonitorTypes/active                                                             controllers.HomeController.activeMonitorTypeList
+POST          /MonitorType/:id                                                                 controllers.HomeController.upsertMonitorType(id)
+PUT           /MonitorType/:id                                                                 controllers.HomeController.upsertMonitorType(id)
+GET           /SignalTypes                                                                     controllers.HomeController.signalTypeList
+GET           /SignalValues                                                                    controllers.HomeController.signalValues
 
-GET      /Monitors                                                                controllers.HomeController.monitorList
-PUT      /Monitor/:id                                                             controllers.HomeController.upsertMonitor(id)
-GET      /MonitorGroups                                                           controllers.HomeController.monitorGroupList
-PUT      /MonitorGroup/:id                                                        controllers.HomeController.upsertMonitorGroup(id)
-DELETE   /MonitorGroup/:id                                                        controllers.HomeController.deleteMonitorGroup(id)
+GET           /Monitors                                                                        controllers.HomeController.monitorList
+PUT           /Monitor/:id                                                                     controllers.HomeController.upsertMonitor(id)
+GET           /MonitorGroups                                                                   controllers.HomeController.monitorGroupList
+PUT           /MonitorGroup/:id                                                                controllers.HomeController.upsertMonitorGroup(id)
+DELETE        /MonitorGroup/:id                                                                controllers.HomeController.deleteMonitorGroup(id)
 
-GET      /Record/:monitorType/:start/:end                                         controllers.Query.recordList(monitorType, start:Long, end:Long)
-PUT      /Record/:tabType                                                         controllers.Query.updateRecord(tabType)
+GET           /Record/:monitorType/:start/:end                                                 controllers.Query.recordList(monitorType, start:Long, end:Long)
+PUT           /Record/:tabType                                                                 controllers.Query.updateRecord(tabType)
 
-GET      /HourRecord/:start/:end                                                  controllers.Query.hourRecordList(start:Long, end:Long)
-GET      /MinRecord/:start/:end                                                   controllers.Query.minRecordList(start:Long, end:Long)
-GET      /CalibrationRecord/:start/end                                            controllers.Query.calibrationRecordList(start:Long, end:Long)
-GET      /AlertRecord/:start/end                                                  controllers.Query.alertRecordList(start:Long, end:Long)
+GET           /HourRecord/:start/:end                                                          controllers.Query.hourRecordList(start:Long, end:Long)
+GET           /MinRecord/:start/:end                                                           controllers.Query.minRecordList(start:Long, end:Long)
+GET           /CalibrationRecord/:start/end                                                    controllers.Query.calibrationRecordList(start:Long, end:Long)
+GET           /AlertRecord/:start/end                                                          controllers.Query.alertRecordList(start:Long, end:Long)
 
-GET      /AlertEmailTargets                                                       controllers.HomeController.getAlertEmailTargets
-POST     /AlertEmailTargets                                                       controllers.HomeController.saveAlertEmailTargets
-GET      /TestAlertEmail                                                          controllers.HomeController.testAlertEmail(email)
-GET      /TestAllAlertEmail                                                       controllers.HomeController.testAllAlertEmail
-GET      /ConstantCheckTime                                                       controllers.HomeController.getConstantCheckTime
-POST     /ConstantCheckTime                                                       controllers.HomeController.saveConstantCheckTime
+GET           /AlertEmailTargets                                                               controllers.HomeController.getAlertEmailTargets
+POST          /AlertEmailTargets                                                               controllers.HomeController.saveAlertEmailTargets
+GET           /TestAlertEmail                                                                  controllers.HomeController.testAlertEmail(email)
+GET           /TestAllAlertEmail                                                               controllers.HomeController.testAllAlertEmail
+GET           /ConstantCheckTime                                                               controllers.HomeController.getConstantCheckTime
+POST          /ConstantCheckTime                                                               controllers.HomeController.saveConstantCheckTime
 
-GET      /EvtOptHigh                                                              controllers.HomeController.testEvtOptHigh
-GET      /TestSpray                                                               controllers.HomeController.testSpray
-#GET		/WindRose				controllers.Query.windRose
-#GET		/MonitorTypeRose		controllers.Query.monitorTypeRose
-#GET		/WindRoseReport/:monitor/:monitorType/:nWays/:start/:end	controllers.Query.windRoseReport(monitor, monitorType, nWays:Int, start, end)
+GET           /EvtOptHigh                                                                      controllers.HomeController.testEvtOptHigh
+GET           /TestSpray                                                                       controllers.HomeController.testSpray
+GET           /Recheck/:year/:month/:day                                                       controllers.Report.recheckErrorReport(year:Int, month:Int, day:Int)

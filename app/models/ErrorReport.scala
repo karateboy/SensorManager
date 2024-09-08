@@ -1,10 +1,13 @@
 package models
 
+import org.bson.codecs.configuration.CodecRegistry
 import org.joda.time.DateTime
+import org.mongodb.scala.MongoCollection
+import org.mongodb.scala.bson.conversions.Bson
 import org.mongodb.scala.model.{ReplaceOptions, Updates}
-import org.mongodb.scala.result.UpdateResult
+import org.mongodb.scala.result.{DeleteResult, UpdateResult}
 import play.api.Logger
-import play.api.libs.json.Json
+import play.api.libs.json.{Json, OWrites, Reads}
 import play.api.libs.mailer.{Email, MailerClient}
 
 import java.util.Date
@@ -21,12 +24,12 @@ case class ErrorReport(_id: Date, noErrorCode: Seq[String], powerError: Seq[Stri
 case class SensorErrorReport(errorType:String, kl: Seq[Monitor], pt: Seq[Monitor], yl: Seq[Monitor])
 
 object ErrorReport {
-  implicit val writeAction = Json.writes[ErrorAction]
-  implicit val readAction = Json.reads[ErrorAction]
-  implicit val writeRates = Json.writes[EffectiveRate]
-  implicit val readRates = Json.reads[EffectiveRate]
-  implicit val reads = Json.reads[ErrorReport]
-  implicit val writes = Json.writes[ErrorReport]
+  implicit val writeAction: OWrites[ErrorAction] = Json.writes[ErrorAction]
+  implicit val readAction: Reads[ErrorAction] = Json.reads[ErrorAction]
+  implicit val writeRates: OWrites[EffectiveRate] = Json.writes[EffectiveRate]
+  implicit val readRates: Reads[EffectiveRate] = Json.reads[EffectiveRate]
+  implicit val reads: Reads[ErrorReport] = Json.reads[ErrorReport]
+  implicit val writes: OWrites[ErrorReport] = Json.writes[ErrorReport]
 }
 
 import models.ModelHelper.{errorHandler, waitReadyResult}
@@ -43,8 +46,8 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
 
   val colName = "errorReports"
 
-  val codecRegistry = fromRegistries(fromProviders(classOf[ErrorReport], classOf[EffectiveRate], classOf[ErrorAction]), DEFAULT_CODEC_REGISTRY)
-  val collection = mongoDB.database.getCollection[ErrorReport](colName).withCodecRegistry(codecRegistry)
+  val codecRegistry: CodecRegistry = fromRegistries(fromProviders(classOf[ErrorReport], classOf[EffectiveRate], classOf[ErrorAction]), DEFAULT_CODEC_REGISTRY)
+  val collection: MongoCollection[ErrorReport] = mongoDB.database.getCollection[ErrorReport](colName).withCodecRegistry(codecRegistry)
 
   def init(): Unit = {
     val colNames = waitReadyResult(mongoDB.database.listCollectionNames().toFuture())
@@ -54,24 +57,15 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     }
   }
 
-  def upgrade(): Unit ={
-    val filter = Filters.not(Filters.exists("inspections"))
-    val update = Updates.combine(Updates.set("inspections", Seq.empty[ErrorAction]),
-      Updates.set("actions", Seq.empty[ErrorAction]))
-    val f = collection.updateMany(filter, update).toFuture()
-    f onFailure(errorHandler())
-  }
+  init()
 
-  init
-  upgrade()
-
-  def upsert(report: ErrorReport) = {
+  def upsert(report: ErrorReport): Future[UpdateResult] = {
     val f = collection.replaceOne(Filters.equal("_id", report._id), report, ReplaceOptions().upsert(true)).toFuture()
     f.onFailure(errorHandler)
     f
   }
 
-  def addNoErrorCodeSensor = initBefore(addNoErrorCodeSensor1) _
+  def addNoErrorCodeSensor(): (Date, String) => Unit = initBefore(addNoErrorCodeSensor1)
   private def addNoErrorCodeSensor1(date: Date, sensorID: String): Future[UpdateResult] = {
     val updates = Updates.addToSet("noErrorCode", sensorID)
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
@@ -79,7 +73,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f
   }
 
-  def addErrorInspection = initBefore(addErrorInspection1) _
+  def addErrorInspection(): (Date, ErrorAction) => Unit = initBefore(addErrorInspection1)
   private def addErrorInspection1(date: Date, inspection:ErrorAction): Future[UpdateResult] = {
     val updates = Updates.push("inspections", inspection)
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
@@ -87,9 +81,8 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f
   }
 
-  def addErrorAction = initBefore(addErrorAction1) _
+  def addErrorAction() = initBefore(addErrorAction1) _
   private def addErrorAction1(date: Date, action:ErrorAction): Future[UpdateResult] = {
-    val filter = Filters.equal("_id", date)
     val updates = Updates.push("actions", action)
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
     f.onFailure(errorHandler())
@@ -105,25 +98,24 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     f
   }
 
-  def addPowerErrorSensor = initBefore(addPowerErrorSensor1) _
+  def addPowerErrorSensor(): (Date, String) => Unit = initBefore(addPowerErrorSensor1)
 
-  def addPowerErrorSensor1(date: Date, sensorID: String) = {
+  private def addPowerErrorSensor1(date: Date, sensorID: String): Future[UpdateResult] = {
     val updates = Updates.addToSet("powerError", sensorID)
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
     f.onFailure(errorHandler())
     f
   }
 
-  def removePowerErrorSensor = initBefore(removePowerErrorSensor1) _
 
-  def removePowerErrorSensor1(date: Date, sensorID: String) = {
+  def removePowerErrorSensor1(date: Date, sensorID: String): Future[UpdateResult] = {
     val updates = Updates.pull("powerError", sensorID)
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
     f.onFailure(errorHandler())
     f
   }
 
-  def initBefore[T](f: (Date, T) => Future[UpdateResult])(date: Date, sensorID: T): Unit = {
+  private def initBefore[T](f: (Date, T) => Future[UpdateResult])(date: Date, sensorID: T): Unit = {
 
     insertEmptyIfNotExist(date).andThen({
       case _ =>
@@ -131,23 +123,23 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     })
   }
 
-  def insertEmptyIfNotExist(date: Date) = {
+  private def insertEmptyIfNotExist(date: Date) = {
     val emptyDoc = ErrorReport(date, Seq.empty[String], Seq.empty[String], Seq.empty[String], Seq.empty[EffectiveRate],
       Seq.empty[String], Seq.empty[ErrorAction], Seq.empty[ErrorAction], None, None)
     collection.insertOne(emptyDoc).toFuture()
   }
 
-  def addConstantSensor = initBefore(addConstantSensor1) _
+  def addConstantSensor(): (Date, String) => Unit = initBefore(addConstantSensor1)
 
-  def addConstantSensor1(date: Date, sensorID: String) = {
+  private def addConstantSensor1(date: Date, sensorID: String) = {
     val updates = Updates.addToSet("constant", sensorID)
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
     f.onFailure(errorHandler())
     f
   }
 
-  def addDisconnectedSensor = initBefore(addDisconnectedSensor1) _
-  def addDisconnectedSensor1(date: Date, sensorID: String) = {
+  def addDisconnectedSensor(): (Date, String) => Unit = initBefore(addDisconnectedSensor1)
+  private def addDisconnectedSensor1(date: Date, sensorID: String): Future[UpdateResult] = {
     val updates = Updates.addToSet("disconnect", sensorID)
     val f = collection.updateOne(Filters.equal("_id", date), updates).toFuture()
     f.onFailure(errorHandler())
@@ -192,9 +184,9 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
           val report = reports(0)
           def getSensorErrorReport(title:String, monitorIDs:Seq[String])={
             val monitors = monitorIDs.map(monitorOp.map)
-            val kl = monitors.filter(_.county == Some("基隆市"))
-            val pt = monitors.filter(_.county == Some("屏東縣"))
-            val yl = monitors.filter(_.county == Some("宜蘭縣"))
+            val kl = monitors.filter(_.county.contains("基隆市"))
+            val pt = monitors.filter(_.county.contains("屏東縣"))
+            val yl = monitors.filter(_.county.contains("宜蘭縣"))
             SensorErrorReport(title,kl = kl, pt = pt, yl=yl)
           }
           Seq(getSensorErrorReport("充電異常", report.powerError),
@@ -211,7 +203,7 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
           bodyHtml = Some(htmlBody)
         )
         try {
-          Thread.currentThread().setContextClassLoader(getClass().getClassLoader())
+          Thread.currentThread().setContextClassLoader(getClass.getClassLoader)
           mailerClient.send(mail)
         } catch {
           case ex: Exception =>
@@ -221,15 +213,21 @@ class ErrorReportOp @Inject()(mongoDB: MongoDB, mailerClient: MailerClient, moni
     }
   }
 
-  def get(_id: Date) = {
+  def get(_id: Date): Future[Seq[ErrorReport]] = {
     val f = collection.find(Filters.equal("_id", _id)).toFuture()
     f.onFailure(errorHandler())
     f
   }
 
-  def get(start:Date, end:Date)= {
+  def get(start:Date, end:Date): Future[Seq[ErrorReport]] = {
     val filter = Filters.and(Filters.gte("_id", start), Filters.lte("_id", end))
     val f = collection.find(filter).toFuture()
+    f.onFailure(errorHandler())
+    f
+  }
+
+  def deleteReport(date: Date): Future[DeleteResult] = {
+    val f = collection.deleteOne(Filters.equal("_id", date)).toFuture()
     f.onFailure(errorHandler())
     f
   }

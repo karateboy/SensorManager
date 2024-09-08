@@ -2,15 +2,18 @@ package models
 
 import akka.actor._
 import com.github.nscala_time.time.Imports._
-import models.DataCollectManager.{CheckSensorStstus, SetCheckConstantTime}
+import models.DataCollectManager.{CheckConstantSensor, CheckSensorStatus, SetCheckConstantTime}
 import models.ModelHelper._
+import org.mongodb.scala.result.UpdateResult
 import play.api._
 import play.api.libs.concurrent.InjectedActorSupport
 
+import java.util.Date
 import javax.inject._
+import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.{Future, blocking}
+import scala.concurrent.Future
 import scala.concurrent.duration.SECONDS
 import scala.language.postfixOps
 import scala.util.Success
@@ -77,11 +80,13 @@ object DataCollectManager {
 
   case class SetCheckConstantTime(localTime: LocalTime)
 
-  case object CheckSensorStstus
+  case object CheckSensorStatus
 
-  case object CheckConstantSensor
+  case object CheckTodayConstantSensor
 
-  case object CleanupOldRecord
+  case class CheckConstantSensor(date: Date)
+
+  private case object CleanupOldRecord
 }
 
 @Singleton
@@ -90,32 +95,32 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
 
   val effectivRatio = 0.75
 
-  def startCollect(inst: Instrument) {
+  def startCollect(inst: Instrument): Unit = {
     manager ! StartInstrument(inst)
   }
 
-  def startCollect(id: String) {
+  def startCollect(id: String): Unit = {
     val instList = instrumentOp.getInstrument(id)
     instList.map { inst => manager ! StartInstrument(inst) }
   }
 
-  def stopCollect(id: String) {
+  def stopCollect(id: String): Unit = {
     manager ! StopInstrument(id)
   }
 
-  def setInstrumentState(id: String, state: String) {
+  def setInstrumentState(id: String, state: String): Unit = {
     manager ! SetState(id, state)
   }
 
-  def autoCalibration(id: String) {
+  def autoCalibration(id: String): Unit = {
     manager ! AutoCalibration(id)
   }
 
-  def zeroCalibration(id: String) {
+  def zeroCalibration(id: String): Unit = {
     manager ! ManualZeroCalibration(id)
   }
 
-  def spanCalibration(id: String) {
+  def spanCalibration(id: String): Unit = {
     manager ! ManualSpanCalibration(id)
   }
 
@@ -123,11 +128,11 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
     manager ! WriteTargetDO(id, bit, on)
   }
 
-  def toggleTargetDO(id: String, bit: Int, seconds: Int) = {
+  def toggleTargetDO(id: String, bit: Int, seconds: Int): Unit = {
     manager ! ToggleTargetDO(id, bit, seconds)
   }
 
-  def executeSeq(seq: Int) {
+  def executeSeq(seq: Int): Unit = {
     manager ! ExecuteSeq(seq, true)
   }
 
@@ -146,18 +151,18 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
     f.mapTo[Map[String, Record]]
   }
 
-  def udateCheckConstantTime(localTime: LocalTime) = {
+  def udateCheckConstantTime(localTime: LocalTime): Unit = {
     manager ! SetCheckConstantTime(localTime)
   }
 
   import scala.collection.mutable.ListBuffer
 
-  def evtOperationHighThreshold {
+  def evtOperationHighThreshold(): Unit = {
     alarmOp.log(alarmOp.Src(), alarmOp.Level.INFO, "進行高值觸發事件行動..")
     manager ! EvtOperationOverThreshold
   }
 
-  def recalculateHourData(monitor: String, current: DateTime, forward: Boolean = true, alwaysValid: Boolean)(mtList: Seq[String]) = {
+  def recalculateHourData(monitor: String, current: DateTime, forward: Boolean = true, alwaysValid: Boolean)(mtList: Seq[String]): Future[UpdateResult] = {
     val recordMap = recordOp.getRecordMap(recordOp.MinCollection)(monitor, mtList, current - 1.hour, current)
 
     import scala.collection.mutable.ListBuffer
@@ -193,7 +198,7 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
     f
   }
 
-  def calculateHourAvgMap(mtMap: Map[String, Map[String, ListBuffer[(DateTime, Double)]]], alwaysValid: Boolean) = {
+  private def calculateHourAvgMap(mtMap: Map[String, Map[String, ListBuffer[(DateTime, Double)]]], alwaysValid: Boolean): Iterable[MtRecord] = {
     for {
       mt <- mtMap.keys
       statusMap = mtMap(mt)
@@ -240,8 +245,12 @@ class DataCollectManagerOp @Inject()(@Named("dataCollectManager") manager: Actor
     }
   }
 
-  def checkSensor() = {
-    manager ! CheckSensorStstus
+  def checkSensor(): Unit = {
+    manager ! CheckSensorStatus
+  }
+
+  def recheckConstantSensor(date: Date): Unit = {
+    manager ! CheckConstantSensor(date)
   }
 }
 
@@ -255,10 +264,10 @@ class DataCollectManager @Inject()
 
   import DataCollectManager._
 
-  val storeSecondData = config.getBoolean("storeSecondData").getOrElse(false)
+  private val storeSecondData = config.getBoolean("storeSecondData").getOrElse(false)
   Logger.info(s"store second data = $storeSecondData")
 
-  val timer = {
+  val timer: Cancellable = {
     import scala.concurrent.duration._
     //Try to trigger at 30 sec
     val next30 = DateTime.now().withSecondOfMinute(30).plusMinutes(1)
@@ -266,69 +275,30 @@ class DataCollectManager @Inject()
     context.system.scheduler.schedule(Duration(postSeconds, SECONDS), Duration(1, MINUTES), self, CalculateData)
   }
 
-  val updateErrorReportTimer: Cancellable = {
-    val localtime = LocalTime.now().withMillisOfDay(0)
-      .withHourOfDay(7).withMinuteOfHour(30).withSecondOfMinute(0) // 07:00
-    val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
-    val duration = if (DateTime.now() < emailTime)
-      new Duration(DateTime.now(), emailTime)
-    else
-      new Duration(DateTime.now(), emailTime + 1.day)
-
-    import scala.concurrent.duration._
-    context.system.scheduler.schedule(
-      Duration(duration.getStandardSeconds + 1, SECONDS),
-      Duration(1, DAYS), self, CheckSensorStstus)
-  }
-  val alertEmailTimer: Cancellable = {
-    val localtime = LocalTime.now().withMillisOfDay(0)
-      .withHourOfDay(8).withMinuteOfHour(0) // 20:00
-    val emailTime = DateTime.now().toLocalDate().toDateTime(localtime)
-    val duration = if (DateTime.now() < emailTime)
-      new Duration(DateTime.now(), emailTime)
-    else
-      new Duration(DateTime.now(), emailTime + 1.day)
-
-    Logger.info(s"setup to fire SendErrorReport ${duration.getStandardHours}:${duration.getStandardMinutes} latter")
-    import scala.concurrent.duration._
-    context.system.scheduler.schedule(
-      Duration(duration.getStandardSeconds + 1, SECONDS),
-      Duration(1, DAYS), self, SendErrorReport)
-  }
-
-  for (localtime <- sysConfig.getConstantCheckTime()) yield {
-    val checkTime = DateTime.now().toLocalDate().toDateTime(localtime)
+  private def setupTimer(localTime: LocalTime, msg: Any) = {
+    val checkTime = DateTime.now().toLocalDate().toDateTime(localTime)
     val duration = if (DateTime.now() < checkTime)
       new Duration(DateTime.now(), checkTime)
     else
       new Duration(DateTime.now(), checkTime + 1.day)
 
     import scala.concurrent.duration._
-    checkConstantTimer = context.system.scheduler.schedule(
-      Duration(duration.getStandardSeconds + 1, SECONDS),
-      Duration(1, DAYS), self, CheckConstantSensor)
-  }
-  val cleanupOldRecordTimer: Cancellable = {
-    val localtime = LocalTime.now().withMillisOfDay(0).withHourOfDay(23).withMinuteOfHour(50)
-    val cleanupTime = DateTime.now().toLocalDate().toDateTime(localtime)
-    val duration = if (DateTime.now() < cleanupTime)
-      new Duration(DateTime.now(), cleanupTime)
-    else
-      new Duration(DateTime.now(), cleanupTime + 1.day)
-
-    import scala.concurrent.duration._
     context.system.scheduler.schedule(
-      Duration(duration.getStandardSeconds + 1, SECONDS),
-      Duration(1, DAYS), self, CleanupOldRecord)
+      FiniteDuration(duration.getStandardSeconds + 1, SECONDS),
+      FiniteDuration(1, DAYS), self, msg)
   }
+
+  private val updateErrorReportTimer = setupTimer(LocalTime.parse("07:30"), CheckSensorStatus)
+  private val alertEmailTimer = setupTimer(LocalTime.parse("08:00"), SendErrorReport)
   var checkConstantTimer: Cancellable = _
+  for (localtime <- sysConfig.getConstantCheckTime()) yield {
+    checkConstantTimer = setupTimer(localtime, CheckTodayConstantSensor)
+  }
+  private val cleanupOldRecordTimer = setupTimer(LocalTime.parse("23:50"), CleanupOldRecord)
+
   var calibratorOpt: Option[ActorRef] = None
   var digitalOutputOpt: Option[ActorRef] = None
   var onceTimer: Option[Cancellable] = None
-
-  def evtOperationHighThreshold {
-    alarmOp.log(alarmOp.Src(), alarmOp.Level.INFO, "進行高值觸發事件行動..")
-  }
 
   {
     val instrumentList = instrumentOp.getInstrumentList()
@@ -340,7 +310,7 @@ class DataCollectManager @Inject()
     Logger.info("DataCollect manager started")
   }
 
-  def calculateAvgMap(mtMap: Map[String, Map[String, ListBuffer[(DateTime, Double)]]]) = {
+  private def calculateAvgMap(mtMap: Map[String, Map[String, ListBuffer[(DateTime, Double)]]]) = {
     for {
       mt <- mtMap.keys
       statusMap = mtMap(mt)
@@ -389,7 +359,7 @@ class DataCollectManager @Inject()
     }
   }
 
-  def checkMinDataAlarm(minMtAvgList: Iterable[MtRecord]) = {
+  def checkMinDataAlarm(minMtAvgList: Iterable[MtRecord]): Boolean = {
     var overThreshold = false
     for {
       hourMtData <- minMtAvgList
@@ -458,9 +428,9 @@ class DataCollectManager @Inject()
         param.calibrationTimerOpt.map { timer => timer.cancel() }
         param.actor ! PoisonPill
 
-        if (calibratorOpt == Some(param.actor)) {
+        if (calibratorOpt.contains(param.actor)) {
           calibratorOpt = None
-        } else if (digitalOutputOpt == Some(param.actor)) {
+        } else if (digitalOutputOpt.contains(param.actor)) {
           digitalOutputOpt = None
         }
 
@@ -490,18 +460,7 @@ class DataCollectManager @Inject()
 
     case SetCheckConstantTime(localTime) =>
       checkConstantTimer.cancel()
-
-      val checkTime = DateTime.now().toLocalDate().toDateTime(localTime)
-      val duration = if (DateTime.now() < checkTime)
-        new Duration(DateTime.now(), checkTime)
-      else
-        new Duration(DateTime.now(), checkTime + 1.day)
-
-      import scala.concurrent.duration._
-      checkConstantTimer = context.system.scheduler.schedule(
-        Duration(duration.getStandardSeconds + 1, SECONDS),
-        Duration(1, DAYS), self, CheckConstantSensor)
-
+      checkConstantTimer = setupTimer(localTime, CheckTodayConstantSensor)
 
     case ReportData(dataList) =>
       val now = DateTime.now
@@ -527,74 +486,10 @@ class DataCollectManager @Inject()
     case CalculateData => {
       import scala.collection.mutable.ListBuffer
 
-      def flushSecData(recordMap: Map[String, Map[String, ListBuffer[(DateTime, Double)]]]) {
-        import scala.collection.mutable.Map
+      def calculateMinData(currentMinutes: DateTime) = {
+        val mtMap = mutable.Map.empty[String, mutable.Map[String, ListBuffer[(String, DateTime, Double)]]]
 
-        if (recordMap.nonEmpty) {
-          val secRecordMap = Map.empty[DateTime, ListBuffer[(String, (Double, String))]]
-          for {
-            mt_pair <- recordMap
-            mt = mt_pair._1
-            statusMap = mt_pair._2
-          } {
-            def fillList(head: (DateTime, Double, String), tail: List[(DateTime, Double, String)]): List[(DateTime, Double, String)] = {
-              val secondEnd = if (tail.isEmpty)
-                60
-              else
-                tail.head._1.getSecondOfMinute
-
-              val sameDataList =
-                for (s <- head._1.getSecondOfMinute until secondEnd) yield {
-                  val minPart = head._1.withSecond(0)
-                  (minPart + s.second, head._2, head._3)
-                }
-
-              if (tail.nonEmpty)
-                sameDataList.toList ++ fillList(tail.head, tail.tail)
-              else
-                sameDataList.toList
-            }
-
-            val mtList = statusMap.flatMap { status_pair =>
-              val status = status_pair._1
-              val recordList = status_pair._2
-              val adjustedRecList = recordList map { rec => (rec._1.withMillisOfSecond(0), rec._2) }
-
-              adjustedRecList map { record => (record._1, record._2, status) }
-            }
-
-            val mtSortedList = mtList.toList.sortBy(_._1)
-            val completeList = if (!mtSortedList.isEmpty) {
-              val head = mtSortedList.head
-              if (head._1.getSecondOfMinute == 0)
-                fillList(head, mtSortedList.tail.toList)
-              else
-                fillList((head._1.withSecondOfMinute(0), head._2, head._3), mtSortedList)
-            } else
-              List.empty[(DateTime, Double, String)]
-
-            for (record <- completeList) {
-              val mtSecListbuffer = secRecordMap.getOrElseUpdate(record._1, ListBuffer.empty[(String, (Double, String))])
-              mtSecListbuffer.append((mt, (record._2, record._3)))
-            }
-          }
-
-          val docs = secRecordMap map { r =>
-            val mtDataList = r._2 map { t => MtRecord(t._1, t._2._1, t._2._2) }
-            r._1 -> RecordList(time = r._1, mtDataList = mtDataList, monitor = Monitor.SELF_ID)
-          }
-
-          val sortedDocs = docs.toSeq.sortBy { x => x._1 } map (_._2)
-          if (sortedDocs.nonEmpty)
-            recordOp.insertManyRecord(sortedDocs)(recordOp.SecCollection)
-        }
-      }
-
-      def calculateMinData(currentMintues: DateTime) = {
-        import scala.collection.mutable.Map
-        val mtMap = Map.empty[String, Map[String, ListBuffer[(String, DateTime, Double)]]]
-
-        val currentData = mtDataList.takeWhile(d => d._1 >= currentMintues)
+        val currentData = mtDataList.takeWhile(d => d._1 >= currentMinutes)
         val minDataList = mtDataList.drop(currentData.length)
 
         for {
@@ -603,7 +498,7 @@ class DataCollectManager @Inject()
           data <- dl._3
         } {
           val statusMap = mtMap.getOrElse(data.mt, {
-            val map = Map.empty[String, ListBuffer[(String, DateTime, Double)]]
+            val map = mutable.Map.empty[String, ListBuffer[(String, DateTime, Double)]]
             mtMap.put(data.mt, map)
             map
           })
@@ -648,15 +543,12 @@ class DataCollectManager @Inject()
           }
         val priorityMtMap = priorityMtPair.toMap
 
-        if (storeSecondData)
-          flushSecData(priorityMtMap)
-
         val minuteMtAvgList = calculateAvgMap(priorityMtMap)
 
         checkMinDataAlarm(minuteMtAvgList)
 
         context become handler(instrumentMap, collectorInstrumentMap, latestDataMap, currentData, restartList)
-        val f = recordOp.upsertRecord(RecordList(currentMintues.minusMinutes(1), Monitor.SELF_ID,
+        val f = recordOp.upsertRecord(RecordList(currentMinutes.minusMinutes(1), Monitor.SELF_ID,
           minuteMtAvgList.toList))(recordOp.MinCollection)
         f map { _ => ForwardManager.forwardMinData }
         f
@@ -753,7 +645,7 @@ class DataCollectManager @Inject()
       else {
         Logger.warn(s"DO is not online! Ignore EvtOperationOverThreshold.")
       }
-    case CheckSensorStstus =>
+    case CheckSensorStatus =>
       val today = DateTime.now().withMillisOfDay(0)
       Logger.info(s"update daily error report ${today}")
 
@@ -770,8 +662,8 @@ class DataCollectManager @Inject()
         val disconnectedSet = targetMonitorIDSet -- connectedSet
         Logger.info(s"disconnectedSet=${disconnectedSet.size}")
         errorReportOp.setDisconnectRecordTime(today, DateTime.now().getTime)
-        for(m<-disconnectedSet)
-          errorReportOp.addDisconnectedSensor(today, m)
+        for (m <- disconnectedSet)
+          errorReportOp.addDisconnectedSensor()(today, m)
 
         val disconnectEffectRateList = disconnectedSet.map(id => EffectiveRate(id, 0)).toList
 
@@ -782,17 +674,24 @@ class DataCollectManager @Inject()
         errorReportOp.addLessThan90Sensor(today, overall)
       }
 
-    case CheckConstantSensor =>
-      val today = DateTime.now().withMillisOfDay(0)
-      val f1: Future[Seq[MonitorRecord]] = recordOp.getLast30MinPm25ConstantSensor(recordOp.MinCollection)
-      val f2 = recordOp.getLast30MinMtConstantSensor(recordOp.MinCollection, "h2s")
+    case CheckTodayConstantSensor =>
+      self ! CheckConstantSensor(DateTime.now().toDate)
+
+    case CheckConstantSensor(date) =>
+      val today = new DateTime(date).withMillisOfDay(0)
+      val current = new DateTime(date)
+
+      val f1 = recordOp.getLast30MinMtConstantSensor(recordOp.MinCollection, MonitorType.PM25, current)
+      val f2 = recordOp.getLast30MinMtConstantSensor(recordOp.MinCollection, MonitorType.H2S, current)
       errorReportOp.setConstantRecordTime(today, DateTime.now().getTime)
       val f = Future.sequence(Seq(f1, f2))
       for (ret <- f) {
         val constantSensors = ret.flatten
+        Logger.info(s"constant sensor count=${constantSensors.size}")
         for (m <- constantSensors) {
-          errorReportOp.addConstantSensor(today, m._id);
+          errorReportOp.addConstantSensor()(today, m._id)
         }
+        Logger.info("Check constant sensor finished")
       }
 
     case SendErrorReport =>

@@ -319,7 +319,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
       }.map {
         _.get
       }
-      if (lines.length > 0)
+      if (lines.nonEmpty)
         Some(lines)
       else
         None
@@ -639,7 +639,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
         },
         action => {
           val thatDate = new DateTime(date).withMillisOfDay(0)
-          errorReportOp.addErrorInspection(thatDate, action)
+          errorReportOp.addErrorInspection()(thatDate, action)
         })
       Ok(Json.obj("ok" -> true))
   }
@@ -655,7 +655,7 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
         },
         action => {
           val thatDate = new DateTime(date).withMillisOfDay(0)
-          errorReportOp.addErrorAction(thatDate, action)
+          errorReportOp.addErrorAction()(thatDate, action)
         })
       Ok(Json.obj("ok" -> true))
   }
