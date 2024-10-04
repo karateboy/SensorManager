@@ -613,11 +613,12 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     }
   }
 
-  def recheckErrorReport(year:Int, month:Int, day:Int) = Security.Authenticated.async {
-    val date = new DateTime(year, month, day, 0, 0)
+  def recheckErrorReport(year:Int, month:Int, day:Int): Action[AnyContent] = Security.Authenticated.async {
+    val checkTime = new DateTime(year, month, day, 12, 0)
+    val date = checkTime.withMillisOfDay(0)
     Logger.info(s"Recheck error report for ${date.toString("YYYY/MM/dd")}")
     for(_ <-errorReportOp.deleteReport(date.toDate)) yield{
-      dataCollectManagerOp.recheckConstantSensor(date.toDate)
+      dataCollectManagerOp.recheckConstantSensor(checkTime)
       Ok("")
     }
   }
