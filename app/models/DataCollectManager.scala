@@ -684,8 +684,9 @@ class DataCollectManager @Inject()
 
       val f1 = recordOp.getLast30MinMtConstantSensor(recordOp.MinCollection, MonitorType.PM25, current)
       val f2 = recordOp.getLast30MinMtConstantSensor(recordOp.MinCollection, MonitorType.H2S, current)
+      val f3 = recordOp.getLast30MinMtConstantSensor(recordOp.MinCollection, MonitorType.NH3, current)
       errorReportOp.setConstantRecordTime(today, DateTime.now().getTime)
-      val f = Future.sequence(Seq(f1, f2))
+      val f = Future.sequence(Seq(f1, f2, f3))
       for (ret <- f) {
         val constantSensors = ret.flatten.toSet
         Logger.info(s"constant sensor count=${constantSensors.size}")
