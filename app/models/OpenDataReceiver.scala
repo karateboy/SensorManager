@@ -50,7 +50,9 @@ class OpenDataReceiver @Inject()(monitorTypeOp: MonitorTypeOp, monitorOp: Monito
       fetchEpaHourData(start, end)
   }
 
-  private case class RecordList2(var mtDataList: Seq[MtRecord], _id: RecordListID)
+  private case class MtRecord2(mtName: String, value: Option[Double], status: String)
+
+  private case class RecordList2(var mtDataList: Seq[MtRecord2], _id: RecordListID)
 
   private def fetchEpaHourData(start: DateTime, end: DateTime): Future[Boolean] = {
     val upstream = "http://59.124.12.181:20000"
@@ -62,7 +64,7 @@ class OpenDataReceiver @Inject()(monitorTypeOp: MonitorTypeOp, monitorOp: Monito
     f onFailure errorHandler
     for (response <- f) yield {
       implicit val r1: Reads[RecordListID] = Json.reads[RecordListID]
-      implicit val r2: Reads[MtRecord] = Json.reads[MtRecord]
+      implicit val r2: Reads[MtRecord2] = Json.reads[MtRecord2]
       implicit val r3: Reads[RecordList2] = Json.reads[RecordList2]
       val ret = response.json.validate[Seq[RecordList2]]
       ret.fold(
@@ -71,8 +73,14 @@ class OpenDataReceiver @Inject()(monitorTypeOp: MonitorTypeOp, monitorOp: Monito
           false
         },
         recordList2s => {
-
-          val recordLists = recordList2s.map(r => RecordList(time = r._id.time, monitor = r._id.monitor.toLowerCase, mtDataList = r.mtDataList))
+          val recordLists = recordList2s.map(r =>
+            RecordList(time = r._id.time, monitor = r._id.monitor.toLowerCase,
+              mtDataList = r.mtDataList.flatMap(mtData=>{
+                if(mtData.value.isDefined)
+                  Some(MtRecord(mtName = mtData.mtName, value = mtData.value.get, status = mtData.status))
+                else
+                  None
+              })))
           Logger.info(s"Total ${recordLists.size} records fetched.")
           recordOp.upsertManyRecord(recordLists)(recordOp.HourCollection)
           recordOp.upsertManyRecord(recordLists)(recordOp.MinCollection)
