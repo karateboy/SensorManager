@@ -229,6 +229,10 @@ export default Vue.extend({
       reportUnits: [
         { txt: '分', id: 'Min' },
         { txt: '小時', id: 'Hour' },
+        { txt: '天', id: 'Day' },
+        { txt: '月', id: 'Month' },
+        { txt: '季', id: 'Quarter' },
+        { txt: '年', id: 'Year' },
       ],
       reportUnit: 'Hour',
       display: false,
