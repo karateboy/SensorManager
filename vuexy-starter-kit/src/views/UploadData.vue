@@ -50,7 +50,6 @@
         <b-row>
           <b-col offset-md="3">
             <b-button
-              v-ripple.400="'rgba(255, 255, 255, 0.15)'"
               type="submit"
               variant="primary"
               class="mr-1"
@@ -58,6 +57,12 @@
               @click="upload"
             >
               上傳
+            </b-button>
+            <b-button
+              variant="primary"
+              @click="download"
+              >
+              下載範本
             </b-button>
           </b-col>
         </b-row>
@@ -139,6 +144,20 @@ export default Vue.extend({
       } else {
         this.timer = setTimeout(this.checkFinished, 1000);
       }
+    },
+    async download() {
+      const baseUrl =
+          process.env.NODE_ENV === 'development' ? 'http://localhost:9000/' : '';
+      let url = '';
+      if(this.fileType === 'sensor') {
+        url = `${baseUrl}static/sensor.csv`;
+      } else if (this.fileType === 'sensorRaw') {
+        url = `${baseUrl}static/sensorRaw.csv`;
+      } else if (this.fileType === 'epa') {
+        url = `${baseUrl}static/epa.csv`;
+      }
+
+      window.open(url);
     },
   },
 });
