@@ -94,9 +94,9 @@ export default Vue.extend({
       actorName: '',
       fileType: '',
       fileTypeList: [
-        { text: '感測器', value: 'sensor' },
+        { text: '感測器(PM2.5)', value: 'sensor' },
         { text: '感測器原始資料(完整/部分測項)', value: 'sensorRaw' },
-        { text: '環保署測站', value: 'epa' },
+        { text: '環保署測站(PM2.5)', value: 'epa' },
       ],
       form,
       timer: 0,
