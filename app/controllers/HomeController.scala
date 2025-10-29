@@ -474,20 +474,11 @@ class HomeController @Inject()(environment: play.api.Environment,
     Ok(Json.obj("ok" -> true))
   }
 
-  def monitorList = Security.Authenticated {
+  def monitorList = Action {
     implicit request =>
-      val userInfo = Security.getUserinfo(request).get
-      val group = groupOp.getGroupByID(userInfo.group).get
-
       import Monitor.mWrite
-
-      if (userInfo.isAdmin) {
-        val mList2 = monitorOp.mvList map { m => monitorOp.map(m) }
-        Ok(Json.toJson(mList2))
-      } else {
-        val mList2 = group.monitors map { m => monitorOp.map(m) }
-        Ok(Json.toJson(mList2))
-      }
+      val mList2 = monitorOp.mvList map { m => monitorOp.map(m) }
+      Ok(Json.toJson(mList2))
   }
 
   def upsertMonitor(id: String) = Security.Authenticated(BodyParsers.parse.json) {

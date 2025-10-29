@@ -351,6 +351,12 @@ export default Vue.extend({
       ];
     },
     async query(): Promise<void> {
+      let diffHour = (this.form.range[1] - this.form.range[0]) / (1000 * 60 * 60);
+      if (this.form.reportUnit ==='Min' && diffHour > 24 * 31) {
+        await this.$bvModal.msgBoxOk("查詢區間不可大於31天");
+        return;
+      }
+
       this.setLoading({ loading: true });
       this.display = true;
       const monitors = this.form.monitors.join(':');

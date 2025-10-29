@@ -794,6 +794,29 @@ class Query @Inject()(recordOp: RecordOp, monitorTypeOp: MonitorTypeOp, monitorO
 
   case class InstrumentReport(columnNames: Seq[String], rows: Seq[RowData])
 
+  def queryData(monitorStr: String, monitorTypeStr: String, tabTypeStr: String, startNum: Long, endNum: Long): Action[AnyContent] = Action.async {
+    val monitors = monitorStr.split(":")
+    val monitorTypes = monitorTypeStr.split(':')
+    val tabType = TableType.withName(tabTypeStr)
+    val (start, end) =
+      if (tabType == TableType.hour) {
+        val original_start = new DateTime(startNum)
+        val original_end = new DateTime(endNum)
+        (original_start.withMinuteOfHour(0), original_end.withMinute(0) + 1.hour)
+      } else {
+        (new DateTime(startNum), new DateTime(endNum))
+      }
+
+    val resultFuture: Future[Seq[RecordList]] = recordOp.getRecordListFuture(TableType.mapCollection(tabType))(start, end, monitors)
+    implicit val recordListIDwrite: OWrites[RecordListID] = Json.writes[RecordListID]
+    implicit val mtDataWrite: OWrites[MtRecord] = Json.writes[MtRecord]
+    implicit val recordListWrite: OWrites[RecordList] = Json.writes[RecordList]
+    for (result <- resultFuture) yield {
+      result.foreach(rs => rs.mtDataList = rs.mtDataList.filter(mtData => monitorTypes.contains(mtData.mtName)))
+      Ok(Json.toJson(result))
+    }
+  }
+
   //
   //  def windRose() = Security.Authenticated {
   //    implicit request =>

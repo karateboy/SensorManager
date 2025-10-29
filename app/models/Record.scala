@@ -66,7 +66,7 @@ object RecordList {
   }
 }
 
-case class RecordList(time: Date, mtDataList: Seq[MtRecord], monitor: String, var _id: RecordListID,
+case class RecordList(time: Date, var mtDataList: Seq[MtRecord], monitor: String, var _id: RecordListID,
                       location: Option[Seq[Double]]) {
   def getMtOrdered(mt: String) = {
     new Ordered[RecordList] {
