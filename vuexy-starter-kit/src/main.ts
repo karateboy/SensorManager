@@ -134,7 +134,7 @@ router.beforeEach((to, from, next) => {
 
 Vue.use(VueGoogleMap, {
   load: {
-    key: 'AIzaSyDiE_K-p1_3V-lff9yXfD6KkC1SGpXVcKc',
+    key: 'AIzaSyBedM4POn2tywGFC81jAIGuYEPPYc9OpGU',
     libraries: 'places', // This is required if you use the Autocomplete plugin
   },
   installComponents: true,
