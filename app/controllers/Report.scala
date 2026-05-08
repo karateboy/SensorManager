@@ -373,7 +373,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
     }
   }
 
-  def decayReport(county: String, date: Long) = Security.Authenticated.async {
+  def decayReport(county: String, date: Long): Action[AnyContent] = Security.Authenticated.async {
     val reportDate = new LocalDateTime(date).toDateTime.withMillisOfDay(0).withDayOfMonth(1)
     val mt = MonitorType.PM25
 
@@ -383,7 +383,7 @@ class Report @Inject()(monitorTypeOp: MonitorTypeOp, recordOp: RecordOp, query: 
           val epaGroupFuture = Future {
             MonitorGroup("基隆站", Seq("epa1"))
           }
-          val sensorGroupFuture = Seq("K0LO01", "K1LO01", "K0KM01", "K1KM01") map monitorGroupOp.get
+          val sensorGroupFuture = Seq("K0LO01", "K1LO01", "K0KM01", "K0KM02", "K0KM03", "K1KM01","K1KM02", "K1KM03") map monitorGroupOp.get
           sensorGroupFuture.+:(epaGroupFuture)
         case "屏東縣" =>
           var sensorGroupFuture: Seq[Future[MonitorGroup]] = Seq.empty[Future[MonitorGroup]]

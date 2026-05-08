@@ -288,7 +288,7 @@ class ExcelUtility @Inject()
       implicit val sheet: XSSFSheet = wb.getSheetAt(sheetIdx)
 
       for ((sensorReport, monthIdx) <- historyRecordList.zipWithIndex) {
-        val report200 = sensorReport(0)
+        val report200 = sensorReport.head
         val report210 = sensorReport(1)
         val row = sheet.getOrCreateRow(5 + monthIdx)
 
@@ -423,18 +423,18 @@ class ExcelUtility @Inject()
 
     county match{
       case "基隆市"=>
-        // 基隆站, K0LO01, K1LO01, K0KM01, K1KM01
-        fillSheet(wb.getSheetAt(0), thisMonthRecord.take(3), 1.month)
-        fillSheet(wb.getSheetAt(2), thisMonthRecord.take(1) ++ thisMonthRecord.drop(3).take(2), 1.month)
+        // 基隆站, K0LO01, K1LO01, K0KM01, K0KM02、K0KM03、K1KM01, K1KM02、K1KM03
+        fillSheet(wb.getSheetAt(0), thisMonthRecord.take(7), 1.month)
+        fillSheet(wb.getSheetAt(2), thisMonthRecord.take(1) ++ thisMonthRecord.slice(3, 9), 1.month)
 
       case "屏東縣"=>
         // 屏東站, P0LO01, 潮州站, P0LO02, 恆春站, P0LO03, 屏東(枋寮), P0LO04, P0KM01, P0KM04
         fillSheet(wb.getSheetAt(0), thisMonthRecord.take(8), 1.month)
-        fillSheet(wb.getSheetAt(2), Seq(thisMonthRecord(0), thisMonthRecord(8), thisMonthRecord(6), thisMonthRecord(9)) , 1.month)
+        fillSheet(wb.getSheetAt(2), Seq(thisMonthRecord.head, thisMonthRecord(8), thisMonthRecord(6), thisMonthRecord(9)) , 1.month)
       case "宜蘭縣"=>
         // 宜蘭站, "Y0LO01", "Y1LO01", "Y0KM01", "Y1KM01"
         fillSheet(wb.getSheetAt(0), thisMonthRecord.take(3), 1.month)
-        fillSheet(wb.getSheetAt(2), thisMonthRecord.take(1) ++ thisMonthRecord.drop(3).take(2), 1.month)
+        fillSheet(wb.getSheetAt(2), thisMonthRecord.take(1) ++ thisMonthRecord.slice(3, 5), 1.month)
     }
 
     val historyAvgRecords = for (monthRecord <- historyRecordList) yield
@@ -445,12 +445,12 @@ class ExcelUtility @Inject()
           getGroupAvg(mgRecord)
 
     fillSheet(wb.getSheetAt(3), historyAvgRecords(0), 1.month)
-    val acendingHistoryRecords = historyAvgRecords.reverse
-    val sensorMonthReportList = getMonitorGroupReport(acendingHistoryRecords)
+    val ascendingHistoryRecords = historyAvgRecords.reverse
+    val sensorMonthReportList = getMonitorGroupReport(ascendingHistoryRecords)
     fillMonthlyReport(4, sensorMonthReportList)
 
     val last12Month = historyAvgRecords.take(12).reverse
-    val last12MonthHistoryRecords = last12Month.foldLeft(last12Month(0))((a, b) => {
+    val last12MonthHistoryRecords = last12Month.foldLeft(last12Month.head)((a, b) => {
       a.zip(b) map {
         pair =>
           val a1 = pair._1
@@ -465,8 +465,8 @@ class ExcelUtility @Inject()
     }) map {
       _._1
     }
-    fillSheet(wb.getSheetAt(5), saq200, 12.month, true)
-    fillSheet(wb.getSheetAt(6), saq210, 12.month, true)
+    fillSheet(wb.getSheetAt(5), saq200, 12.month, skipMonitorGroupRow = true)
+    fillSheet(wb.getSheetAt(6), saq210, 12.month, skipMonitorGroupRow = true)
 
     wb.setForceFormulaRecalculation(true)
     finishExcel(reportFilePath, pkg, wb)
