@@ -424,7 +424,7 @@ class ExcelUtility @Inject()
     county match{
       case "基隆市"=>
         // 基隆站, K0LO01, K1LO01, K0KM01, K0KM02、K0KM03、K1KM01, K1KM02、K1KM03
-        fillSheet(wb.getSheetAt(0), thisMonthRecord.take(7), 1.month)
+        fillSheet(wb.getSheetAt(0), thisMonthRecord.take(3), 1.month)
         fillSheet(wb.getSheetAt(2), thisMonthRecord.take(1) ++ thisMonthRecord.slice(3, 9), 1.month)
 
       case "屏東縣"=>
