@@ -104,6 +104,7 @@ object MonitorType {
   val BATTERY = "BATTERY"
   val DBA = "DBA"
   val DBZ = "DBZ"
+  val PID = "PID"
 }
 import javax.inject._
 
@@ -155,6 +156,7 @@ class MonitorTypeOp @Inject()(mongoDB: MongoDB, alarmOp: AlarmOp) {
     rangeType(H2S, desp="H2S", "", 0),
     rangeType(DBA, "dBA", "dB", 1),
     rangeType(DBZ, "dBZ", "dB", 1),
+    rangeType(PID, "PID", "PID", 1),
     /////////////////////////////////////////////////////
     signalType("SPRAY", "灑水"),
     signalType(BATTERY, "使用電池")
