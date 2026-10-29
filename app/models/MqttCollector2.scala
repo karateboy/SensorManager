@@ -229,7 +229,9 @@ class MqttCollector2 @Inject()(monitorTypeOp: MonitorTypeOp, alarmOp: AlarmOp, s
       "co" -> MonitorType.CO,
       "sound_dba" -> MonitorType.DBA,
       "sound_dbz" -> MonitorType.DBZ,
-      "pid"-> MonitorType.PID
+      "pid"-> MonitorType.PID,
+      "wind_speed"-> MonitorType.WIN_SPEED,
+      "wind_direct" -> MonitorType.WIN_DIRECTION
     )
     val ret = Json.parse(payload).validate[Message]
     ret.fold(err => {
